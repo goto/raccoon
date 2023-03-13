@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install unzip  --no-install-recommends --assume-ye
 COPY . .
 RUN make update-deps && make compile
 
-FROM debian:buster-slim
+FROM debian:bullseye
 WORKDIR /app
 COPY --from=0 /app/raccoon ./raccoon
 COPY . .
