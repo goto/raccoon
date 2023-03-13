@@ -6,12 +6,12 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 (module.exports = {
   title: 'Raccoon',
   tagline: 'Raccoon is a high-throughput, low-latency service to collect events in real-time from your web, mobile apps, and services using multiple network protocols.',
-  url: 'https://odpf.github.io/',
+  url: 'https://goto.github.io/',
   baseUrl: '/raccoon/',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
   favicon: 'favicon.ico',
-  organizationName: 'ODPF',
+  organizationName: 'gotocompany',
   projectName: 'raccoon',
 
   presets: [

@@ -5,7 +5,7 @@ slug: /
 
 # Introduction
 
-Raccoon is high throughput, low-latency service that provides an API to ingest clickstream data from mobile apps; and sites and publish it to Kafka. Raccoon uses the WebSocket protocol for peer-to-peer communication and protobuf as the serialization format. It provides an event-type agnostic API that accepts a batch \(array\) of events in protobuf format. Refer [here](https://github.com/odpf/proton/tree/main/odpf/raccoon) for the protobuf definition format that Raccoon accepts.
+Raccoon is high throughput, low-latency service that provides an API to ingest clickstream data from mobile apps; and sites and publish it to Kafka. Raccoon uses the WebSocket protocol for peer-to-peer communication and protobuf as the serialization format. It provides an event-type agnostic API that accepts a batch \(array\) of events in protobuf format. Refer [here](https://github.com/goto/proton/tree/main/goto/raccoon) for the protobuf definition format that Raccoon accepts.
 
 ![Overiew](/assets/overview.svg)
 
