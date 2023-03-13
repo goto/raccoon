@@ -73,7 +73,7 @@ func (gc *Grpc) Send(events []*raccoon.Event) (string, *raccoon.Response, error)
 	err := retry.Do(gc.retryWait, gc.retryMax, func() error {
 		res, err := svc.SendEvent(metadata.NewOutgoingContext(context.Background(), meta), racReq)
 		if err != nil {
-			return nil
+			return err
 		}
 
 		if res.Status != pb.Status_STATUS_SUCCESS {

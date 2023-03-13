@@ -60,6 +60,8 @@ test_ci: setup test
 docker-run:
 	docker-compose build
 	docker-compose up -d
+	docker ps
+	echo $INTEGTEST_BOOTSTRAP_SERVER $INTEGTEST_HOST $INTEGTEST_TOPIC_FORMAT $GRPC_SERVER_ADDR
 
 docker-stop:
 	docker-compose stop
