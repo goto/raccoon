@@ -17,7 +17,9 @@ jobs:
       - name: Run Raccoon
         run: make docker-run
       - name: Docker Testing
-        run: docker ps
+        run: docker ps -a
+      - name: Conatainer Logs
+        run: docker logs $(docker ps -aqf "name=cs")
       - name: Testing
         run: echo $INTEGTEST_BOOTSTRAP_SERVER $INTEGTEST_HOST $INTEGTEST_TOPIC_FORMAT $GRPC_SERVER_ADDR
       - name: Invoking go test
