@@ -1,14 +1,9 @@
 buf.build/gen/go/envoyproxy/protoc-gen-validate/grpc/go v1.3.0-20220812150255-45685e052c7e.1/go.mod h1:MYI7lG0UVkUYOAsBEqZV4teiG+sD8w02v/lUHePAUgU=
 buf.build/gen/go/envoyproxy/protoc-gen-validate/protocolbuffers/go v1.28.1-20220812150255-45685e052c7e.4/go.mod h1:hY+2q+FbjbfelDKYRqA/RnrnBrAiTYatnPLx6JFklXI=
 buf.build/gen/go/envoyproxy/protoc-gen-validate/protocolbuffers/go v1.29.0-20220812150255-45685e052c7e.1/go.mod h1:YOh3xePeWOdqK7OZtDi3IFnKp+oz2Uveoy2+M6jByRI=
-buf.build/gen/go/gotocompany/proton/grpc/go v1.3.0-20230313074656-d6636a3710b8.1 h1:CuFQo2aGwaqF18uootkKytZYbtmSVrUZ3UE2ChTRTU8=
-buf.build/gen/go/gotocompany/proton/grpc/go v1.3.0-20230313074656-d6636a3710b8.1/go.mod h1:v0LxSEdPQvJMbI8J799TpOlMHRcKH9fOxtVbMDBp4Vk=
 buf.build/gen/go/gotocompany/proton/grpc/go v1.3.0-20230313110213-9a3d240d5293.1 h1:O5qalwfO6Eydq5CAi4CCMS4SHlUYkwWy62S9jd2pivE=
 buf.build/gen/go/gotocompany/proton/grpc/go v1.3.0-20230313110213-9a3d240d5293.1/go.mod h1:oaufFdUEC9ZKlBZJmkA/0ycQ8Ntn4vavkViSGC0Ht6o=
-buf.build/gen/go/gotocompany/proton/protocolbuffers/go v1.28.1-20230313074656-d6636a3710b8.4/go.mod h1:SkLAgdMqJ3u9UGFY064fVrnkkfAIaR8JqyOkoa9mz3U=
 buf.build/gen/go/gotocompany/proton/protocolbuffers/go v1.28.1-20230313110213-9a3d240d5293.4/go.mod h1:SkLAgdMqJ3u9UGFY064fVrnkkfAIaR8JqyOkoa9mz3U=
-buf.build/gen/go/gotocompany/proton/protocolbuffers/go v1.29.0-20230313074656-d6636a3710b8.1 h1:gtektiykfNVmNv/jwVJa/oOpuxqTwtYf5TKA5nETxEM=
-buf.build/gen/go/gotocompany/proton/protocolbuffers/go v1.29.0-20230313074656-d6636a3710b8.1/go.mod h1:nY80cfNDSgV/ovE2vdgs0UeosGsIIceHZBQldm1BUKA=
 buf.build/gen/go/gotocompany/proton/protocolbuffers/go v1.29.0-20230313110213-9a3d240d5293.1 h1:7qQ1zdLofKy0pc6zvRlwlj6y6Y4aGxYSm9k7jJU59V4=
 buf.build/gen/go/gotocompany/proton/protocolbuffers/go v1.29.0-20230313110213-9a3d240d5293.1/go.mod h1:nY80cfNDSgV/ovE2vdgs0UeosGsIIceHZBQldm1BUKA=
 buf.build/gen/go/grpc-ecosystem/grpc-gateway/grpc/go v1.3.0-20220906183531-bc28b723cd77.1/go.mod h1:9Ec7rvBnjfZvU/TnWjtcSGgiLQ4B+U3B+6SnZgVTA7A=

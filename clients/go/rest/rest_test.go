@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	pb "go.buf.build/odpf/gw/odpf/proton/odpf/raccoon/v1beta1"
+	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 
 	raccoon "github.com/goto/raccoon/clients/go"
 	"github.com/goto/raccoon/clients/go/serializer"
