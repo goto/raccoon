@@ -25,7 +25,7 @@ jobs:
           GIT_USER: akbaralishaikh
           GIT_PASS: ${{ secrets.DOCU_RS_TOKEN }}
           DEPLOYMENT_BRANCH: gh-pages
-          CURRENT_BRANCH: master
+          CURRENT_BRANCH: main
         working-directory: docs
         run: |
           git config --global user.email "aashaikh55@gmail.com"
