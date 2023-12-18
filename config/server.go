@@ -32,6 +32,7 @@ type serverWs struct {
 
 type serverGRPC struct {
 	Port         string
+	TLSPort      string
 	TLSEnabled   bool
 	TLSCertPath  string
 	TLSPublicKey string
@@ -75,11 +76,13 @@ func serverWsConfigLoader() {
 
 func serverGRPCConfigLoader() {
 	viper.SetDefault("SERVER_GRPC_PORT", "8081")
+	viper.SetDefault("SERVER_GRPC_TLS_PORT", "8443")
 	viper.SetDefault("SERVER_GRPC_TLS_ENABLED", false)
 	viper.SetDefault("SERVER_GRPC_TLS_CERT_PATH", "cert/server.crt")
 	viper.SetDefault("SERVER_GRPC_TLS_PUBLIC_KEY", "cert/server.key")
 	ServerGRPC = serverGRPC{
 		Port:         util.MustGetString("SERVER_GRPC_PORT"),
+		TLSPort:      util.MustGetString("SERVER_GRPC_TLS_PORT"),
 		TLSEnabled:   util.MustGetBool("SERVER_GRPC_TLS_ENABLED"),
 		TLSCertPath:  util.MustGetString("SERVER_GRPC_TLS_CERT_PATH"),
 		TLSPublicKey: util.MustGetString("SERVER_GRPC_TLS_PUBLIC_KEY"),

@@ -2,9 +2,7 @@ package grpc
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"google.golang.org/grpc/credentials"
 	"net"
 
 	pbgrpc "buf.build/gen/go/gotocompany/proton/grpc/go/gotocompany/raccoon/v1beta1/raccoonv1beta1grpc"
@@ -45,22 +43,5 @@ func (s *Service) Shutdown(context.Context) error {
 }
 
 func newGRPCServer() *grpc.Server {
-	if config.ServerGRPC.TLSEnabled {
-		return grpc.NewServer(grpc.Creds(loadTLSCredentials()))
-	}
 	return grpc.NewServer()
-}
-
-func loadTLSCredentials() credentials.TransportCredentials {
-	serverCert, err := tls.LoadX509KeyPair(config.ServerGRPC.TLSCertPath, config.ServerGRPC.TLSPublicKey)
-	if err != nil {
-		panic("failed to load TLS credentials to start grpc server with TLS")
-	}
-
-	config := &tls.Config{
-		Certificates: []tls.Certificate{serverCert},
-		ClientAuth:   tls.NoClientCert,
-	}
-
-	return credentials.NewTLS(config)
 }
