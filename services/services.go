@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"github.com/goto/raccoon/config"
 	"net/http"
 
 	"github.com/goto/raccoon/collection"
@@ -46,17 +45,6 @@ func (s *Services) Shutdown(ctx context.Context) {
 
 func Create(b chan collection.CollectRequest) Services {
 	c := collection.NewChannelCollector(b)
-	if config.ServerGRPC.TLSEnabled {
-		return Services{
-			b: []bootstrapper{
-				//running non TLS service to do health check on the probe
-				grpc.NewGRPCService(c),
-				grpc.NewGRPCServiceWithTLS(c),
-				pprof.NewPprofService(),
-				rest.NewRestService(c),
-			},
-		}
-	}
 	return Services{
 		b: []bootstrapper{
 			grpc.NewGRPCService(c),
