@@ -6,10 +6,10 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.10
     steps:
       - name: Setup Docker
-        uses: docker/setup-docker-action@v4
+        uses: docker-practice/actions-setup-docker@master
       - name: Checkout repo
         uses: actions/checkout@v2
       - name: Copy integration config
