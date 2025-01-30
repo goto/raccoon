@@ -45,15 +45,15 @@ func withTags(bucket, tags string) string {
 
 func Setup() error {
 	if instance == nil {
-		hostName, err := os.Hostname()
+		tagKey := "host:"
+		tagValue, err := os.Hostname()
 		if err != nil {
 			logger.Errorf("unable to get the host name during StatsD setup: %s", err.Error())
 			return err
 		}
-		hostNameTag := "host:" + hostName
 		c, err := client.New(
 			client.Address(config.MetricStatsd.Address),
-			client.FlushPeriod(config.MetricStatsd.FlushPeriodMs), client.Tags([]string{hostNameTag}...))
+			client.FlushPeriod(config.MetricStatsd.FlushPeriodMs), client.Tags(tagKey, tagValue))
 		if err != nil {
 			logger.Errorf("StatsD Set up failed to create client: %s", err.Error())
 			return err
