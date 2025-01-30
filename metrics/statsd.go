@@ -53,7 +53,7 @@ func Setup() error {
 		hostNameTag := "host:" + hostName
 		c, err := client.New(
 			client.Address(config.MetricStatsd.Address),
-			client.FlushPeriod(config.MetricStatsd.FlushPeriodMs), client.Tags(hostNameTag))
+			client.FlushPeriod(config.MetricStatsd.FlushPeriodMs), client.Tags([]string{hostNameTag}...))
 		if err != nil {
 			logger.Errorf("StatsD Set up failed to create client: %s", err.Error())
 			return err
