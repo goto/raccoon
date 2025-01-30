@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/logger"
@@ -44,9 +45,15 @@ func withTags(bucket, tags string) string {
 
 func Setup() error {
 	if instance == nil {
+		hostName, err := os.Hostname()
+		if err != nil {
+			logger.Errorf("unable to get the host name during StatsD setup: %s", err.Error())
+			return err
+		}
+		hostNameTag := "host:" + hostName
 		c, err := client.New(
 			client.Address(config.MetricStatsd.Address),
-			client.FlushPeriod(config.MetricStatsd.FlushPeriodMs))
+			client.FlushPeriod(config.MetricStatsd.FlushPeriodMs), client.Tags(hostNameTag))
 		if err != nil {
 			logger.Errorf("StatsD Set up failed to create client: %s", err.Error())
 			return err
