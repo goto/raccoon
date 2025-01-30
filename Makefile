@@ -58,8 +58,7 @@ test_ci: setup test
 # Docker Run
 
 docker-run:
-	docker-compose build
-	docker-compose up -d
+	docker compose up -d --build
 
 docker-stop:
 	docker-compose stop
