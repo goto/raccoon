@@ -45,7 +45,7 @@ func withTags(bucket, tags string) string {
 
 func Setup() error {
 	if instance == nil {
-		hostTagKey := "host:"
+		hostTagKey := "host"
 		hostTagValue, err := os.Hostname()
 		if err != nil {
 			logger.Errorf("unable to get the host name during StatsD setup: %s", err.Error())
@@ -53,7 +53,7 @@ func Setup() error {
 		}
 		c, err := client.New(
 			client.Address(config.MetricStatsd.Address),
-			client.FlushPeriod(config.MetricStatsd.FlushPeriodMs), client.Tags(hostTagKey, hostTagValue))
+			client.FlushPeriod(config.MetricStatsd.FlushPeriodMs), client.TagsFormat(client.InfluxDB), client.Tags(hostTagKey, hostTagValue))
 		if err != nil {
 			logger.Errorf("StatsD Set up failed to create client: %s", err.Error())
 			return err
