@@ -37,6 +37,9 @@ func (h *Handler) SendEvent(ctx context.Context, req *pb.SendEventRequest) (*pb.
 	if len(ids) > 0 {
 		id = ids[0]
 	} else {
+		// Emit metric for missing connection ID header
+		metrics.Increment("grpc_connection_id_missing_total", fmt.Sprintf("conn_group=%s", group))
+		logger.Errorf("[grpc.SendEvent] connection id header missing for group: %s", group)
 		return nil, errors.New("connection id header missing")
 	}
 
