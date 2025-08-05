@@ -59,6 +59,7 @@ func NewUpgrader(conf UpgraderConfig) *Upgrader {
 }
 
 func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request) (Conn, error) {
+	start := time.Now()
 	identifier := u.newIdentifier(r.Header)
 	logger.Debug(fmt.Sprintf("%s connected at %v", identifier, time.Now()))
 
@@ -90,7 +91,8 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request) (Conn, error)
 
 	u.setUpControlHandlers(conn, identifier)
 	metrics.Increment("user_connection_success_total", fmt.Sprintf("conn_group=%s", identifier.Group))
-
+	metrics.Timing("user_connection_upgrade_duration_ms", time.Since(start).Milliseconds(),
+		fmt.Sprintf("conn_group=%s", identifier.Group))
 	return Conn{
 		Identifier:  identifier,
 		conn:        conn,
