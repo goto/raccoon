@@ -83,6 +83,10 @@ func (t *Table) TotalConnection() int {
 	return len(t.connMap)
 }
 
-func (t *Table) TotalConnectionPerGroup() map[string]int {
-	return t.counter
+func (t *Table) RangeConnectionPerGroup(fn func(string, int)) {
+	t.m.RLock()
+	defer t.m.RUnlock()
+	for k, v := range t.counter {
+		fn(k, v)
+	}
 }
