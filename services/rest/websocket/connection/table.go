@@ -2,9 +2,11 @@ package connection
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/goto/raccoon/identification"
+	"github.com/goto/raccoon/metrics"
 )
 
 var (
@@ -46,6 +48,7 @@ func (t *Table) Store(c identification.Identifier) error {
 	}
 	t.connMap[c] = make(map[string]struct{})
 	t.counter[c.Group] = t.counter[c.Group] + 1
+	metrics.Gauge("connections_count_current", t.counter[c.Group], fmt.Sprintf("conn_group=%s", c.Group))
 	return nil
 }
 
@@ -75,6 +78,7 @@ func (t *Table) Remove(c identification.Identifier) {
 	defer t.m.Unlock()
 	delete(t.connMap, c)
 	t.counter[c.Group] = t.counter[c.Group] - 1
+	metrics.Gauge("connections_count_current", t.counter[c.Group], fmt.Sprintf("conn_group=%s", c.Group))
 }
 
 func (t *Table) TotalConnection() int {
