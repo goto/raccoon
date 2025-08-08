@@ -54,9 +54,9 @@ func reportConnectionMetrics(conn connection.Table) {
 	t := time.Tick(config.MetricStatsd.FlushPeriodMs)
 	for {
 		<-t
-		for k, v := range conn.TotalConnectionPerGroup() {
+		conn.RangeConnectionPerGroup(func(k string, v int) {
 			metrics.Gauge("connections_count_current", v, fmt.Sprintf("conn_group=%s", k))
-		}
+		})
 	}
 }
 
