@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/logger"
@@ -52,6 +53,13 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 							Offset:    0,
 							Error:     nil,
 						},
+						Opaque: struct {
+							Order int
+							Sent  time.Time
+						}{
+							Order: 0, // or proper index
+							Sent:  time.Now(),
+						},
 					}
 				}()
 			})
@@ -74,6 +82,13 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 							Partition: 0,
 							Offset:    0,
 							Error:     nil,
+						},
+						Opaque: struct {
+							Order int
+							Sent  time.Time
+						}{
+							Order: 0, // or proper index
+							Sent:  time.Now(),
 						},
 					}
 				}()
@@ -111,7 +126,13 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 							Offset:    0,
 							Error:     fmt.Errorf("timeout"),
 						},
-						Opaque: 1,
+						Opaque: struct {
+							Order int
+							Sent  time.Time
+						}{
+							Order: 1, // or proper index
+							Sent:  time.Now(),
+						},
 					}
 				}()
 			}).Once()

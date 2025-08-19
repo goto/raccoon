@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 	// Importing librd to make it work on vendor mode
@@ -57,7 +58,10 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 		message := &kafka.Message{
 			Value:          event.EventBytes,
 			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-			Opaque:         order,
+			Opaque: struct {
+				Order int
+				Sent  time.Time
+			}{order, time.Now()},
 		}
 
 		err := pr.kp.Produce(message, deliveryChannel)
@@ -78,12 +82,22 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 	for i := 0; i < totalProcessed; i++ {
 		d := <-deliveryChannel
 		m := d.(*kafka.Message)
+		// Extract timestamp from Opaque
+		opaque := m.Opaque.(struct {
+			Order int
+			Sent  time.Time
+		})
+		deliveryLatency := time.Since(opaque.Sent)
+		order := opaque.Order
 		if m.TopicPartition.Error != nil {
 			eventType := events[i].Type
 			metrics.Decrement("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, eventType))
-			order := m.Opaque.(int)
 			errors[order] = m.TopicPartition.Error
+		} else {
+			// Record metric
+			metrics.Timing("kafka_delivery_latency_ms", deliveryLatency.Milliseconds(),
+				fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, events[order].Type))
 		}
 	}
 
