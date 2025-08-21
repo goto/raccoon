@@ -63,19 +63,19 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 		err := pr.kp.Produce(message, deliveryChannel)
 		if err != nil {
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, event.Type))
-			logger.Errorf("produce to kafka failed : %v and string value : %s", err, err.Error())
 			switch err.Error() {
 			case "Local: Unknown topic":
 				errors[order] = fmt.Errorf("%v %s", err, topic)
 				metrics.Increment("kafka_unknown_topic_failure_total",
 					fmt.Sprintf("topic=%s,event_type=%s,conn_group=%s", topic, event.Type, connGroup))
 
-			case "Local: Message size too large":
+			case "Broker: Message size too large":
 				errors[order] = fmt.Errorf("%v %s", err, topic)
 				metrics.Increment("kafka_message_too_large_total",
 					fmt.Sprintf("topic=%s,event_type=%s,conn_group=%s", topic, event.Type, connGroup))
 			default:
 				errors[order] = err
+				logger.Errorf("produce to kafka failed due to: %v", err)
 			}
 			continue
 		}

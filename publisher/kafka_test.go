@@ -97,13 +97,13 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 			assert.EqualError(t, err.(BulkError).Errors[0], "Local: Unknown topic "+topic)
 		})
 
-		t.Run("Should return topic name when message size large is found", func(t *testing.T) {
+		t.Run("Should return topic name when message size is too large", func(t *testing.T) {
 			client := &mockClient{}
-			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf("Local: Message size too large")).Once()
+			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf("Broker: Message size too large")).Once()
 			kp := NewKafkaFromClient(client, 10, "%s")
 
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2))
-			assert.EqualError(t, err.(BulkError).Errors[0], "Local: Message size too large "+topic)
+			assert.EqualError(t, err.(BulkError).Errors[0], "Broker: Message size too large "+topic)
 		})
 	})
 
