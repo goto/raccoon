@@ -15,6 +15,11 @@ import (
 	"github.com/goto/raccoon/metrics"
 )
 
+const (
+	errUnknownTopic     = "Local: Unknown topic"           //error msg while producing a message to a topic which is not present in the kafka cluster
+	errLargeMessageSize = "Broker: Message size too large" //error msg while producing a message which is larger than message.max.bytes config
+)
+
 // KafkaProducer Produce data to kafka synchronously
 type KafkaProducer interface {
 	// ProduceBulk message to kafka. Block until all messages are sent. Return array of error. Order is not guaranteed.
@@ -63,11 +68,21 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 		err := pr.kp.Produce(message, deliveryChannel)
 		if err != nil {
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, event.Type))
-			if err.Error() == "Local: Unknown topic" {
+			switch err.Error() {
+			case errUnknownTopic:
 				errors[order] = fmt.Errorf("%v %s", err, topic)
-				metrics.Increment("kafka_unknown_topic_failure_total", fmt.Sprintf("topic=%s,event_type=%s,conn_group=%s", topic, event.Type, connGroup))
-			} else {
+				metrics.Increment("kafka_error",
+					fmt.Sprintf("type=%s,topic=%s,event_type=%s,conn_group=%s",
+						"unknown_topic", topic, event.Type, connGroup))
+
+			case errLargeMessageSize:
+				errors[order] = fmt.Errorf("%v %s", err, topic)
+				metrics.Increment("kafka_error",
+					fmt.Sprintf("type=%s,topic=%s,event_type=%s,conn_group=%s",
+						"message_too_large", topic, event.Type, connGroup))
+			default:
 				errors[order] = err
+				logger.Errorf("produce to kafka failed due to: %v on topic : %s", err, topic)
 			}
 			continue
 		}

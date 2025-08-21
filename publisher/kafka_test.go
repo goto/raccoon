@@ -90,11 +90,20 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 
 		t.Run("Should return topic name when unknown topic is returned", func(t *testing.T) {
 			client := &mockClient{}
-			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf("Local: Unknown topic")).Once()
+			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errUnknownTopic)).Once()
 			kp := NewKafkaFromClient(client, 10, "%s")
 
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2))
-			assert.EqualError(t, err.(BulkError).Errors[0], "Local: Unknown topic "+topic)
+			assert.EqualError(t, err.(BulkError).Errors[0], errUnknownTopic+" "+topic)
+		})
+
+		t.Run("Should return topic name when message size is too large", func(t *testing.T) {
+			client := &mockClient{}
+			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errLargeMessageSize)).Once()
+			kp := NewKafkaFromClient(client, 10, "%s")
+
+			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2))
+			assert.EqualError(t, err.(BulkError).Errors[0], errLargeMessageSize+" "+topic)
 		})
 	})
 
