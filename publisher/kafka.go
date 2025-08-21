@@ -79,7 +79,7 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 				errors[order] = fmt.Errorf("%v %s", err, topic)
 				metrics.Increment("kafka_error",
 					fmt.Sprintf("type=%s,topic=%s,event_type=%s,conn_group=%s",
-						"unknown_topic", topic, event.Type, connGroup))
+						"message_too_large", topic, event.Type, connGroup))
 			default:
 				errors[order] = err
 				logger.Errorf("produce to kafka failed due to: %v on topic : %s", err, topic)
