@@ -71,16 +71,18 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 			switch err.Error() {
 			case errUnknownTopic:
 				errors[order] = fmt.Errorf("%v %s", err, topic)
-				metrics.Increment("kafka_unknown_topic_failure_total",
-					fmt.Sprintf("topic=%s,event_type=%s,conn_group=%s", topic, event.Type, connGroup))
+				metrics.Increment("kafka_error",
+					fmt.Sprintf("type=%s,topic=%s,event_type=%s,conn_group=%s",
+						"unknown_topic", topic, event.Type, connGroup))
 
 			case errLargeMessageSize:
 				errors[order] = fmt.Errorf("%v %s", err, topic)
-				metrics.Increment("kafka_message_too_large_total",
-					fmt.Sprintf("topic=%s,event_type=%s,conn_group=%s", topic, event.Type, connGroup))
+				metrics.Increment("kafka_error",
+					fmt.Sprintf("type=%s,topic=%s,event_type=%s,conn_group=%s",
+						"unknown_topic", topic, event.Type, connGroup))
 			default:
 				errors[order] = err
-				logger.Errorf("produce to kafka failed due to: %v", err)
+				logger.Errorf("produce to kafka failed due to: %v on topic : %s", err, topic)
 			}
 			continue
 		}
