@@ -63,6 +63,7 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 		err := pr.kp.Produce(message, deliveryChannel)
 		if err != nil {
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, event.Type))
+			logger.Errorf("produce to kafka failed : %v and string value : %s", err, err.Error())
 			switch err.Error() {
 			case "Local: Unknown topic":
 				errors[order] = fmt.Errorf("%v %s", err, topic)
