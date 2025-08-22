@@ -114,6 +114,7 @@ func (h *Handler) Ack(responseChannel chan *pb.SendEventResponse, reqGuid, connG
 
 func (h *Handler) sendEventCounters(events []*pb.Event, group string) {
 	for _, e := range events {
+		metrics.Count("events_rx_bytes_total", len(e.EventBytes), fmt.Sprintf("conn_group=%s,event_type=%s", group, e.Type))
 		metrics.Increment("events_rx_total", fmt.Sprintf("conn_group=%s,event_type=%s", group, e.Type))
 	}
 }
