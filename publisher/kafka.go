@@ -1,7 +1,6 @@
 package publisher
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -109,41 +108,35 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 	return BulkError{Errors: errors}
 }
 
-func (pr *Kafka) ReportStats(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Info("Stopping Kafka stats reporter")
-			return
-		case v := <-pr.kp.Events():
-			switch e := v.(type) {
-			case *kafka.Stats:
-				var stats map[string]interface{}
-				if err := json.Unmarshal([]byte(e.String()), &stats); err != nil {
-					logger.Errorf("failed to unmarshal kafka stats: %v", err)
-					continue
-				}
-				brokersRawJson, ok := stats["brokers"]
-				if !ok || brokersRawJson == nil {
-					logger.Errorf("kafka broker stats missing or null brokers field")
-					continue
-				}
-				brokers := brokersRawJson.(map[string]interface{})
-				metrics.Gauge("kafka_tx_messages_total", stats["txmsgs"], "")
-				metrics.Gauge("kafka_tx_messages_bytes_total", stats["txmsg_bytes"], "")
-				for _, broker := range brokers {
-					brokerStats := broker.(map[string]interface{})
-					rttValue := brokerStats["rtt"].(map[string]interface{})
-					nodeName := strings.Split(brokerStats["nodename"].(string), ":")[0]
-
-					metrics.Gauge("kafka_brokers_tx_total", brokerStats["tx"], fmt.Sprintf("broker=%s", nodeName))
-					metrics.Gauge("kafka_brokers_tx_bytes_total", brokerStats["txbytes"], fmt.Sprintf("broker=%s", nodeName))
-					metrics.Gauge("kafka_brokers_rtt_average_milliseconds", rttValue["avg"], fmt.Sprintf("broker=%s", nodeName))
-				}
-
-			default:
-				fmt.Printf("Ignored %v \n", e)
+func (pr *Kafka) ReportStats() {
+	for v := range pr.kp.Events() {
+		switch e := v.(type) {
+		case *kafka.Stats:
+			var stats map[string]interface{}
+			if err := json.Unmarshal([]byte(e.String()), &stats); err != nil {
+				logger.Errorf("failed to unmarshal kafka stats: %v", err)
+				continue
 			}
+			brokersRawJson, ok := stats["brokers"]
+			if !ok || brokersRawJson == nil {
+				logger.Errorf("kafka broker stats missing or null brokers field")
+				continue
+			}
+			brokers := brokersRawJson.(map[string]interface{})
+			metrics.Gauge("kafka_tx_messages_total", stats["txmsgs"], "")
+			metrics.Gauge("kafka_tx_messages_bytes_total", stats["txmsg_bytes"], "")
+			for _, broker := range brokers {
+				brokerStats := broker.(map[string]interface{})
+				rttValue := brokerStats["rtt"].(map[string]interface{})
+				nodeName := strings.Split(brokerStats["nodename"].(string), ":")[0]
+
+				metrics.Gauge("kafka_brokers_tx_total", brokerStats["tx"], fmt.Sprintf("broker=%s", nodeName))
+				metrics.Gauge("kafka_brokers_tx_bytes_total", brokerStats["txbytes"], fmt.Sprintf("broker=%s", nodeName))
+				metrics.Gauge("kafka_brokers_rtt_average_milliseconds", rttValue["avg"], fmt.Sprintf("broker=%s", nodeName))
+			}
+
+		default:
+			fmt.Printf("Ignored %v \n", e)
 		}
 	}
 }

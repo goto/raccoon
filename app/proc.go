@@ -12,10 +12,10 @@ func Run() error {
 	ctx, cancel := context.WithCancel(ctx)
 
 	//@TODO - init config
-
+	shutdown := make(chan bool)
 	//start server
-	StartServer(ctx, cancel)
+	StartServer(ctx, cancel, shutdown)
 	logger.Info("App.Run --> Complete")
-	<-ctx.Done()
+	<-shutdown
 	return nil
 }

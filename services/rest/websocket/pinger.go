@@ -11,9 +11,8 @@ import (
 	"github.com/goto/raccoon/services/rest/websocket/connection"
 )
 
-// Pinger is worker that pings the connected peers based on ping interval.
+// Pinger is worker that pings the connected peers based on ping interval. This will also shutdown all connection kept in the cset map
 func Pinger(ctx context.Context, c chan connection.Conn, size int, PingInterval time.Duration, WriteWaitInterval time.Duration) {
-	//shutdown the pinger
 	for i := 0; i < size; i++ {
 		go func() {
 			cSet := make(map[identification.Identifier]connection.Conn)

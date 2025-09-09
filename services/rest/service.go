@@ -3,7 +3,6 @@ package rest
 import (
 	"context"
 	"fmt"
-	"github.com/goto/raccoon/logger"
 	"net/http"
 	"time"
 
@@ -18,18 +17,16 @@ import (
 type Service struct {
 	Collector collection.Collector
 	s         *http.Server
-	cancel    context.CancelFunc
 }
 
-func NewRestService(c collection.Collector) *Service {
-	ctx, cancel := context.WithCancel(context.Background())
+func NewRestService(c collection.Collector, ctx context.Context) *Service {
 	pingChannel := make(chan connection.Conn, config.ServerWs.ServerMaxConn)
 	wh := websocket.NewHandler(pingChannel, c)
 	go websocket.Pinger(ctx, pingChannel, config.ServerWs.PingerSize, config.ServerWs.PingInterval, config.ServerWs.WriteWaitInterval)
 
-	go reportConnectionMetrics(ctx, *wh.Table())
+	go reportConnectionMetrics(*wh.Table())
 
-	go websocket.AckHandler(ctx, websocket.AckChan)
+	go websocket.AckHandler(websocket.AckChan)
 
 	restHandler := NewHandler(c)
 	router := mux.NewRouter()
@@ -45,7 +42,6 @@ func NewRestService(c collection.Collector) *Service {
 	return &Service{
 		s:         server,
 		Collector: c,
-		cancel:    cancel,
 	}
 }
 
@@ -54,21 +50,13 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("pong"))
 }
 
-func reportConnectionMetrics(ctx context.Context, conn connection.Table) {
-	ticker := time.NewTicker(config.MetricStatsd.FlushPeriodMs)
-	defer ticker.Stop()
-
+func reportConnectionMetrics(conn connection.Table) {
+	t := time.Tick(config.MetricStatsd.FlushPeriodMs)
 	for {
-		select {
-		case <-ticker.C:
-			conn.RangeConnectionPerGroup(func(k string, v int) {
-				metrics.Gauge("connections_count_current", v, fmt.Sprintf("conn_group=%s", k))
-			})
-		case <-ctx.Done():
-			// cleanup on shutdown
-			logger.Info("[metrics.reportConnectionMetrics] - stopping metrics reporter")
-			return
-		}
+		<-t
+		conn.RangeConnectionPerGroup(func(k string, v int) {
+			metrics.Gauge("connections_count_current", v, fmt.Sprintf("conn_group=%s", k))
+		})
 	}
 }
 
@@ -81,6 +69,5 @@ func (*Service) Name() string {
 }
 
 func (s *Service) Shutdown(ctx context.Context) error {
-	s.cancel()
 	return s.s.Shutdown(ctx)
 }

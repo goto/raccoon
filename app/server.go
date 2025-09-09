@@ -19,9 +19,9 @@ import (
 )
 
 // StartServer starts the server
-func StartServer(ctx context.Context, cancel context.CancelFunc) {
+func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
-	httpServices := services.Create(bufferChannel)
+	httpServices := services.Create(bufferChannel, ctx)
 	logger.Info("Start Server -->")
 	httpServices.Start(ctx, cancel)
 	logger.Info("Start publisher -->")
@@ -35,12 +35,12 @@ func StartServer(ctx context.Context, cancel context.CancelFunc) {
 	logger.Info("Start worker -->")
 	workerPool := worker.CreateWorkerPool(config.Worker.WorkersPoolSize, bufferChannel, config.Worker.DeliveryChannelSize, kPublisher)
 	workerPool.StartWorkers()
-	go kPublisher.ReportStats(ctx)
-	go reportProcMetrics(ctx)
-	go shutDownServer(ctx, cancel, httpServices, bufferChannel, workerPool, kPublisher)
+	go kPublisher.ReportStats()
+	go reportProcMetrics()
+	go shutDownServer(ctx, cancel, httpServices, bufferChannel, workerPool, kPublisher, shutdown)
 }
 
-func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices services.Services, bufferChannel chan collection.CollectRequest, workerPool *worker.Pool, kp *publisher.Kafka) {
+func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices services.Services, bufferChannel chan collection.CollectRequest, workerPool *worker.Pool, kp *publisher.Kafka, shutdown chan bool) {
 	signalChan := make(chan os.Signal)
 	signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	for {
@@ -50,6 +50,8 @@ func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices
 			logger.Info(fmt.Sprintf("[App.Server] Received a signal %s", sig))
 			httpServices.Shutdown(ctx)
 			logger.Info("Server shutdown all the listeners")
+			cancel()
+			close(bufferChannel)
 			timedOut := workerPool.FlushWithTimeOut(config.Worker.WorkerFlushTimeout)
 			if timedOut {
 				logger.Info(fmt.Sprintf("WorkerPool flush timedout %t", timedOut))
@@ -65,37 +67,32 @@ func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices
 				req := <-bufferChannel
 				eventCountInChannel += len(req.Events)
 			}
+			logger.Info(fmt.Sprintf("number of events dropped during the shutdown %d", eventCountInChannel+eventsInProducer))
 			metrics.Count("shutdown_event_drops", eventCountInChannel+eventsInProducer, "")
 			logger.Info("Exiting server")
-			cancel()
+			shutdown <- true
 		default:
 			logger.Info(fmt.Sprintf("[App.Server] Received a unexpected signal %s", sig))
 		}
+		return
 	}
 }
 
-func reportProcMetrics(ctx context.Context) {
-	ticker := time.NewTicker(config.MetricStatsd.FlushPeriodMs)
-	defer ticker.Stop()
-
+func reportProcMetrics() {
+	t := time.Tick(config.MetricStatsd.FlushPeriodMs)
 	m := &runtime.MemStats{}
 	for {
-		select {
-		case <-ctx.Done():
-			logger.Info("Stopping proc metrics reporter")
-			return
-		case <-ticker.C:
-			metrics.Gauge("server_go_routines_count_current", runtime.NumGoroutine(), "")
+		<-t
+		metrics.Gauge("server_go_routines_count_current", runtime.NumGoroutine(), "")
 
-			runtime.ReadMemStats(m)
-			metrics.Gauge("server_mem_heap_alloc_bytes_current", m.HeapAlloc, "")
-			metrics.Gauge("server_mem_heap_inuse_bytes_current", m.HeapInuse, "")
-			metrics.Gauge("server_mem_heap_objects_total_current", m.HeapObjects, "")
-			metrics.Gauge("server_mem_stack_inuse_bytes_current", m.StackInuse, "")
-			metrics.Gauge("server_mem_gc_triggered_current", m.LastGC/1000, "")
-			metrics.Gauge("server_mem_gc_pauseNs_current", m.PauseNs[(m.NumGC+255)%256]/1000, "")
-			metrics.Gauge("server_mem_gc_count_current", m.NumGC, "")
-			metrics.Gauge("server_mem_gc_pauseTotalNs_current", m.PauseTotalNs, "")
-		}
+		runtime.ReadMemStats(m)
+		metrics.Gauge("server_mem_heap_alloc_bytes_current", m.HeapAlloc, "")
+		metrics.Gauge("server_mem_heap_inuse_bytes_current", m.HeapInuse, "")
+		metrics.Gauge("server_mem_heap_objects_total_current", m.HeapObjects, "")
+		metrics.Gauge("server_mem_stack_inuse_bytes_current", m.StackInuse, "")
+		metrics.Gauge("server_mem_gc_triggered_current", m.LastGC/1000, "")
+		metrics.Gauge("server_mem_gc_pauseNs_current", m.PauseNs[(m.NumGC+255)%256]/1000, "")
+		metrics.Gauge("server_mem_gc_count_current", m.NumGC, "")
+		metrics.Gauge("server_mem_gc_pauseTotalNs_current", m.PauseTotalNs, "")
 	}
 }

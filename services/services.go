@@ -43,13 +43,13 @@ func (s *Services) Shutdown(ctx context.Context) {
 	}
 }
 
-func Create(b chan collection.CollectRequest) Services {
+func Create(b chan collection.CollectRequest, ctx context.Context) Services {
 	c := collection.NewChannelCollector(b)
 	return Services{
 		b: []bootstrapper{
 			grpc.NewGRPCService(c),
 			pprof.NewPprofService(),
-			rest.NewRestService(c),
+			rest.NewRestService(c, ctx),
 		},
 	}
 }
