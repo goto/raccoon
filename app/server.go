@@ -37,12 +37,15 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 	workerPool.StartWorkers()
 	go kPublisher.ReportStats()
 	go reportProcMetrics()
-	go shutDownServer(ctx, cancel, httpServices, bufferChannel, workerPool, kPublisher, shutdown)
+	// create signal channel at startup
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	go shutDownServer(ctx, cancel, httpServices, bufferChannel, workerPool, kPublisher, shutdown, signalChan)
 }
 
-func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices services.Services, bufferChannel chan collection.CollectRequest, workerPool *worker.Pool, kp *publisher.Kafka, shutdown chan bool) {
-	signalChan := make(chan os.Signal)
-	signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices services.Services, bufferChannel chan collection.CollectRequest,
+	workerPool *worker.Pool, kp *publisher.Kafka, shutdown chan bool, signalChan chan os.Signal) {
 	for {
 		sig := <-signalChan
 		switch sig {

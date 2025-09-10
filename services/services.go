@@ -53,3 +53,8 @@ func Create(b chan collection.CollectRequest, ctx context.Context) Services {
 		},
 	}
 }
+
+// New creates a Services with custom bootstrappers (for testing/mocking).
+func New(service bootstrapper) Services {
+	return Services{b: []bootstrapper{service}}
+}
