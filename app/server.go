@@ -71,7 +71,7 @@ func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices
 				eventCountInChannel += len(req.Events)
 			}
 			logger.Info(fmt.Sprintf("number of events dropped during the shutdown %d", eventCountInChannel+eventsInProducer))
-			metrics.Count("shutdown_event_drops", eventCountInChannel+eventsInProducer, "")
+			metrics.Count("total_data_loss", eventCountInChannel+eventsInProducer, "reason=shutdown")
 			logger.Info("Exiting server")
 			shutdown <- true
 		default:
