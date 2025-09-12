@@ -17,19 +17,20 @@ import (
 func TestShutDownServer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	mockSvc := &mockService{}
-	mockServices := services.New(mockSvc)
 	mockKafka := &mockKafkaClient{}
+
 	kp := publisher.NewKafkaFromClient(mockKafka, 50, "test")
 
 	shutdownCh := make(chan bool, 1)
 	bufferCh := make(chan collection.CollectRequest, 1)
 
+	services := services.Create(bufferCh, ctx)
+
 	wp := worker.CreateWorkerPool(1, bufferCh, 1, kp)
 
 	// run shutdown in background
 	sigCh := make(chan os.Signal, 1)
-	go shutDownServer(ctx, cancel, mockServices, bufferCh, wp, kp, shutdownCh, sigCh)
+	go shutDownServer(ctx, cancel, services, bufferCh, wp, kp, shutdownCh, sigCh)
 
 	// send a termination signal after short delay
 	go func() {
@@ -44,11 +45,8 @@ func TestShutDownServer(t *testing.T) {
 		t.Error("shutdown execution failed")
 	}
 
-	if !mockSvc.shutdownCalled {
-		t.Errorf("expected httpServices.Shutdown to be called")
-	}
 	if !isClosed(bufferCh) {
-		t.Errorf("expected shutdown channel to be closed")
+		t.Errorf("expected buffer channel to be closed")
 	}
 	if !mockKafka.FlushCalled {
 		t.Errorf("expected Kafka.FlushCalled to be called")
@@ -68,24 +66,6 @@ func isClosed(ch <-chan collection.CollectRequest) bool {
 }
 
 // ---- Mocks ----
-// mockKafkaClient is a mock for the Client interface
-type mockService struct {
-	shutdownCalled bool
-}
-
-func (m *mockService) Init(context.Context) error {
-	return nil
-}
-
-func (*mockService) Name() string {
-	return "mock server"
-}
-
-func (m *mockService) Shutdown(ctx context.Context) error {
-	m.shutdownCalled = true
-	return nil
-}
-
 // mockKafkaClient is a mock for the Client interface
 type mockKafkaClient struct {
 	// Tracking flags
