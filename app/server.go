@@ -19,9 +19,9 @@ import (
 )
 
 // StartServer starts the server
-func StartServer(ctx context.Context, cancel context.CancelFunc) {
+func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
-	httpServices := services.Create(bufferChannel)
+	httpServices := services.Create(bufferChannel, ctx)
 	logger.Info("Start Server -->")
 	httpServices.Start(ctx, cancel)
 	logger.Info("Start publisher -->")
@@ -37,12 +37,15 @@ func StartServer(ctx context.Context, cancel context.CancelFunc) {
 	workerPool.StartWorkers()
 	go kPublisher.ReportStats()
 	go reportProcMetrics()
-	go shutDownServer(ctx, cancel, httpServices, bufferChannel, workerPool, kPublisher)
+	// create signal channel at startup
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	go shutDownServer(ctx, cancel, httpServices, bufferChannel, workerPool, kPublisher, shutdown, signalChan)
 }
 
-func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices services.Services, bufferChannel chan collection.CollectRequest, workerPool *worker.Pool, kp *publisher.Kafka) {
-	signalChan := make(chan os.Signal)
-	signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices services.Services, bufferChannel chan collection.CollectRequest,
+	workerPool *worker.Pool, kp *publisher.Kafka, shutdown chan bool, signalChan chan os.Signal) {
 	for {
 		sig := <-signalChan
 		switch sig {
@@ -50,25 +53,31 @@ func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices
 			logger.Info(fmt.Sprintf("[App.Server] Received a signal %s", sig))
 			httpServices.Shutdown(ctx)
 			logger.Info("Server shutdown all the listeners")
+			cancel()
+			close(bufferChannel)
 			timedOut := workerPool.FlushWithTimeOut(config.Worker.WorkerFlushTimeout)
 			if timedOut {
 				logger.Info(fmt.Sprintf("WorkerPool flush timedout %t", timedOut))
+			} else {
+				logger.Info("WorkerPool flushed all events")
 			}
 			flushInterval := config.PublisherKafka.FlushInterval
 			logger.Info("Closing Kafka producer")
 			logger.Info(fmt.Sprintf("Wait %d ms for all messages to be delivered", flushInterval))
 			eventsInProducer := kp.Close()
-			/**
-			@TODO - should compute the actual no., of events per batch and therefore the total. We can do this only when we close all the active connections
-			Until then we fall back to approximation */
-			eventsInChannel := len(bufferChannel) * 7
-			logger.Info(fmt.Sprintf("Outstanding unprocessed events in the channel, data lost ~ (No batches %d * 5 events) = ~%d", len(bufferChannel), eventsInChannel))
-			metrics.Count("kafka_messages_delivered_total", eventsInChannel+eventsInProducer, "success=false")
+			eventCountInChannel := 0
+			for i := 0; i < len(bufferChannel); i++ {
+				req := <-bufferChannel
+				eventCountInChannel += len(req.Events)
+			}
+			logger.Info(fmt.Sprintf("number of events dropped during the shutdown %d", eventCountInChannel+eventsInProducer))
+			metrics.Count("total_data_loss", eventCountInChannel+eventsInProducer, "reason=shutdown")
 			logger.Info("Exiting server")
-			cancel()
+			shutdown <- true
 		default:
 			logger.Info(fmt.Sprintf("[App.Server] Received a unexpected signal %s", sig))
 		}
+		return
 	}
 }
 

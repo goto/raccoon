@@ -19,10 +19,10 @@ type Service struct {
 	s         *http.Server
 }
 
-func NewRestService(c collection.Collector) *Service {
+func NewRestService(c collection.Collector, ctx context.Context) *Service {
 	pingChannel := make(chan connection.Conn, config.ServerWs.ServerMaxConn)
 	wh := websocket.NewHandler(pingChannel, c)
-	go websocket.Pinger(pingChannel, config.ServerWs.PingerSize, config.ServerWs.PingInterval, config.ServerWs.WriteWaitInterval)
+	go websocket.Pinger(ctx, pingChannel, config.ServerWs.PingerSize, config.ServerWs.PingInterval, config.ServerWs.WriteWaitInterval)
 
 	go reportConnectionMetrics(*wh.Table())
 
