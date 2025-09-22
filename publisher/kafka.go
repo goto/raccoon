@@ -3,7 +3,12 @@ package publisher
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/goto/raccoon/proto"
+	"github.com/goto/raccoon/serialization"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 	// Importing librd to make it work on vendor mode
@@ -19,6 +24,8 @@ const (
 	errUnknownTopic     = "Local: Unknown topic"           //error msg while producing a message to a topic which is not present in the kafka cluster
 	errLargeMessageSize = "Broker: Message size too large" //error msg while producing a message which is larger than message.max.bytes config
 )
+
+var DeliveryEventCount atomic.Int64
 
 // KafkaProducer Produce data to kafka synchronously
 type KafkaProducer interface {
@@ -100,12 +107,24 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 			order := m.Opaque.(int)
 			errors[order] = m.TopicPartition.Error
 		}
+		DeliveryEventCount.Add(1)
 	}
 
 	if allNil(errors) {
 		return nil
 	}
 	return BulkError{Errors: errors}
+}
+
+func (pr *Kafka) ProduceTotalEventMessage(topicName string, event *proto.TotalEventCountMessage) error {
+	value, err := serialization.SerializeProto(event)
+	if err != nil {
+		return fmt.Errorf("failed to serialize proto: %w", err)
+	}
+	return pr.kp.Produce(&kafka.Message{
+		TopicPartition: kafka.TopicPartition{Topic: &topicName, Partition: kafka.PartitionAny},
+		Value:          value,
+	}, nil)
 }
 
 func (pr *Kafka) ReportStats() {
@@ -138,6 +157,24 @@ func (pr *Kafka) ReportStats() {
 		default:
 			fmt.Printf("Ignored %v \n", e)
 		}
+	}
+}
+
+func (pr *Kafka) ReportDeliveryEventCount() {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		fmt.Println("get the current value:", DeliveryEventCount.Load())
+		//build kafka message
+		msg := &proto.TotalEventCountMessage{
+			EventTimestamp: timestamppb.Now(),
+			EventCount:     int32(DeliveryEventCount.Load()),
+		}
+		//produce to kafka
+		pr.ProduceTotalEventMessage("clickstream-total-event", msg)
+		//reset the counter
+		DeliveryEventCount.Store(0)
 	}
 }
 
