@@ -25,7 +25,7 @@ const (
 	errLargeMessageSize = "Broker: Message size too large" //error msg while producing a message which is larger than message.max.bytes config
 )
 
-var DeliveryEventCount atomic.Int64
+var DeliveryEventCount int64
 
 // KafkaProducer Produce data to kafka synchronously
 type KafkaProducer interface {
@@ -107,7 +107,7 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 			order := m.Opaque.(int)
 			errors[order] = m.TopicPartition.Error
 		}
-		DeliveryEventCount.Add(1)
+		atomic.AddInt64(&DeliveryEventCount, 1)
 	}
 
 	if allNil(errors) {
@@ -165,16 +165,18 @@ func (pr *Kafka) ReportDeliveryEventCount() {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		fmt.Println("get the current value:", DeliveryEventCount.Load())
+		// read
+		eventCount := atomic.LoadInt64(&DeliveryEventCount)
+		fmt.Println("get the current value:", eventCount)
 		//build kafka message
 		msg := &proto.TotalEventCountMessage{
 			EventTimestamp: timestamppb.Now(),
-			EventCount:     int32(DeliveryEventCount.Load()),
+			EventCount:     int32(eventCount),
 		}
 		//produce to kafka
 		pr.ProduceTotalEventMessage("clickstream-total-event", msg)
 		//reset the counter
-		DeliveryEventCount.Store(0)
+		atomic.StoreInt64(&DeliveryEventCount, 0)
 	}
 }
 
