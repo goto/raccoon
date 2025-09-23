@@ -3,7 +3,6 @@ package publisher
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/goto/raccoon/proto"
 	"github.com/goto/raccoon/serialization"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"strings"
@@ -124,7 +123,7 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 	return BulkError{Errors: errors}
 }
 
-func (pr *Kafka) produceTotalEventMessage(topicName string, event *proto.TotalEventCountMessage) error {
+func (pr *Kafka) produceTotalEventMessage(topicName string, event *pb.TotalEventCountMessage) error {
 	value, err := serialization.SerializeProto(event)
 	if err != nil {
 		return fmt.Errorf("failed to serialize proto: %w", err)
@@ -176,7 +175,7 @@ func (pr *Kafka) ReportDeliveryEventCount() {
 		// read the value
 		eventCount := atomic.LoadInt64(&DeliveryEventCount)
 		//build kafka message
-		msg := &proto.TotalEventCountMessage{
+		msg := &pb.TotalEventCountMessage{
 			EventTimestamp: timestamppb.Now(),
 			EventCount:     int32(eventCount),
 		}
