@@ -39,24 +39,31 @@ func NewKafka() (*Kafka, error) {
 		return &Kafka{}, err
 	}
 	return &Kafka{
-		kp:            kp,
-		flushInterval: config.PublisherKafka.FlushInterval,
-		topicFormat:   config.EventDistribution.PublisherPattern,
+		kp:                     kp,
+		flushInterval:          config.PublisherKafka.FlushInterval,
+		topicFormat:            config.EventDistribution.PublisherPattern,
+		deliveryReportInterval: config.PublisherKafka.DeliveryReportInterval,
+		deliveryReportTopic:    config.PublisherKafka.DeliveryReportTopic,
 	}, nil
 }
 
-func NewKafkaFromClient(client Client, flushInterval int, topicFormat string) *Kafka {
+func NewKafkaFromClient(client Client, flushInterval int, topicFormat string, deliveryReportInterval time.Duration,
+	topicName string) *Kafka {
 	return &Kafka{
-		kp:            client,
-		flushInterval: flushInterval,
-		topicFormat:   topicFormat,
+		kp:                     client,
+		flushInterval:          flushInterval,
+		topicFormat:            topicFormat,
+		deliveryReportInterval: deliveryReportInterval,
+		deliveryReportTopic:    topicName,
 	}
 }
 
 type Kafka struct {
-	kp            Client
-	flushInterval int
-	topicFormat   string
+	kp                     Client
+	flushInterval          int
+	topicFormat            string
+	deliveryReportInterval time.Duration
+	deliveryReportTopic    string
 }
 
 // ProduceBulk messages to kafka. Block until all messages are sent. Return array of error. Order of Errors is guaranteed.
@@ -106,8 +113,9 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s", "delivery_failed", eventType, connGroup))
 			order := m.Opaque.(int)
 			errors[order] = m.TopicPartition.Error
+		} else {
+			atomic.AddInt64(&DeliveryEventCount, 1) // if no error is received, increment the count
 		}
-		atomic.AddInt64(&DeliveryEventCount, 1)
 	}
 
 	if allNil(errors) {
@@ -116,7 +124,7 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 	return BulkError{Errors: errors}
 }
 
-func (pr *Kafka) ProduceTotalEventMessage(topicName string, event *proto.TotalEventCountMessage) error {
+func (pr *Kafka) produceTotalEventMessage(topicName string, event *proto.TotalEventCountMessage) error {
 	value, err := serialization.SerializeProto(event)
 	if err != nil {
 		return fmt.Errorf("failed to serialize proto: %w", err)
@@ -161,20 +169,19 @@ func (pr *Kafka) ReportStats() {
 }
 
 func (pr *Kafka) ReportDeliveryEventCount() {
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(pr.deliveryReportInterval)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		// read
+		// read the value
 		eventCount := atomic.LoadInt64(&DeliveryEventCount)
-		fmt.Println("get the current value:", eventCount)
 		//build kafka message
 		msg := &proto.TotalEventCountMessage{
 			EventTimestamp: timestamppb.Now(),
 			EventCount:     int32(eventCount),
 		}
 		//produce to kafka
-		pr.ProduceTotalEventMessage("clickstream-total-event", msg)
+		pr.produceTotalEventMessage(pr.deliveryReportTopic, msg)
 		//reset the counter
 		atomic.StoreInt64(&DeliveryEventCount, 0)
 	}
