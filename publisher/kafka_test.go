@@ -3,7 +3,6 @@ package publisher
 import (
 	"fmt"
 	"github.com/goto/raccoon/deserialization"
-	"github.com/goto/raccoon/proto"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -152,11 +151,11 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 func TestKafka_ReportDeliveryEventCount(suite *testing.T) {
 	suite.Run("Should Produce the delivery count and reset it ", func(t *testing.T) {
 		client := &mockClient{}
-		producedCh := make(chan *proto.TotalEventCountMessage, 1)
+		producedCh := make(chan *pb.TotalEventCountMessage, 1)
 
 		client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 			msg := args.Get(0).(*kafka.Message)
-			var produced proto.TotalEventCountMessage
+			var produced pb.TotalEventCountMessage
 			err := deserialization.DeserializeProto(msg.Value, &produced) // use protobuf unmarshal
 			assert.NoError(t, err)
 			producedCh <- &produced
