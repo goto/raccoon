@@ -63,11 +63,14 @@ func TestDynamicConfigLoad(t *testing.T) {
 
 func TestKafkaConfig_ToKafkaConfigMap(t *testing.T) {
 	os.Setenv("PUBLISHER_KAFKA_FLUSH_INTERVAL_MS", "1000")
+	os.Setenv("PUBLISHER_KAFKA_DELIVERY_REPORT_TOPIC_NAME", "clickstream-test-log")
+	os.Setenv("PUBLISHER_KAFKA_DELIVERY_REPORT_INTERVAL_MS", "60")
 	os.Setenv("PUBLISHER_KAFKA_CLIENT_BOOTSTRAP_SERVERS", "kafka:9092")
 	os.Setenv("PUBLISHER_KAFKA_CLIENT_ACKS", "1")
 	os.Setenv("PUBLISHER_KAFKA_CLIENT_QUEUE_BUFFERING_MAX_MESSAGES", "10000")
 	os.Setenv("SOMETHING_PUBLISHER_KAFKA_CLIENT_SOMETHING", "anything")
 	publisherKafkaConfigLoader()
+	expectedDeliveryReportInterval := 60 * time.Millisecond
 	kafkaConfig := PublisherKafka.ToKafkaConfigMap()
 	bootstrapServer, _ := kafkaConfig.Get("bootstrap.servers", "")
 	topic, _ := kafkaConfig.Get("topic", "")
@@ -76,6 +79,8 @@ func TestKafkaConfig_ToKafkaConfigMap(t *testing.T) {
 	assert.Equal(t, "", topic)
 	assert.NotEqual(t, something, "anything")
 	assert.Equal(t, 4, len(*kafkaConfig))
+	assert.Equal(t, expectedDeliveryReportInterval, PublisherKafka.DeliveryReportInterval)
+	assert.Equal(t, "clickstream-test-log", PublisherKafka.DeliveryReportTopic)
 }
 
 func TestWorkerConfig(t *testing.T) {

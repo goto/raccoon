@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/goto/raccoon/config/util"
 	"github.com/spf13/viper"
@@ -14,7 +15,9 @@ var PublisherKafka publisherKafka
 var dynamicKafkaClientConfigPrefix = "PUBLISHER_KAFKA_CLIENT_"
 
 type publisherKafka struct {
-	FlushInterval int
+	FlushInterval          int
+	DeliveryReportInterval time.Duration
+	DeliveryReportTopic    string
 }
 
 func (k publisherKafka) ToKafkaConfigMap() *confluent.ConfigMap {
@@ -43,9 +46,13 @@ func dynamicKafkaClientConfigLoad() []byte {
 func publisherKafkaConfigLoader() {
 	viper.SetDefault("PUBLISHER_KAFKA_CLIENT_QUEUE_BUFFERING_MAX_MESSAGES", "100000")
 	viper.SetDefault("PUBLISHER_KAFKA_FLUSH_INTERVAL_MS", "1000")
+	viper.SetDefault("PUBLISHER_KAFKA_DELIVERY_REPORT_INTERVAL_MS", "60000")
+	viper.SetDefault("PUBLISHER_KAFKA_DELIVERY_REPORT_TOPIC_NAME", "clickstream-total-event-log")
 	viper.MergeConfig(bytes.NewBuffer(dynamicKafkaClientConfigLoad()))
 
 	PublisherKafka = publisherKafka{
-		FlushInterval: util.MustGetInt("PUBLISHER_KAFKA_FLUSH_INTERVAL_MS"),
+		FlushInterval:          util.MustGetInt("PUBLISHER_KAFKA_FLUSH_INTERVAL_MS"),
+		DeliveryReportInterval: util.MustGetDuration("PUBLISHER_KAFKA_DELIVERY_REPORT_INTERVAL_MS", time.Millisecond),
+		DeliveryReportTopic:    util.MustGetString("PUBLISHER_KAFKA_DELIVERY_REPORT_TOPIC_NAME"),
 	}
 }
