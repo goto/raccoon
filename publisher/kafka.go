@@ -102,6 +102,7 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 		totalProcessed++
 	}
 	// Wait for deliveryChannel as many as processed
+	localSuccesses := int64(0)
 	for i := 0; i < totalProcessed; i++ {
 		d := <-deliveryChannel
 		m := d.(*kafka.Message)
@@ -113,8 +114,13 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 			order := m.Opaque.(int)
 			errors[order] = m.TopicPartition.Error
 		} else {
-			atomic.AddInt64(&DeliveryEventCount, 1) // if no error is received, increment the count
+			localSuccesses++
 		}
+	}
+
+	// Single atomic update per batch
+	if localSuccesses > 0 {
+		atomic.AddInt64(&DeliveryEventCount, localSuccesses)
 	}
 
 	if allNil(errors) {
