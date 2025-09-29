@@ -3,7 +3,11 @@ package publisher
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/goto/raccoon/serialization"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 	// Importing librd to make it work on vendor mode
@@ -20,6 +24,8 @@ const (
 	errLargeMessageSize = "Broker: Message size too large" //error msg while producing a message which is larger than message.max.bytes config
 )
 
+var DeliveryEventCount int64
+
 // KafkaProducer Produce data to kafka synchronously
 type KafkaProducer interface {
 	// ProduceBulk message to kafka. Block until all messages are sent. Return array of error. Order is not guaranteed.
@@ -32,24 +38,31 @@ func NewKafka() (*Kafka, error) {
 		return &Kafka{}, err
 	}
 	return &Kafka{
-		kp:            kp,
-		flushInterval: config.PublisherKafka.FlushInterval,
-		topicFormat:   config.EventDistribution.PublisherPattern,
+		kp:                     kp,
+		flushInterval:          config.PublisherKafka.FlushInterval,
+		topicFormat:            config.EventDistribution.PublisherPattern,
+		deliveryReportInterval: config.PublisherKafka.DeliveryReportInterval,
+		deliveryReportTopic:    config.PublisherKafka.DeliveryReportTopic,
 	}, nil
 }
 
-func NewKafkaFromClient(client Client, flushInterval int, topicFormat string) *Kafka {
+func NewKafkaFromClient(client Client, flushInterval int, topicFormat string, deliveryReportInterval time.Duration,
+	topicName string) *Kafka {
 	return &Kafka{
-		kp:            client,
-		flushInterval: flushInterval,
-		topicFormat:   topicFormat,
+		kp:                     client,
+		flushInterval:          flushInterval,
+		topicFormat:            topicFormat,
+		deliveryReportInterval: deliveryReportInterval,
+		deliveryReportTopic:    topicName,
 	}
 }
 
 type Kafka struct {
-	kp            Client
-	flushInterval int
-	topicFormat   string
+	kp                     Client
+	flushInterval          int
+	topicFormat            string
+	deliveryReportInterval time.Duration
+	deliveryReportTopic    string
 }
 
 // ProduceBulk messages to kafka. Block until all messages are sent. Return array of error. Order of Errors is guaranteed.
@@ -89,6 +102,7 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 		totalProcessed++
 	}
 	// Wait for deliveryChannel as many as processed
+	localSuccesses := int64(0)
 	for i := 0; i < totalProcessed; i++ {
 		d := <-deliveryChannel
 		m := d.(*kafka.Message)
@@ -99,13 +113,31 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s", "delivery_failed", eventType, connGroup))
 			order := m.Opaque.(int)
 			errors[order] = m.TopicPartition.Error
+		} else {
+			localSuccesses++
 		}
+	}
+
+	// Single atomic update per batch
+	if localSuccesses > 0 {
+		atomic.AddInt64(&DeliveryEventCount, localSuccesses)
 	}
 
 	if allNil(errors) {
 		return nil
 	}
 	return BulkError{Errors: errors}
+}
+
+func (pr *Kafka) produceTotalEventMessage(topicName string, event *pb.TotalEventCountMessage) error {
+	value, err := serialization.SerializeProto(event)
+	if err != nil {
+		return fmt.Errorf("failed to serialize proto: %w", err)
+	}
+	return pr.kp.Produce(&kafka.Message{
+		TopicPartition: kafka.TopicPartition{Topic: &topicName, Partition: kafka.PartitionAny},
+		Value:          value,
+	}, nil)
 }
 
 func (pr *Kafka) ReportStats() {
@@ -138,6 +170,25 @@ func (pr *Kafka) ReportStats() {
 		default:
 			fmt.Printf("Ignored %v \n", e)
 		}
+	}
+}
+
+func (pr *Kafka) ReportDeliveryEventCount() {
+	ticker := time.NewTicker(pr.deliveryReportInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		// read the value
+		eventCount := atomic.LoadInt64(&DeliveryEventCount)
+		//build kafka message
+		msg := &pb.TotalEventCountMessage{
+			EventTimestamp: timestamppb.Now(),
+			EventCount:     int32(eventCount),
+		}
+		//produce to kafka
+		pr.produceTotalEventMessage(pr.deliveryReportTopic, msg)
+		//reset the counter
+		atomic.StoreInt64(&DeliveryEventCount, 0)
 	}
 }
 
