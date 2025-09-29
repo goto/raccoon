@@ -18,8 +18,7 @@ func TestShutDownServer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	mockKafka := &mockKafkaClient{}
-
-	kp := publisher.NewKafkaFromClient(mockKafka, 50, "test", 1*time.Millisecond, "clickstream-test-log")
+	kp := publisher.NewKafkaFromClient(mockKafka, 50, "test", "clickstream-test-log")
 
 	shutdownCh := make(chan bool, 1)
 	bufferCh := make(chan collection.CollectRequest, 1)

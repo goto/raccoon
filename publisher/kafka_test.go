@@ -27,9 +27,7 @@ func TestMain(t *testing.M) {
 }
 
 var (
-	clickstreamStats = ClickstreamStats{
-		topicName: "clickstream-test-log",
-	}
+	clickstreamStatsTopicName = "clickstream-test-log"
 )
 
 func TestProducer_Close(suite *testing.T) {
@@ -37,7 +35,7 @@ func TestProducer_Close(suite *testing.T) {
 		client := &mockClient{}
 		client.On("Flush", 10).Return(0)
 		client.On("Close").Return()
-		kp := NewKafkaFromClient(client, 10, "%s", clickstreamStats)
+		kp := NewKafkaFromClient(client, 10, "%s", clickstreamStatsTopicName)
 		kp.Close()
 		client.AssertExpectations(t)
 	})
@@ -61,7 +59,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 					}
 				}()
 			})
-			kp := NewKafkaFromClient(client, 10, "%s", clickstreamStats)
+			kp := NewKafkaFromClient(client, 10, "%s", clickstreamStatsTopicName)
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, group1, make(chan kafka.Event, 2))
 			assert.NoError(t, err)
 		})
@@ -88,7 +86,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 
 			// For stats message -> match by topic and decode value
 			client.On("Produce", mock.MatchedBy(func(msg *kafka.Message) bool {
-				return msg.TopicPartition.Topic != nil && *msg.TopicPartition.Topic == clickstreamStats.topicName
+				return msg.TopicPartition.Topic != nil && *msg.TopicPartition.Topic == clickstreamStatsTopicName
 			}), mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 				// decode the protobuf payload into TotalEventCountMessage
 				statsMsg := &pb.TotalEventCountMessage{}
@@ -97,7 +95,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 				assert.EqualValues(t, 2, statsMsg.EventCount) // we sent 2 events
 			})
 
-			kp := NewKafkaFromClient(client, 10, "%s", clickstreamStats)
+			kp := NewKafkaFromClient(client, 10, "%s", clickstreamStatsTopicName)
 
 			err := kp.ProduceBulk(
 				[]*pb.Event{
@@ -133,7 +131,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 			}).Once()
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf("buffer full")).Once()
 			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Once()
-			kp := NewKafkaFromClient(client, 10, "%s", clickstreamStats)
+			kp := NewKafkaFromClient(client, 10, "%s", clickstreamStatsTopicName)
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, group1, make(chan kafka.Event, 2))
 			assert.Len(t, err.(BulkError).Errors, 3)
 			assert.Error(t, err.(BulkError).Errors[0])
@@ -144,7 +142,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 		t.Run("Should return topic name when unknown topic is returned", func(t *testing.T) {
 			client := &mockClient{}
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errUnknownTopic))
-			kp := NewKafkaFromClient(client, 10, "%s", clickstreamStats)
+			kp := NewKafkaFromClient(client, 10, "%s", clickstreamStatsTopicName)
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2))
 			assert.EqualError(t, err.(BulkError).Errors[0], errUnknownTopic+" "+topic)
 		})
@@ -152,7 +150,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 		t.Run("Should return topic name when message size is too large", func(t *testing.T) {
 			client := &mockClient{}
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errLargeMessageSize)).Once()
-			kp := NewKafkaFromClient(client, 10, "%s", clickstreamStats)
+			kp := NewKafkaFromClient(client, 10, "%s", clickstreamStatsTopicName)
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2))
 			assert.EqualError(t, err.(BulkError).Errors[0], errLargeMessageSize+" "+topic)
 		})
@@ -175,7 +173,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 					}
 				}()
 			}).Once()
-			kp := NewKafkaFromClient(client, 10, "%s", clickstreamStats)
+			kp := NewKafkaFromClient(client, 10, "%s", clickstreamStatsTopicName)
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2))
 			assert.NotEmpty(t, err)
 			assert.Len(t, err.(BulkError).Errors, 2)

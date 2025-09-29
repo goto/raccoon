@@ -43,12 +43,14 @@ func NewKafka() (*Kafka, error) {
 }
 
 func NewKafkaFromClient(client Client, flushInterval int, topicFormat string,
-	clickstreamStats ClickstreamStats) *Kafka {
+	clickstreamStatsTopicName string) *Kafka {
 	return &Kafka{
-		kp:               client,
-		flushInterval:    flushInterval,
-		topicFormat:      topicFormat,
-		clickstreamStats: clickstreamStats,
+		kp:            client,
+		flushInterval: flushInterval,
+		topicFormat:   topicFormat,
+		clickstreamStats: ClickstreamStats{
+			clickstreamStatsTopicName,
+		},
 	}
 }
 
