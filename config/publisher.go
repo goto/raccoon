@@ -2,13 +2,11 @@ package config
 
 import (
 	"bytes"
-	"os"
-	"strings"
-	"time"
-
 	"github.com/goto/raccoon/config/util"
 	"github.com/spf13/viper"
 	confluent "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
+	"os"
+	"strings"
 )
 
 var PublisherKafka publisherKafka
@@ -16,7 +14,6 @@ var dynamicKafkaClientConfigPrefix = "PUBLISHER_KAFKA_CLIENT_"
 
 type publisherKafka struct {
 	FlushInterval             int
-	DeliveryReportInterval    time.Duration
 	ClickstreamStatsTopicName string
 }
 

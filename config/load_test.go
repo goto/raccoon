@@ -64,7 +64,6 @@ func TestDynamicConfigLoad(t *testing.T) {
 func TestKafkaConfig_ToKafkaConfigMap(t *testing.T) {
 	os.Setenv("PUBLISHER_KAFKA_FLUSH_INTERVAL_MS", "1000")
 	os.Setenv("PUBLISHER_KAFKA_CLICKSTREAM_STATS_TOPIC_NAME", "clickstream-test-log")
-	os.Setenv("PUBLISHER_KAFKA_DELIVERY_REPORT_INTERVAL_MS", "60")
 	os.Setenv("PUBLISHER_KAFKA_CLIENT_BOOTSTRAP_SERVERS", "kafka:9092")
 	os.Setenv("PUBLISHER_KAFKA_CLIENT_ACKS", "1")
 	os.Setenv("PUBLISHER_KAFKA_CLIENT_QUEUE_BUFFERING_MAX_MESSAGES", "10000")
