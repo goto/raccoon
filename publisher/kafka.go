@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"github.com/goto/raccoon/serialization"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"strings"
-	"sync/atomic"
-	"time"
-
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
+	"strings"
 	// Importing librd to make it work on vendor mode
 	_ "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka/librdkafka"
 
@@ -24,8 +21,6 @@ const (
 	errLargeMessageSize = "Broker: Message size too large" //error msg while producing a message which is larger than message.max.bytes config
 )
 
-var DeliveryEventCount int64
-
 // KafkaProducer Produce data to kafka synchronously
 type KafkaProducer interface {
 	// ProduceBulk message to kafka. Block until all messages are sent. Return array of error. Order is not guaranteed.
@@ -38,31 +33,34 @@ func NewKafka() (*Kafka, error) {
 		return &Kafka{}, err
 	}
 	return &Kafka{
-		kp:                     kp,
-		flushInterval:          config.PublisherKafka.FlushInterval,
-		topicFormat:            config.EventDistribution.PublisherPattern,
-		deliveryReportInterval: config.PublisherKafka.DeliveryReportInterval,
-		deliveryReportTopic:    config.PublisherKafka.DeliveryReportTopic,
+		kp:            kp,
+		flushInterval: config.PublisherKafka.FlushInterval,
+		topicFormat:   config.EventDistribution.PublisherPattern,
+		clickstreamStats: ClickstreamStats{
+			config.PublisherKafka.ClickstreamStatsTopicName,
+		},
 	}, nil
 }
 
-func NewKafkaFromClient(client Client, flushInterval int, topicFormat string, deliveryReportInterval time.Duration,
-	topicName string) *Kafka {
+func NewKafkaFromClient(client Client, flushInterval int, topicFormat string,
+	clickstreamStats ClickstreamStats) *Kafka {
 	return &Kafka{
-		kp:                     client,
-		flushInterval:          flushInterval,
-		topicFormat:            topicFormat,
-		deliveryReportInterval: deliveryReportInterval,
-		deliveryReportTopic:    topicName,
+		kp:               client,
+		flushInterval:    flushInterval,
+		topicFormat:      topicFormat,
+		clickstreamStats: clickstreamStats,
 	}
 }
 
 type Kafka struct {
-	kp                     Client
-	flushInterval          int
-	topicFormat            string
-	deliveryReportInterval time.Duration
-	deliveryReportTopic    string
+	kp               Client
+	flushInterval    int
+	topicFormat      string
+	clickstreamStats ClickstreamStats
+}
+
+type ClickstreamStats struct {
+	topicName string
 }
 
 // ProduceBulk messages to kafka. Block until all messages are sent. Return array of error. Order of Errors is guaranteed.
@@ -102,7 +100,7 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 		totalProcessed++
 	}
 	// Wait for deliveryChannel as many as processed
-	localSuccesses := int64(0)
+	totalEventCount := int64(0)
 	for i := 0; i < totalProcessed; i++ {
 		d := <-deliveryChannel
 		m := d.(*kafka.Message)
@@ -114,13 +112,17 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 			order := m.Opaque.(int)
 			errors[order] = m.TopicPartition.Error
 		} else {
-			localSuccesses++
+			totalEventCount++
 		}
 	}
-
-	// Single atomic update per batch
-	if localSuccesses > 0 {
-		atomic.AddInt64(&DeliveryEventCount, localSuccesses)
+	// send the total successful delivered event count to kafka topic
+	if totalEventCount > 0 {
+		//build kafka message for total message count
+		msg := &pb.TotalEventCountMessage{
+			EventTimestamp: timestamppb.Now(),
+			EventCount:     int32(totalEventCount),
+		}
+		pr.produceClickstreamStats(pr.clickstreamStats.topicName, msg)
 	}
 
 	if allNil(errors) {
@@ -129,7 +131,8 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 	return BulkError{Errors: errors}
 }
 
-func (pr *Kafka) produceTotalEventMessage(topicName string, event *pb.TotalEventCountMessage) error {
+// produceClickstreamStats : method to produce stats to a kafka topic
+func (pr *Kafka) produceClickstreamStats(topicName string, event *pb.TotalEventCountMessage) error {
 	value, err := serialization.SerializeProto(event)
 	if err != nil {
 		return fmt.Errorf("failed to serialize proto: %w", err)
@@ -170,25 +173,6 @@ func (pr *Kafka) ReportStats() {
 		default:
 			fmt.Printf("Ignored %v \n", e)
 		}
-	}
-}
-
-func (pr *Kafka) ReportDeliveryEventCount() {
-	ticker := time.NewTicker(pr.deliveryReportInterval)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		// read the value
-		eventCount := atomic.LoadInt64(&DeliveryEventCount)
-		//build kafka message
-		msg := &pb.TotalEventCountMessage{
-			EventTimestamp: timestamppb.Now(),
-			EventCount:     int32(eventCount),
-		}
-		//produce to kafka
-		pr.produceTotalEventMessage(pr.deliveryReportTopic, msg)
-		//reset the counter
-		atomic.StoreInt64(&DeliveryEventCount, 0)
 	}
 }
 

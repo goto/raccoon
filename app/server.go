@@ -37,7 +37,6 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 	workerPool.StartWorkers()
 	go kPublisher.ReportStats()
 	go reportProcMetrics()
-	go kPublisher.ReportDeliveryEventCount()
 	// create signal channel at startup
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
