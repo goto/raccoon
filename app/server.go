@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/goto/raccoon/stats"
 	"os"
 	"os/signal"
 	"runtime"
@@ -21,11 +22,12 @@ import (
 // StartServer starts the server
 func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
+	eventCountChannel := make(chan int32, config.Stats.ChannelSize)
 	httpServices := services.Create(bufferChannel, ctx)
 	logger.Info("Start Server -->")
 	httpServices.Start(ctx, cancel)
 	logger.Info("Start publisher -->")
-	kPublisher, err := publisher.NewKafka()
+	kPublisher, err := publisher.NewKafka(eventCountChannel)
 	if err != nil {
 		logger.Error("Error creating kafka producer", err)
 		logger.Info("Exiting server")
@@ -37,6 +39,8 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 	workerPool.StartWorkers()
 	go kPublisher.ReportStats()
 	go reportProcMetrics()
+	eventStat := stats.CreateTotalEventStat(kPublisher, config.Stats.FlushInterval, config.Stats.TopicName, eventCountChannel)
+	go eventStat.FlushTotalEventStat()
 	// create signal channel at startup
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)

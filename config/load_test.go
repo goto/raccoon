@@ -89,3 +89,13 @@ func TestWorkerConfig(t *testing.T) {
 	assert.Equal(t, 5, Worker.ChannelSize)
 	assert.Equal(t, 2, Worker.WorkersPoolSize)
 }
+
+func TestStatsConfig(t *testing.T) {
+	os.Setenv("STATS_TOPIC_NAME", "clickstream-total-event-log")
+	os.Setenv("STATS_FLUSH_INTERVAL_IN_SEC", "10")
+	os.Setenv("STATS_CHANNEL_SIZE", "1000")
+	statsConfigLoader()
+	assert.Equal(t, time.Duration(10)*time.Second, Stats.FlushInterval)
+	assert.Equal(t, 1000, Stats.ChannelSize)
+	assert.Equal(t, "clickstream-total-event-log", Stats.TopicName)
+}

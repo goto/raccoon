@@ -2,12 +2,11 @@ package config
 
 import (
 	"bytes"
-	"os"
-	"strings"
-
 	"github.com/goto/raccoon/config/util"
 	"github.com/spf13/viper"
 	confluent "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
+	"os"
+	"strings"
 )
 
 var PublisherKafka publisherKafka

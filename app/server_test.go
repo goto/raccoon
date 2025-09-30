@@ -19,7 +19,7 @@ func TestShutDownServer(t *testing.T) {
 	defer cancel()
 	mockKafka := &mockKafkaClient{}
 
-	kp := publisher.NewKafkaFromClient(mockKafka, 50, "test")
+	kp := publisher.NewKafkaFromClient(mockKafka, 50, "test", make(chan int32, 1))
 
 	shutdownCh := make(chan bool, 1)
 	bufferCh := make(chan collection.CollectRequest, 1)
