@@ -10,7 +10,7 @@ import (
 )
 
 func TestFlushTotalEventStat(t *testing.T) {
-	// Arrange
+	// setup
 	eventCh := make(chan int32, 10)
 	producedCh := make(chan *pb.TotalEventCountMessage, 10) // <- initialize channel
 	mockKP := &mockKafkaProducer{producedCh: producedCh}
@@ -41,7 +41,7 @@ func TestFlushTotalEventStat(t *testing.T) {
 	}
 }
 
-// Optional: add a timeout test to ensure aggregation resets
+// add a timeout test to ensure aggregation resets
 func TestFlushResetsAfterPublish(t *testing.T) {
 	eventCh := make(chan int32, 10)
 	producedCh := make(chan *pb.TotalEventCountMessage, 10)
