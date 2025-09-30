@@ -17,6 +17,12 @@ func (m *mockKafkaPublisher) ProduceBulk(events []*pb.Event, connGroup string, d
 	return mock.Error(0)
 }
 
+// ProduceBulk provides a mock function with given fields: events, deliveryChannel
+func (m *mockKafkaPublisher) ProduceEventStat(topicName string, event *pb.TotalEventCountMessage) error {
+	mock := m.Called(topicName, event)
+	return mock.Error(0)
+}
+
 type mockMetric struct {
 	mock.Mock
 }

@@ -3,9 +3,9 @@ package publisher
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
-
+	"github.com/goto/raccoon/serialization"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
+	"strings"
 	// Importing librd to make it work on vendor mode
 	_ "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka/librdkafka"
 
@@ -24,32 +24,37 @@ const (
 type KafkaProducer interface {
 	// ProduceBulk message to kafka. Block until all messages are sent. Return array of error. Order is not guaranteed.
 	ProduceBulk(events []*pb.Event, connGroup string, deliveryChannel chan kafka.Event) error
+	// ProduceEventStat event stat message to kafka
+	ProduceEventStat(topicName string, event *pb.TotalEventCountMessage) error
 }
 
-func NewKafka() (*Kafka, error) {
+func NewKafka(eventCountChannel chan int32) (*Kafka, error) {
 	kp, err := newKafkaClient(config.PublisherKafka.ToKafkaConfigMap())
 	if err != nil {
 		return &Kafka{}, err
 	}
 	return &Kafka{
-		kp:            kp,
-		flushInterval: config.PublisherKafka.FlushInterval,
-		topicFormat:   config.EventDistribution.PublisherPattern,
+		kp:                kp,
+		flushInterval:     config.PublisherKafka.FlushInterval,
+		topicFormat:       config.EventDistribution.PublisherPattern,
+		eventCountChannel: eventCountChannel,
 	}, nil
 }
 
-func NewKafkaFromClient(client Client, flushInterval int, topicFormat string) *Kafka {
+func NewKafkaFromClient(client Client, flushInterval int, topicFormat string, eventCountChannel chan int32) *Kafka {
 	return &Kafka{
-		kp:            client,
-		flushInterval: flushInterval,
-		topicFormat:   topicFormat,
+		kp:                client,
+		flushInterval:     flushInterval,
+		topicFormat:       topicFormat,
+		eventCountChannel: eventCountChannel,
 	}
 }
 
 type Kafka struct {
-	kp            Client
-	flushInterval int
-	topicFormat   string
+	kp                Client
+	flushInterval     int
+	topicFormat       string
+	eventCountChannel chan int32 // channel to track successful deliveries
 }
 
 // ProduceBulk messages to kafka. Block until all messages are sent. Return array of error. Order of Errors is guaranteed.
@@ -89,6 +94,7 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 		totalProcessed++
 	}
 	// Wait for deliveryChannel as many as processed
+	successEventCount := int32(0)
 	for i := 0; i < totalProcessed; i++ {
 		d := <-deliveryChannel
 		m := d.(*kafka.Message)
@@ -99,7 +105,13 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s", "delivery_failed", eventType, connGroup))
 			order := m.Opaque.(int)
 			errors[order] = m.TopicPartition.Error
+		} else {
+			successEventCount++
 		}
+	}
+	// send count to channel instead of atomic
+	if successEventCount > 0 {
+		pr.eventCountChannel <- successEventCount
 	}
 
 	if allNil(errors) {
@@ -139,6 +151,17 @@ func (pr *Kafka) ReportStats() {
 			fmt.Printf("Ignored %v \n", e)
 		}
 	}
+}
+
+func (pr *Kafka) ProduceEventStat(topicName string, event *pb.TotalEventCountMessage) error {
+	value, err := serialization.SerializeProto(event)
+	if err != nil {
+		return fmt.Errorf("failed to serialize proto: %w", err)
+	}
+	return pr.kp.Produce(&kafka.Message{
+		TopicPartition: kafka.TopicPartition{Topic: &topicName, Partition: kafka.PartitionAny},
+		Value:          value,
+	}, nil)
 }
 
 // Close wait for outstanding messages to be delivered within given flush interval timeout.
