@@ -143,32 +143,51 @@ func (pr *Kafka) ReportStats() {
 }
 
 func (pr *Kafka) reportBatchMetrics(stats map[string]interface{}) {
-	topics, ok := stats["topics"].(map[string]interface{})
-	if !ok || len(topics) == 0 {
-		logger.Errorf("No topics produced yet — skipping batch metrics")
+	topicsRaw, ok := stats["topics"].(map[string]interface{})
+	if !ok || len(topicsRaw) == 0 {
+		logger.Debug("No topics produced yet — skipping batch metrics")
 		return
 	}
 
-	for topicName, topicData := range topics {
-		topicStats := topicData.(map[string]interface{})
+	for topicName, topicData := range topicsRaw {
+		topicStats, ok := topicData.(map[string]interface{})
+		if !ok {
+			continue
+		}
 
-		batchCnt := getFloat(topicStats, "batchcnt")
-		msgCnt := getFloat(topicStats, "msgcnt")
+		// Sum messages across all partitions
+		msgCnt := 0.0
+		if partitions, ok := topicStats["partitions"].(map[string]interface{}); ok {
+			for _, p := range partitions {
+				partStats, ok := p.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				msgCnt += getFloat(partStats, "msgs")
+			}
+		}
 
-		// batchsize is usually an object { "avg": float64, "min": float64, ... }
+		// Batch metrics
+		batchCnt := 0.0
+		if bc, ok := topicStats["batchcnt"].(map[string]interface{}); ok {
+			batchCnt = getFloat(bc, "cnt")
+		}
+
 		batchSizeAvg := 0.0
 		if bs, ok := topicStats["batchsize"].(map[string]interface{}); ok {
 			batchSizeAvg = getFloat(bs, "avg")
 		}
 
-		var msgsPerBatch float64
+		// Average messages per batch
+		msgsPerBatch := 0.0
 		if batchCnt > 0 {
 			msgsPerBatch = msgCnt / batchCnt
 		}
 
+		// Emit metrics
+		metrics.Count("kafka_producer_batch_count_total", int(batchCnt), fmt.Sprintf("topic=%s", topicName))
+		metrics.Count("kafka_producer_message_count_total", int(msgCnt), fmt.Sprintf("topic=%s", topicName))
 		metrics.Gauge("kafka_producer_batch_size_avg_bytes", batchSizeAvg, fmt.Sprintf("topic=%s", topicName))
-		metrics.Gauge("kafka_producer_batch_count_total", batchCnt, fmt.Sprintf("topic=%s", topicName))
-		metrics.Gauge("kafka_producer_message_count_total", msgCnt, fmt.Sprintf("topic=%s", topicName))
 		metrics.Gauge("kafka_producer_messages_per_batch_avg", msgsPerBatch, fmt.Sprintf("topic=%s", topicName))
 
 		logger.Debugf(
