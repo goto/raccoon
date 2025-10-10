@@ -117,6 +117,7 @@ func (pr *Kafka) ReportStats() {
 				logger.Errorf("failed to unmarshal kafka stats: %v", err)
 				continue
 			}
+			pr.reportBatchMetrics(stats)
 			brokersRawJson, ok := stats["brokers"]
 			if !ok || brokersRawJson == nil {
 				logger.Errorf("kafka broker stats missing or null brokers field")
@@ -139,6 +140,54 @@ func (pr *Kafka) ReportStats() {
 			fmt.Printf("Ignored %v \n", e)
 		}
 	}
+}
+
+func (pr *Kafka) reportBatchMetrics(stats map[string]interface{}) {
+	topics, ok := stats["topics"].(map[string]interface{})
+	if !ok || len(topics) == 0 {
+		logger.Errorf("No topics produced yet — skipping batch metrics")
+		return
+	}
+
+	for topicName, topicData := range topics {
+		topicStats := topicData.(map[string]interface{})
+
+		batchCnt := getFloat(topicStats, "batchcnt")
+		msgCnt := getFloat(topicStats, "msgcnt")
+
+		// batchsize is usually an object { "avg": float64, "min": float64, ... }
+		batchSizeAvg := 0.0
+		if bs, ok := topicStats["batchsize"].(map[string]interface{}); ok {
+			batchSizeAvg = getFloat(bs, "avg")
+		}
+
+		var msgsPerBatch float64
+		if batchCnt > 0 {
+			msgsPerBatch = msgCnt / batchCnt
+		}
+
+		metrics.Gauge("kafka_producer_batch_size_avg_bytes", batchSizeAvg, fmt.Sprintf("topic=%s", topicName))
+		metrics.Gauge("kafka_producer_batch_count_total", batchCnt, fmt.Sprintf("topic=%s", topicName))
+		metrics.Gauge("kafka_producer_message_count_total", msgCnt, fmt.Sprintf("topic=%s", topicName))
+		metrics.Gauge("kafka_producer_messages_per_batch_avg", msgsPerBatch, fmt.Sprintf("topic=%s", topicName))
+
+		logger.Debugf(
+			"Kafka topic=%s batchSizeAvg=%.2f msgsPerBatch=%.2f batchCnt=%.0f msgCnt=%.0f",
+			topicName, batchSizeAvg, msgsPerBatch, batchCnt, msgCnt,
+		)
+	}
+}
+
+func getFloat(m map[string]interface{}, key string) float64 {
+	if val, ok := m[key]; ok {
+		switch v := val.(type) {
+		case float64:
+			return v
+		case int:
+			return float64(v)
+		}
+	}
+	return 0
 }
 
 // Close wait for outstanding messages to be delivered within given flush interval timeout.
