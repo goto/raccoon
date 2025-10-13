@@ -181,22 +181,11 @@ func (pr *Kafka) reportBatchMetrics(stats map[string]interface{}) {
 			batchSizeAvg = getFloat(bs, "avg")
 		}
 
-		// Average messages per batch
-		msgsPerBatch := 0.0
-		if batchCnt > 0 {
-			msgsPerBatch = msgCnt / batchCnt
-		}
-
 		// Emit metrics
 		metrics.Gauge("kafka_producer_batch_count_total", int(batchCnt), fmt.Sprintf("topic=%s", topicName))
 		metrics.Gauge("kafka_producer_message_count_total", int(msgCnt), fmt.Sprintf("topic=%s", topicName))
 		metrics.Gauge("kafka_producer_batch_size_avg_bytes", batchSizeAvg, fmt.Sprintf("topic=%s", topicName))
-		metrics.Gauge("kafka_producer_messages_per_batch_avg", msgsPerBatch, fmt.Sprintf("topic=%s", topicName))
 
-		logger.Debugf(
-			"Kafka topic=%s batchSizeAvg=%.2f msgsPerBatch=%.2f batchCnt=%.0f msgCnt=%.0f",
-			topicName, batchSizeAvg, msgsPerBatch, batchCnt, msgCnt,
-		)
 	}
 }
 
