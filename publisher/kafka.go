@@ -137,7 +137,7 @@ func (pr *Kafka) ReportStats() {
 			}
 
 		default:
-			fmt.Printf("Ignored %v \n", e)
+			logger.Infof("Ignored %v \n", e)
 		}
 	}
 }
@@ -154,38 +154,12 @@ func (pr *Kafka) reportBatchMetrics(stats map[string]interface{}) {
 		if !ok {
 			continue
 		}
-
-		// Sum messages across all partitions
-		msgCnt := 0.0
-		if partitions, ok := topicStats["partitions"].(map[string]interface{}); ok {
-			for partition, p := range partitions {
-				if partition == "-1" { // ignore invalid partition
-					continue
-				}
-				partStats, ok := p.(map[string]interface{})
-				if !ok {
-					continue
-				}
-				msgCnt += getFloat(partStats, "msgs")
-			}
-		}
-
-		// Batch metrics
-		batchCnt := 0.0
-		if bc, ok := topicStats["batchcnt"].(map[string]interface{}); ok {
-			batchCnt = getFloat(bc, "cnt")
-		}
-
 		batchSizeAvg := 0.0
 		if bs, ok := topicStats["batchsize"].(map[string]interface{}); ok {
 			batchSizeAvg = getFloat(bs, "avg")
 		}
-
 		// Emit metrics
-		metrics.Gauge("kafka_producer_batch_count_total", int(batchCnt), fmt.Sprintf("topic=%s", topicName))
-		metrics.Gauge("kafka_producer_message_count_total", int(msgCnt), fmt.Sprintf("topic=%s", topicName))
 		metrics.Gauge("kafka_producer_batch_size_avg_bytes", batchSizeAvg, fmt.Sprintf("topic=%s", topicName))
-
 	}
 }
 
