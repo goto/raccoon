@@ -117,6 +117,7 @@ func (pr *Kafka) ReportStats() {
 				logger.Errorf("failed to unmarshal kafka stats: %v", err)
 				continue
 			}
+			pr.reportBatchMetrics(stats)
 			brokersRawJson, ok := stats["brokers"]
 			if !ok || brokersRawJson == nil {
 				logger.Errorf("kafka broker stats missing or null brokers field")
@@ -136,9 +137,42 @@ func (pr *Kafka) ReportStats() {
 			}
 
 		default:
-			fmt.Printf("Ignored %v \n", e)
+			logger.Infof("Ignored %v \n", e)
 		}
 	}
+}
+
+func (pr *Kafka) reportBatchMetrics(stats map[string]interface{}) {
+	topicsRaw, ok := stats["topics"].(map[string]interface{})
+	if !ok || len(topicsRaw) == 0 {
+		logger.Debug("No topics produced yet — skipping batch metrics")
+		return
+	}
+
+	for topicName, topicData := range topicsRaw {
+		topicStats, ok := topicData.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		batchSizeAvg := 0.0
+		if bs, ok := topicStats["batchsize"].(map[string]interface{}); ok {
+			batchSizeAvg = getFloat(bs, "avg")
+		}
+		// Emit metrics
+		metrics.Gauge("kafka_producer_batch_size_avg_bytes", batchSizeAvg, fmt.Sprintf("topic=%s", topicName))
+	}
+}
+
+func getFloat(m map[string]interface{}, key string) float64 {
+	if val, ok := m[key]; ok {
+		switch v := val.(type) {
+		case float64:
+			return v
+		case int:
+			return float64(v)
+		}
+	}
+	return 0
 }
 
 // Close wait for outstanding messages to be delivered within given flush interval timeout.
