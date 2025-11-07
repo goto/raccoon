@@ -10,6 +10,7 @@ import (
 var Server server
 var ServerWs serverWs
 var ServerGRPC serverGRPC
+var ServerMQTT serverMQTT
 
 type server struct {
 	DedupEnabled bool
@@ -35,6 +36,33 @@ type serverGRPC struct {
 	TLSEnabled   bool
 	TLSCertPath  string
 	TLSPublicKey string
+}
+
+type serverMQTT struct {
+	ConsulConfig   consul
+	AuthConfig     auth
+	ConsumerConfig consumer
+	ConnGroup      string
+}
+
+type auth struct {
+	Username string
+	Password string
+}
+
+type consul struct {
+	Address    string
+	HealthOnly bool
+	KVKey      string
+	WaitTime   time.Duration
+}
+
+type consumer struct {
+	RetryIntervalInSec time.Duration
+	LogLevel           string
+	WriteTimeoutInSec  time.Duration
+	PoolSize           int
+	TopicFormat        string
 }
 
 func serverConfigLoader() {
@@ -83,5 +111,41 @@ func serverGRPCConfigLoader() {
 		TLSEnabled:   util.MustGetBool("SERVER_GRPC_TLS_ENABLED"),
 		TLSCertPath:  util.MustGetString("SERVER_GRPC_TLS_CERT_PATH"),
 		TLSPublicKey: util.MustGetString("SERVER_GRPC_TLS_PUBLIC_KEY"),
+	}
+}
+
+func serverMQTTConfigLoader() {
+	viper.SetDefault("SERVER_MQTT_CONSUL_ADDRESS", "consul:8081")
+	viper.SetDefault("SERVER_MQTT_CONSUL_KV_KEY", "kv/path")
+	viper.SetDefault("SERVER_MQTT_CONSUL_HEALTH_ONLY", true)
+	viper.SetDefault("SERVER_MQTT_CONSUL_WAIT_TIME", 300)
+	viper.SetDefault("SERVER_MQTT_AUTH_USERNAME", "test")
+	viper.SetDefault("SERVER_MQTT_AUTH_PASSWORD", "pass")
+	viper.SetDefault("SERVER_MQTT_CONSUMER_RETRY_INTERVAL_IN_SEC", 1)
+	viper.SetDefault("SERVER_MQTT_CONSUMER_WRITE_TIMEOUT_IN_SEC", 1)
+	viper.SetDefault("SERVER_MQTT_CONSUMER_LOG_LEVEL", "warn")
+	viper.SetDefault("SERVER_MQTT_CONSUMER_POOL_SIZE", 1)
+	viper.SetDefault("SERVER_MQTT_CONSUMER_TOPIC_FORMAT", "$share/clickstream/v1/+/+")
+	viper.SetDefault("SERVER_MQTT_CONNECTION_GROUP", "consumer")
+
+	ServerMQTT = serverMQTT{
+		ConsulConfig: consul{
+			Address:    util.MustGetString("SERVER_MQTT_CONSUL_ADDRESS"),
+			HealthOnly: util.MustGetBool("SERVER_MQTT_CONSUL_HEALTH_ONLY"),
+			KVKey:      util.MustGetString("SERVER_MQTT_CONSUL_KV_KEY"),
+			WaitTime:   util.MustGetDuration("SERVER_MQTT_CONSUL_WAIT_TIME", time.Second),
+		},
+		AuthConfig: auth{
+			Username: util.MustGetString("SERVER_MQTT_AUTH_USERNAME"),
+			Password: util.MustGetString("SERVER_MQTT_AUTH_USERNAME"),
+		},
+		ConsumerConfig: consumer{
+			RetryIntervalInSec: util.MustGetDuration("SERVER_MQTT_CONSUMER_RETRY_INTERVAL_IN_SEC", time.Second),
+			LogLevel:           util.MustGetString("SERVER_MQTT_CONSUMER_LOG_LEVEL"),
+			WriteTimeoutInSec:  util.MustGetDuration("SERVER_MQTT_CONSUMER_POOL_SIZE", time.Second),
+			PoolSize:           util.MustGetInt("SERVER_MQTT_CONSUMER_POOL_SIZE"),
+			TopicFormat:        util.MustGetString("SERVER_MQTT_CONSUMER_TOPIC_FORMAT"),
+		},
+		ConnGroup: util.MustGetString("SERVER_MQTT_CONNECTION_GROUP"),
 	}
 }

@@ -3,6 +3,7 @@ package rest
 import (
 	"context"
 	"fmt"
+	"github.com/goto/raccoon/health"
 	"net/http"
 	"time"
 
@@ -46,8 +47,22 @@ func NewRestService(c collection.Collector, ctx context.Context) *Service {
 }
 
 func pingHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("pong"))
+	results := health.CheckAll()
+	allHealthy := true
+	for _, status := range results {
+		if status != "healthy" {
+			allHealthy = false
+			break
+		}
+	}
+	statusCode := http.StatusOK
+	if !allHealthy {
+		statusCode = http.StatusServiceUnavailable
+		w.WriteHeader(statusCode)
+	} else {
+		w.WriteHeader(statusCode)
+		w.Write([]byte("pong"))
+	}
 }
 
 func reportConnectionMetrics(conn connection.Table) {

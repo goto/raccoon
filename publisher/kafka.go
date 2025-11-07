@@ -3,6 +3,7 @@ package publisher
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/goto/raccoon/health"
 	"strings"
 
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
@@ -24,6 +25,7 @@ const (
 type KafkaProducer interface {
 	// ProduceBulk message to kafka. Block until all messages are sent. Return array of error. Order is not guaranteed.
 	ProduceBulk(events []*pb.Event, connGroup string, deliveryChannel chan kafka.Event) error
+	HealthCheck() error
 }
 
 func NewKafka() (*Kafka, error) {
@@ -31,11 +33,15 @@ func NewKafka() (*Kafka, error) {
 	if err != nil {
 		return &Kafka{}, err
 	}
-	return &Kafka{
+
+	k := &Kafka{
 		kp:            kp,
 		flushInterval: config.PublisherKafka.FlushInterval,
 		topicFormat:   config.EventDistribution.PublisherPattern,
-	}, nil
+	}
+	//register the health check of connection to kafka broker
+	health.Register("kafka-broker", k.HealthCheck)
+	return k, nil
 }
 
 func NewKafkaFromClient(client Client, flushInterval int, topicFormat string) *Kafka {
@@ -210,5 +216,11 @@ func (b BulkError) Error() string {
 		}
 		err += mErr.Error()
 	}
+	return err
+}
+
+func (pr *Kafka) HealthCheck() error {
+	topic := "clickstream-page-log"
+	_, err := pr.kp.GetMetadata(&topic, false, 5000)
 	return err
 }

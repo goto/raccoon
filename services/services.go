@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"github.com/goto/raccoon/services/mqtt"
 	"net/http"
 
 	"github.com/goto/raccoon/collection"
@@ -50,6 +51,7 @@ func Create(b chan collection.CollectRequest, ctx context.Context) Services {
 			grpc.NewGRPCService(c),
 			pprof.NewPprofService(),
 			rest.NewRestService(c, ctx),
+			mqtt.NewMQTTService(c, ctx),
 		},
 	}
 }
