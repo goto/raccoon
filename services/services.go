@@ -30,6 +30,7 @@ func (s *Services) Start(ctx context.Context, cancel context.CancelFunc) {
 		go func() {
 			logger.Infof("%s Server --> startServers", i.Name())
 			err := i.Init(ctx)
+			logger.Errorf("service start up error %v", err)
 			if err != nil && err != http.ErrServerClosed {
 				cancel()
 			}

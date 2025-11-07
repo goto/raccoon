@@ -3,11 +3,10 @@ package client
 import (
 	"context"
 	"fmt"
-
 	"github.com/gojek/courier-go"
 	"github.com/gojek/courier-go/consul"
-	"github.com/goto/raccoon/clients/go/log"
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/logger"
 )
 
 // MqttPubSubClient wraps a courier MQTT client with start/stop lifecycle management.
@@ -52,7 +51,7 @@ func NewMqttPubSubClient(ctx context.Context, handler courier.MessageHandler, cl
 		return nil, fmt.Errorf("failed to initialize MQTT client: %w", err)
 	}
 
-	log.Infof("MQTT client initialized successfully for clientID=%s", clientID)
+	logger.Infof("MQTT client initialized successfully for clientID=%s and client %v", clientID, client)
 	return &MqttPubSubClient{client: client}, nil
 }
 
@@ -61,9 +60,9 @@ func registerHandler(ctx context.Context, handler courier.MessageHandler) func(c
 	return func(ps courier.PubSub) {
 		topic := config.ServerMQTT.ConsumerConfig.TopicFormat
 		if err := ps.Subscribe(ctx, topic, handler, courier.QOSZero); err != nil {
-			log.Errorf("failed to register MQTT handler for topic %q: %v", topic, err)
+			logger.Errorf("failed to register MQTT handler for topic %q: %v", topic, err)
 		} else {
-			log.Infof("successfully registered MQTT handler for topic %q", topic)
+			logger.Infof("successfully registered MQTT handler for topic %q", topic)
 		}
 	}
 }
@@ -71,16 +70,17 @@ func registerHandler(ctx context.Context, handler courier.MessageHandler) func(c
 // Start begins the MQTT client operation.
 func (m *MqttPubSubClient) Start() error {
 	if err := m.client.Start(); err != nil {
+		logger.Infof("MQTT client start failed due to %v", err)
 		return fmt.Errorf("failed to start MQTT client: %w", err)
 	}
-	log.Infof("MQTT client started successfully")
+	logger.Infof("MQTT client started successfully")
 	return nil
 }
 
 // Stop gracefully stops the MQTT client.
 func (m *MqttPubSubClient) Stop() error {
 	m.client.Stop()
-	log.Infof("MQTT client stopped successfully")
+	logger.Infof("MQTT client stopped successfully")
 	return nil
 }
 

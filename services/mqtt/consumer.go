@@ -2,6 +2,7 @@ package mqtt
 
 import (
 	"fmt"
+	"github.com/goto/raccoon/logger"
 )
 
 // Consumer wraps a PubSubClient and provides lifecycle control.
@@ -21,23 +22,27 @@ func NewConsumer(client PubSubClient) *Consumer {
 	return &Consumer{client: client}
 }
 
-// Start initializes and starts the underlying PubSubClient.
-func (c *Consumer) Start() error {
+// Init initializes and starts the underlying PubSubClient.
+func (c *Consumer) Init() error {
 	if err := c.client.Start(); err != nil {
 		return fmt.Errorf("failed to start consumer: %w", err)
+	} else {
+		logger.Info("[consumer:] client started sucessfully !!")
 	}
 	return nil
 }
 
-// Stop gracefully shuts down the underlying PubSubClient.
-func (c *Consumer) Stop() error {
+// Shutdown gracefully shuts down the underlying PubSubClient.
+func (c *Consumer) Shutdown() error {
 	if err := c.client.Stop(); err != nil {
 		return fmt.Errorf("failed to stop consumer: %w", err)
+	} else {
+		logger.Info("[consumer:] client stopped sucessfully !!")
 	}
 	return nil
 }
 
-// IsConnected checks the connection health of underlying PubSubClient.
-func (c *Consumer) IsConnected() bool {
+// IsHealthy checks the connection health of underlying PubSubClient.
+func (c *Consumer) IsHealthy() bool {
 	return c.client.IsConnected()
 }
