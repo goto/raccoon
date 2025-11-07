@@ -137,7 +137,7 @@ func serverMQTTConfigLoader() {
 		},
 		AuthConfig: auth{
 			Username: util.MustGetString("SERVER_MQTT_AUTH_USERNAME"),
-			Password: util.MustGetString("SERVER_MQTT_AUTH_USERNAME"),
+			Password: util.MustGetString("SERVER_MQTT_AUTH_PASSWORD"),
 		},
 		ConsumerConfig: consumer{
 			RetryIntervalInSec: util.MustGetDuration("SERVER_MQTT_CONSUMER_RETRY_INTERVAL_IN_SEC", time.Second),
