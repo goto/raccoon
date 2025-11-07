@@ -11,7 +11,8 @@ import (
 
 // MqttPubSubClient wraps a courier MQTT client with start/stop lifecycle management.
 type MqttPubSubClient struct {
-	client *courier.Client
+	client         *courier.Client
+	consulResolver *consul.Resolver
 }
 
 // NewMqttPubSubClient initializes a new MQTT client with Consul-based service discovery and credentials.
@@ -44,6 +45,7 @@ func NewMqttPubSubClient(ctx context.Context, handler courier.MessageHandler, cl
 		courier.WithPahoLogLevel(courier.ParseLogLevel(config.ServerMQTT.ConsumerConfig.LogLevel)),
 		courier.WithWriteTimeout(config.ServerMQTT.ConsumerConfig.WriteTimeoutInSec),
 		courier.WithOnConnect(registerHandler(ctx, handler)),
+		courier.WithLogger(logger.GetLogger()),
 	}
 
 	client, err := courier.NewClient(clientOpts...)
@@ -52,7 +54,7 @@ func NewMqttPubSubClient(ctx context.Context, handler courier.MessageHandler, cl
 	}
 
 	logger.Infof("MQTT client initialized successfully for clientID=%s and client %v", clientID, client)
-	return &MqttPubSubClient{client: client}, nil
+	return &MqttPubSubClient{client: client, consulResolver: rs}, nil
 }
 
 // registerHandler registers the subscription handler when the client connects.
@@ -69,6 +71,7 @@ func registerHandler(ctx context.Context, handler courier.MessageHandler) func(c
 
 // Start begins the MQTT client operation.
 func (m *MqttPubSubClient) Start() error {
+	go m.consulResolver.Start()
 	if err := m.client.Start(); err != nil {
 		logger.Infof("MQTT client start failed due to %v", err)
 		return fmt.Errorf("failed to start MQTT client: %w", err)

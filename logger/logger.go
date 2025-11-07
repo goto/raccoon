@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -25,6 +26,29 @@ func init() {
 	}
 
 	return
+}
+
+type CustomLogger struct {
+	log *log.Logger
+}
+
+func (c CustomLogger) Info(_ context.Context, msg string, attrs map[string]any) {
+	c.log.Info(msg, attrs)
+}
+func (c CustomLogger) Error(_ context.Context, err error, attrs map[string]any) {
+	c.log.Error(err, attrs)
+}
+
+func GetLogger() CustomLogger {
+	log := &log.Logger{
+		Out: os.Stdout,
+		Formatter: &log.TextFormatter{
+			FullTimestamp: true,
+		},
+		Hooks: make(log.LevelHooks),
+		Level: defaultLevel,
+	}
+	return CustomLogger{log: log}
 }
 
 func Debug(args ...interface{}) {
