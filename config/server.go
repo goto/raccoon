@@ -125,7 +125,7 @@ func serverMQTTConfigLoader() {
 	viper.SetDefault("SERVER_MQTT_CONSUMER_WRITE_TIMEOUT_IN_SEC", 1)
 	viper.SetDefault("SERVER_MQTT_CONSUMER_LOG_LEVEL", "warn")
 	viper.SetDefault("SERVER_MQTT_CONSUMER_POOL_SIZE", 1)
-	viper.SetDefault("SERVER_MQTT_CONSUMER_TOPIC_FORMAT", "$share/clickstream/v1/+/+")
+	viper.SetDefault("SERVER_MQTT_CONSUMER_TOPIC_FORMAT", "default-topic")
 	viper.SetDefault("SERVER_MQTT_CONNECTION_GROUP", "consumer")
 
 	ServerMQTT = serverMQTT{
