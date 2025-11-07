@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"github.com/gojek/courier-go"
 	"github.com/gojek/courier-go/consul"
+	"github.com/gojekfarm/xtools/xproto"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/logger"
+	"io"
 )
 
 // MqttPubSubClient wraps a courier MQTT client with start/stop lifecycle management.
@@ -46,6 +48,7 @@ func NewMqttPubSubClient(ctx context.Context, handler courier.MessageHandler, cl
 		courier.WithWriteTimeout(config.ServerMQTT.ConsumerConfig.WriteTimeoutInSec),
 		courier.WithOnConnect(registerHandler(ctx, handler)),
 		courier.WithLogger(logger.GetLogger()),
+		courier.WithCustomDecoder(protoDecoder),
 	}
 
 	client, err := courier.NewClient(clientOpts...)
@@ -90,4 +93,8 @@ func (m *MqttPubSubClient) Stop() error {
 // IsConnected checks the connection status.
 func (m *MqttPubSubClient) IsConnected() bool {
 	return m.client.IsConnected()
+}
+
+func protoDecoder(ctx context.Context, r io.Reader) courier.Decoder {
+	return xproto.NewDecoder(r)
 }

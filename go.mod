@@ -7,6 +7,7 @@ require (
 	buf.build/gen/go/gotocompany/proton/protocolbuffers/go v1.29.0-20230313110213-9a3d240d5293.1
 	github.com/gojek/courier-go v0.7.8
 	github.com/gojek/courier-go/consul v0.7.3
+	github.com/gojekfarm/xtools/xproto v0.10.0
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.5.3
 	github.com/goto/raccoon/clients/go v0.0.0-20250203072106-1dbea749aaf3
@@ -14,7 +15,7 @@ require (
 	github.com/spf13/viper v1.7.0
 	github.com/stretchr/testify v1.9.0
 	google.golang.org/grpc v1.53.0
-	google.golang.org/protobuf v1.29.0
+	google.golang.org/protobuf v1.33.0
 	gopkg.in/alexcesaro/statsd.v2 v2.0.0
 	gopkg.in/confluentinc/confluent-kafka-go.v1 v1.4.2
 )
