@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"github.com/goto/raccoon/logger"
 
 	"github.com/gojek/courier-go"
 	"github.com/goto/raccoon/config"
@@ -35,6 +36,7 @@ func newCredentialFetcher() (*credentialFetcher, error) {
 
 // Credentials returns the MQTT username and password as a courier.Credential.
 func (cf *credentialFetcher) Credentials(_ context.Context) (*courier.Credential, error) {
+	logger.Info("username : %v \n password : %v", cf.username, cf.password)
 	return &courier.Credential{
 		Username: cf.username,
 		Password: cf.password,
