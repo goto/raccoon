@@ -52,6 +52,35 @@ func TestGRPCServerConfig(t *testing.T) {
 	assert.Equal(t, "8081", ServerGRPC.Port)
 }
 
+func TestServerMQTTConfig(t *testing.T) {
+	os.Setenv("SERVER_MQTT_CONSUL_ADDRESS", "consul:8081")
+	os.Setenv("SERVER_MQTT_CONSUL_KV_KEY", "kv/path")
+	os.Setenv("SERVER_MQTT_CONSUL_HEALTH_ONLY", "true")
+	os.Setenv("SERVER_MQTT_CONSUL_WAIT_TIME", "300")
+	os.Setenv("SERVER_MQTT_AUTH_USERNAME", "test")
+	os.Setenv("SERVER_MQTT_AUTH_PASSWORD", "pass")
+	os.Setenv("SERVER_MQTT_CONSUMER_RETRY_INTERVAL_IN_SEC", "1")
+	os.Setenv("SERVER_MQTT_CONSUMER_WRITE_TIMEOUT_IN_SEC", "1")
+	os.Setenv("SERVER_MQTT_CONSUMER_LOG_LEVEL", "warn")
+	os.Setenv("SERVER_MQTT_CONSUMER_POOL_SIZE", "1")
+	os.Setenv("SERVER_MQTT_CONSUMER_TOPIC_FORMAT", "default-topic")
+	os.Setenv("SERVER_MQTT_CONNECTION_GROUP", "consumer")
+	serverMQTTConfigLoader()
+	assert.Equal(t, "consul:8081", ServerMQTT.ConsulConfig.Address)
+	assert.Equal(t, "kv/path", ServerMQTT.ConsulConfig.KVKey)
+	assert.Equal(t, true, ServerMQTT.ConsulConfig.HealthOnly)
+	assert.Equal(t, 300*time.Second, ServerMQTT.ConsulConfig.WaitTime)
+	assert.Equal(t, "test", ServerMQTT.AuthConfig.Username)
+	assert.Equal(t, "pass", ServerMQTT.AuthConfig.Password)
+	assert.Equal(t, 1*time.Second, ServerMQTT.ConsumerConfig.RetryIntervalInSec)
+	assert.Equal(t, 1*time.Second, ServerMQTT.ConsumerConfig.WriteTimeoutInSec)
+	assert.Equal(t, "warn", ServerMQTT.ConsumerConfig.LogLevel)
+	assert.Equal(t, 1, ServerMQTT.ConsumerConfig.PoolSize)
+	assert.Equal(t, "default-topic", ServerMQTT.ConsumerConfig.TopicFormat)
+	assert.Equal(t, "consumer", ServerMQTT.ConnGroup)
+
+}
+
 func TestDynamicConfigLoad(t *testing.T) {
 	os.Setenv("PUBLISHER_KAFKA_CLIENT_RANDOM", "anything")
 	os.Setenv("PUBLISHER_KAFKA_CLIENT_BOOTSTRAP_SERVERS", "localhost:9092")
@@ -67,6 +96,8 @@ func TestKafkaConfig_ToKafkaConfigMap(t *testing.T) {
 	os.Setenv("PUBLISHER_KAFKA_CLIENT_ACKS", "1")
 	os.Setenv("PUBLISHER_KAFKA_CLIENT_QUEUE_BUFFERING_MAX_MESSAGES", "10000")
 	os.Setenv("SOMETHING_PUBLISHER_KAFKA_CLIENT_SOMETHING", "anything")
+	os.Setenv("PUBLISHER_KAFKA_HEALTHCHECK_TOPIC_NAME", "test-log")
+	os.Setenv("PUBLISHER_KAFKA_HEALTHCHECK_TIMEOUT_MS", "5000")
 	publisherKafkaConfigLoader()
 	kafkaConfig := PublisherKafka.ToKafkaConfigMap()
 	bootstrapServer, _ := kafkaConfig.Get("bootstrap.servers", "")
@@ -76,6 +107,8 @@ func TestKafkaConfig_ToKafkaConfigMap(t *testing.T) {
 	assert.Equal(t, "", topic)
 	assert.NotEqual(t, something, "anything")
 	assert.Equal(t, 4, len(*kafkaConfig))
+	assert.Equal(t, "test-log", PublisherKafka.HealthCheckConfig.TopicName)
+	assert.Equal(t, 5000, PublisherKafka.HealthCheckConfig.TimeOut)
 }
 
 func TestWorkerConfig(t *testing.T) {

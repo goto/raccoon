@@ -14,7 +14,13 @@ var PublisherKafka publisherKafka
 var dynamicKafkaClientConfigPrefix = "PUBLISHER_KAFKA_CLIENT_"
 
 type publisherKafka struct {
-	FlushInterval int
+	FlushInterval     int
+	HealthCheckConfig healthcheck
+}
+
+type healthcheck struct {
+	TopicName string
+	TimeOut   int
 }
 
 func (k publisherKafka) ToKafkaConfigMap() *confluent.ConfigMap {
@@ -43,9 +49,15 @@ func dynamicKafkaClientConfigLoad() []byte {
 func publisherKafkaConfigLoader() {
 	viper.SetDefault("PUBLISHER_KAFKA_CLIENT_QUEUE_BUFFERING_MAX_MESSAGES", "100000")
 	viper.SetDefault("PUBLISHER_KAFKA_FLUSH_INTERVAL_MS", "1000")
+	viper.SetDefault("PUBLISHER_KAFKA_HEALTHCHECK_TOPIC_NAME", "clickstream-test-log")
+	viper.SetDefault("PUBLISHER_KAFKA_HEALTHCHECK_TIMEOUT_MS", "5000")
 	viper.MergeConfig(bytes.NewBuffer(dynamicKafkaClientConfigLoad()))
 
 	PublisherKafka = publisherKafka{
 		FlushInterval: util.MustGetInt("PUBLISHER_KAFKA_FLUSH_INTERVAL_MS"),
+		HealthCheckConfig: healthcheck{
+			TopicName: util.MustGetString("PUBLISHER_KAFKA_HEALTHCHECK_TOPIC_NAME"),
+			TimeOut:   util.MustGetInt("PUBLISHER_KAFKA_HEALTHCHECK_TIMEOUT_MS"),
+		},
 	}
 }

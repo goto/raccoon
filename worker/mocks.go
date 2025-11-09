@@ -17,6 +17,11 @@ func (m *mockKafkaPublisher) ProduceBulk(events []*pb.Event, connGroup string, d
 	return mock.Error(0)
 }
 
+func (m *mockKafkaPublisher) HealthCheck() error {
+	mock := m.Called()
+	return mock.Error(0)
+}
+
 type mockMetric struct {
 	mock.Mock
 }

@@ -220,7 +220,7 @@ func (b BulkError) Error() string {
 }
 
 func (pr *Kafka) HealthCheck() error {
-	topic := "clickstream-page-log"
-	_, err := pr.kp.GetMetadata(&topic, false, 5000)
+	topic := config.PublisherKafka.HealthCheckConfig.TopicName
+	_, err := pr.kp.GetMetadata(&topic, false, config.PublisherKafka.HealthCheckConfig.TimeOut)
 	return err
 }
