@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/goto/raccoon/health"
-	"github.com/goto/raccoon/logger"
 	"os"
 
 	"github.com/goto/raccoon/collection"
@@ -39,7 +38,6 @@ func NewMQTTService(collector collection.Collector, ctx context.Context) *Servic
 				startupErr: fmt.Errorf("failed to create MQTT client for %s: %w", clientID, err),
 			}
 		}
-		logger.Infof("[service:] MQTT client created with ID %v", clientID)
 		consumers = append(consumers, NewConsumer(mqttClient))
 	}
 	s := &Service{Collector: collector, consumers: consumers}
@@ -51,7 +49,6 @@ func NewMQTTService(collector collection.Collector, ctx context.Context) *Servic
 
 // Init starts all consumers.
 func (s *Service) Init(ctx context.Context) error {
-	logger.Infof("[service]: MQTT service init called")
 	if s.startupErr != nil {
 		return fmt.Errorf("mqtt service startup failed: %w", s.startupErr)
 	}
@@ -59,8 +56,6 @@ func (s *Service) Init(ctx context.Context) error {
 	for _, con := range s.consumers {
 		if err := con.Init(); err != nil {
 			return fmt.Errorf("failed to start consumer: %w", err)
-		} else {
-			logger.Info("[service:] MQTT consumer started")
 		}
 	}
 
@@ -77,8 +72,6 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	for _, con := range s.consumers {
 		if err := con.Shutdown(); err != nil {
 			return fmt.Errorf("failed to stop consumer: %w", err)
-		} else {
-			logger.Info("[service:] MQTT consumer stopped")
 		}
 	}
 	return nil
@@ -89,8 +82,6 @@ func (s *Service) HealthCheck() error {
 	for _, con := range s.consumers {
 		if status := con.IsHealthy(); !status {
 			return errors.New("consumer connection is broken")
-		} else {
-			logger.Info("[service:] Health check pass")
 		}
 	}
 	return nil

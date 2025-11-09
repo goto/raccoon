@@ -47,7 +47,7 @@ func NewMqttPubSubClient(ctx context.Context, handler courier.MessageHandler, cl
 		courier.WithPahoLogLevel(courier.ParseLogLevel(config.ServerMQTT.ConsumerConfig.LogLevel)),
 		courier.WithWriteTimeout(config.ServerMQTT.ConsumerConfig.WriteTimeoutInSec),
 		courier.WithOnConnect(registerHandler(ctx, handler)),
-		courier.WithLogger(logger.GetLogger()),
+		courier.WithLogger(NewLogger()),
 		courier.WithCustomDecoder(protoDecoder),
 	}
 
@@ -56,7 +56,7 @@ func NewMqttPubSubClient(ctx context.Context, handler courier.MessageHandler, cl
 		return nil, fmt.Errorf("failed to initialize MQTT client: %w", err)
 	}
 
-	logger.Infof("MQTT client initialized successfully for clientID=%s and client %v", clientID, client)
+	logger.Infof("MQTT client initialized successfully for clientID=%s", clientID)
 	return &MqttPubSubClient{client: client, consulResolver: rs}, nil
 }
 
@@ -95,6 +95,7 @@ func (m *MqttPubSubClient) IsConnected() bool {
 	return m.client.IsConnected()
 }
 
+// protoDecoder decodes the proto messages.
 func protoDecoder(ctx context.Context, r io.Reader) courier.Decoder {
 	return xproto.NewDecoder(r)
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/goto/raccoon/clients/go/log"
+	"github.com/goto/raccoon/serialization"
 	"time"
 
 	"github.com/gojek/courier-go"
@@ -27,6 +28,7 @@ func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *co
 	identifier := identification.Identifier{
 		Group: config.ServerMQTT.ConnGroup,
 	}
+	log.Infof("MQTT message received with content %v", message)
 
 	var req pb.SendEventRequest
 	if err := message.DecodePayload(&req); err != nil {
@@ -37,11 +39,20 @@ func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *co
 		log.Errorf("mqtt message decoding failed due to : %v", err)
 		return
 	}
-
+	log.Infof("MQTT message content post deserialization %v", req)
+	//instrument the request number
 	metrics.Increment(
 		"batches_read_total",
 		fmt.Sprintf("status=success,conn_group=%s", identifier.Group),
 	)
+	//instrument the request size
+	reqBytes, err := serialization.SerializeProto(req)
+	if err != nil {
+		log.Errorf("mqtt message serialization failed : %v", err)
+	} else {
+		metrics.Count("request_bytes_total", len(reqBytes),
+			fmt.Sprintf("conn_group=%s", identifier.Group))
+	}
 
 	h.recordEventMetrics(req.Events, identifier.Group)
 
