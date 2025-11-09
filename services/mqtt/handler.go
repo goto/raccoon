@@ -39,14 +39,18 @@ func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *co
 		log.Errorf("mqtt message decoding failed due to : %v", err)
 		return
 	}
-	log.Infof("MQTT message content post deserialization %v", req)
+	//to be removed post end-to-end test
+	for _, event := range req.Events {
+		log.Infof("MQTT message content post deserialization %v", event)
+	}
+
 	//instrument the request number
 	metrics.Increment(
 		"batches_read_total",
 		fmt.Sprintf("status=success,conn_group=%s", identifier.Group),
 	)
 	//instrument the request size
-	reqBytes, err := serialization.SerializeProto(req)
+	reqBytes, err := serialization.SerializeProto(&req)
 	if err != nil {
 		log.Errorf("mqtt message serialization failed : %v", err)
 	} else {

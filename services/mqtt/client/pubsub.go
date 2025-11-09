@@ -13,8 +13,18 @@ import (
 
 // MqttPubSubClient wraps a courier MQTT client with start/stop lifecycle management.
 type MqttPubSubClient struct {
-	client         *courier.Client
-	consulResolver *consul.Resolver
+	client   client
+	resolver resolver
+}
+
+type client interface {
+	Start() error
+	Stop()
+	IsConnected() bool
+}
+
+type resolver interface {
+	Start()
 }
 
 // NewMqttPubSubClient initializes a new MQTT client with Consul-based service discovery and credentials.
@@ -28,11 +38,13 @@ func NewMqttPubSubClient(ctx context.Context, handler courier.MessageHandler, cl
 		WaitTime:      consulCfg.WaitTime,
 	})
 	if err != nil {
+		logger.Infof("error while creating the consul new resolver %v", err)
 		return nil, fmt.Errorf("failed to create consul resolver: %w", err)
 	}
 
 	credFetcher, err := newCredentialFetcher()
 	if err != nil {
+		logger.Infof("error while creating credential %v", err)
 		return nil, fmt.Errorf("failed to create credential fetcher: %w", err)
 	}
 
@@ -51,13 +63,13 @@ func NewMqttPubSubClient(ctx context.Context, handler courier.MessageHandler, cl
 		courier.WithCustomDecoder(protoDecoder),
 	}
 
-	client, err := courier.NewClient(clientOpts...)
+	c, err := courier.NewClient(clientOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize MQTT client: %w", err)
 	}
 
 	logger.Infof("MQTT client initialized successfully for clientID=%s", clientID)
-	return &MqttPubSubClient{client: client, consulResolver: rs}, nil
+	return &MqttPubSubClient{client: c, resolver: rs}, nil
 }
 
 // registerHandler registers the subscription handler when the client connects.
@@ -74,7 +86,7 @@ func registerHandler(ctx context.Context, handler courier.MessageHandler) func(c
 
 // Start begins the MQTT client operation.
 func (m *MqttPubSubClient) Start() error {
-	go m.consulResolver.Start()
+	go m.resolver.Start()
 	if err := m.client.Start(); err != nil {
 		logger.Infof("MQTT client start failed due to %v", err)
 		return fmt.Errorf("failed to start MQTT client: %w", err)
