@@ -10,20 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// testHook captures log entries emitted by logrus.
-type testHook struct {
-	entries []logrus.Entry
-}
-
-func (h *testHook) Levels() []logrus.Level {
-	return logrus.AllLevels
-}
-
-func (h *testHook) Fire(e *logrus.Entry) error {
-	h.entries = append(h.entries, *e)
-	return nil
-}
-
 func TestLogger_InfoAndError(t *testing.T) {
 	// Arrange
 	baseLogger := logrus.New()
@@ -76,4 +62,18 @@ func TestNewLogger(t *testing.T) {
 	assert.NotNil(t, l)
 	assert.NotNil(t, l.log)
 	assert.Equal(t, logger.GetLogger(), l.log)
+}
+
+// testHook captures log entries emitted by logrus.
+type testHook struct {
+	entries []logrus.Entry
+}
+
+func (h *testHook) Levels() []logrus.Level {
+	return logrus.AllLevels
+}
+
+func (h *testHook) Fire(e *logrus.Entry) error {
+	h.entries = append(h.entries, *e)
+	return nil
 }

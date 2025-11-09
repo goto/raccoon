@@ -13,36 +13,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// ---- Mock Definitions ----
-
-type mockCourierClient struct {
-	mock.Mock
-}
-
-func (m *mockCourierClient) Start() error {
-	args := m.Called()
-	return args.Error(0)
-}
-func (m *mockCourierClient) Stop() {
-	m.Called()
-}
-func (m *mockCourierClient) IsConnected() bool {
-	args := m.Called()
-	return args.Bool(0)
-}
-
-type mockResolver struct {
-	mock.Mock
-	wg *sync.WaitGroup
-}
-
-func (m *mockResolver) Start() {
-	defer m.wg.Done()
-	m.Called()
-}
-
-// ---- Tests ----
-
 func TestMqttPubSubClient_Start(t *testing.T) {
 
 	t.Run("Start success", func(t *testing.T) {
@@ -139,6 +109,34 @@ func TestNewMqttPubSubClient(t *testing.T) {
 		assert.NotNil(t, c.resolver)
 	})
 
+}
+
+// ---- Mock Definitions ----
+
+type mockCourierClient struct {
+	mock.Mock
+}
+
+func (m *mockCourierClient) Start() error {
+	args := m.Called()
+	return args.Error(0)
+}
+func (m *mockCourierClient) Stop() {
+	m.Called()
+}
+func (m *mockCourierClient) IsConnected() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
+type mockResolver struct {
+	mock.Mock
+	wg *sync.WaitGroup
+}
+
+func (m *mockResolver) Start() {
+	defer m.wg.Done()
+	m.Called()
 }
 
 type MockPubSub struct {

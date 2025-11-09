@@ -12,27 +12,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// -------------------- Mock types --------------------
-
-type MockPubSubClient struct {
-	mock.Mock
-}
-
-func (m *MockPubSubClient) Start() error {
-	args := m.Called()
-	return args.Error(0)
-}
-
-func (m *MockPubSubClient) Stop() error {
-	args := m.Called()
-	return args.Error(0)
-}
-
-func (m *MockPubSubClient) IsConnected() bool {
-	args := m.Called()
-	return args.Bool(0)
-}
-
 func TestService_NewMQTTService(t *testing.T) {
 	ctx := context.Background()
 	mockCollector := new(collection.MockCollector)
@@ -133,4 +112,25 @@ func TestService_HealthCheck(t *testing.T) {
 func TestService_Name(t *testing.T) {
 	s := &Service{}
 	assert.Equal(t, "MQTT", s.Name())
+}
+
+// -------------------- Mock types --------------------
+
+type MockPubSubClient struct {
+	mock.Mock
+}
+
+func (m *MockPubSubClient) Start() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *MockPubSubClient) Stop() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *MockPubSubClient) IsConnected() bool {
+	args := m.Called()
+	return args.Bool(0)
 }

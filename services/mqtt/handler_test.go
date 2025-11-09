@@ -16,8 +16,6 @@ import (
 	"github.com/goto/raccoon/collection"
 )
 
-// --- Tests ---
-
 func TestHandler_MQTTHandler(t *testing.T) {
 	req := pb.SendEventRequest{
 		ReqGuid: "test-1",
