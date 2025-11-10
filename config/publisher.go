@@ -17,7 +17,7 @@ var dynamicKafkaClientConfigPrefix = "PUBLISHER_KAFKA_CLIENT_"
 // It includes flushing behavior and health check settings.
 type publisherKafka struct {
 	FlushInterval     int         // Interval (in seconds) to flush the events during shutdown
-	HealthCheckConfig healthcheck // Configuration for Kafka nroker health check
+	HealthCheckConfig healthcheck // Configuration for Kafka broker health check
 }
 
 // healthcheck holds settings used to monitor the health of Kafka broker

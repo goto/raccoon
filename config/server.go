@@ -57,17 +57,17 @@ type auth struct {
 type consul struct {
 	Address    string        // Address of the Consul agent (e.g., localhost:8500)
 	HealthOnly bool          // When true, only healthy service instances are used
-	KVKey      string        // Key in Consul KV store for retrieving configuration or metadata
+	KVKey      string        // Key in Consul KV store for retrieving MQTT Broker Address
 	WaitTime   time.Duration // Maximum wait time for Consul blocking queries
 }
 
 // consumer contains configuration parameters controlling MQTT message consumption.
 type consumer struct {
-	RetryIntervalInSec time.Duration // Time interval (in seconds) before retrying connection or message processing
+	RetryIntervalInSec time.Duration // Time interval (in seconds) before retrying connection
 	LogLevel           string        // Log verbosity level (e.g., "info", "debug", "error")
 	WriteTimeoutInSec  time.Duration // Timeout duration (in seconds) for write operations
-	PoolSize           int           // Number of concurrent consumer workers or goroutines
-	TopicFormat        string        // Format or pattern for subscribing to MQTT topics (e.g., "topic/{region}/{service}")
+	PoolSize           int           // Number of concurrent consumers to consume from MQTT topic
+	TopicFormat        string        // Format or pattern for subscribing to MQTT topics (e.g., "share/raccoon/{service}")
 }
 
 func serverConfigLoader() {
@@ -131,7 +131,7 @@ func serverMQTTConfigLoader() {
 	viper.SetDefault("SERVER_MQTT_CONSUMER_LOG_LEVEL", "warn")
 	viper.SetDefault("SERVER_MQTT_CONSUMER_POOL_SIZE", 1)
 	viper.SetDefault("SERVER_MQTT_CONSUMER_TOPIC_FORMAT", "default-topic")
-	viper.SetDefault("SERVER_MQTT_CONNECTION_GROUP", "consumer")
+	viper.SetDefault("SERVER_MQTT_CONNECTION_GROUP", "default")
 
 	ServerMQTT = serverMQTT{
 		ConsulConfig: consul{
