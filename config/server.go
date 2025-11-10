@@ -68,6 +68,7 @@ type consumer struct {
 	WriteTimeoutInSec  time.Duration // Timeout duration (in seconds) for write operations
 	PoolSize           int           // Number of concurrent consumers to consume from MQTT topic
 	TopicFormat        string        // Format or pattern for subscribing to MQTT topics (e.g., "share/raccoon/{service}")
+	KeepAlive          time.Duration // Amount of time that the client should wait before sending a PING request to the broker
 }
 
 func serverConfigLoader() {
@@ -128,6 +129,7 @@ func serverMQTTConfigLoader() {
 	viper.SetDefault("SERVER_MQTT_AUTH_PASSWORD", "pass")
 	viper.SetDefault("SERVER_MQTT_CONSUMER_RETRY_INTERVAL_IN_SEC", 1)
 	viper.SetDefault("SERVER_MQTT_CONSUMER_WRITE_TIMEOUT_IN_SEC", 1)
+	viper.SetDefault("SERVER_MQTT_CONSUMER_KEEP_ALIVE_IN_SEC", 45)
 	viper.SetDefault("SERVER_MQTT_CONSUMER_LOG_LEVEL", "warn")
 	viper.SetDefault("SERVER_MQTT_CONSUMER_POOL_SIZE", 1)
 	viper.SetDefault("SERVER_MQTT_CONSUMER_TOPIC_FORMAT", "default-topic")
@@ -150,6 +152,7 @@ func serverMQTTConfigLoader() {
 			WriteTimeoutInSec:  util.MustGetDuration("SERVER_MQTT_CONSUMER_WRITE_TIMEOUT_IN_SEC", time.Second),
 			PoolSize:           util.MustGetInt("SERVER_MQTT_CONSUMER_POOL_SIZE"),
 			TopicFormat:        util.MustGetString("SERVER_MQTT_CONSUMER_TOPIC_FORMAT"),
+			KeepAlive:          util.MustGetDuration("SERVER_MQTT_CONSUMER_KEEP_ALIVE_IN_SEC", time.Second),
 		},
 		ConnGroup: util.MustGetString("SERVER_MQTT_CONNECTION_GROUP"),
 	}

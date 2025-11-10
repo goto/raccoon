@@ -58,6 +58,7 @@ func NewMqttPubSubClient(ctx context.Context, handler courier.MessageHandler, cl
 		courier.WithMaintainOrder(false),
 		courier.WithPahoLogLevel(courier.ParseLogLevel(config.ServerMQTT.ConsumerConfig.LogLevel)),
 		courier.WithWriteTimeout(config.ServerMQTT.ConsumerConfig.WriteTimeoutInSec),
+		courier.KeepAlive(config.ServerMQTT.ConsumerConfig.KeepAlive),
 		courier.WithOnConnect(registerHandler(ctx, handler)),
 		courier.WithLogger(NewLogger()),
 		courier.WithCustomDecoder(protoDecoder),
