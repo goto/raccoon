@@ -38,31 +38,36 @@ type serverGRPC struct {
 	TLSPublicKey string
 }
 
+// serverMQTT represents the complete configuration for an MQTT server setup.
+// It includes authentication, Consul configuration, and consumer-specific settings.
 type serverMQTT struct {
-	ConsulConfig   consul
-	AuthConfig     auth
-	ConsumerConfig consumer
-	ConnGroup      string
+	ConsulConfig   consul   // Configuration related to Consul service discovery
+	AuthConfig     auth     // MQTT authentication credentials
+	ConsumerConfig consumer // Consumer behavior and connection settings
+	ConnGroup      string   // Connection group name used for identifying MQTT client group
 }
 
+// auth defines MQTT authentication credentials.
 type auth struct {
-	Username string
-	Password string
+	Username string // Username for authenticating with the MQTT broker
+	Password string // Password for authenticating with the MQTT broker
 }
 
+// consul holds configuration details for connecting and interacting with a Consul agent.
 type consul struct {
-	Address    string
-	HealthOnly bool
-	KVKey      string
-	WaitTime   time.Duration
+	Address    string        // Address of the Consul agent (e.g., localhost:8500)
+	HealthOnly bool          // When true, only healthy service instances are used
+	KVKey      string        // Key in Consul KV store for retrieving configuration or metadata
+	WaitTime   time.Duration // Maximum wait time for Consul blocking queries
 }
 
+// consumer contains configuration parameters controlling MQTT message consumption.
 type consumer struct {
-	RetryIntervalInSec time.Duration
-	LogLevel           string
-	WriteTimeoutInSec  time.Duration
-	PoolSize           int
-	TopicFormat        string
+	RetryIntervalInSec time.Duration // Time interval (in seconds) before retrying connection or message processing
+	LogLevel           string        // Log verbosity level (e.g., "info", "debug", "error")
+	WriteTimeoutInSec  time.Duration // Timeout duration (in seconds) for write operations
+	PoolSize           int           // Number of concurrent consumer workers or goroutines
+	TopicFormat        string        // Format or pattern for subscribing to MQTT topics (e.g., "topic/{region}/{service}")
 }
 
 func serverConfigLoader() {
@@ -142,7 +147,7 @@ func serverMQTTConfigLoader() {
 		ConsumerConfig: consumer{
 			RetryIntervalInSec: util.MustGetDuration("SERVER_MQTT_CONSUMER_RETRY_INTERVAL_IN_SEC", time.Second),
 			LogLevel:           util.MustGetString("SERVER_MQTT_CONSUMER_LOG_LEVEL"),
-			WriteTimeoutInSec:  util.MustGetDuration("SERVER_MQTT_CONSUMER_POOL_SIZE", time.Second),
+			WriteTimeoutInSec:  util.MustGetDuration("SERVER_MQTT_CONSUMER_WRITE_TIMEOUT_IN_SEC", time.Second),
 			PoolSize:           util.MustGetInt("SERVER_MQTT_CONSUMER_POOL_SIZE"),
 			TopicFormat:        util.MustGetString("SERVER_MQTT_CONSUMER_TOPIC_FORMAT"),
 		},

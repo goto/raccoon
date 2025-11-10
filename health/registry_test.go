@@ -13,9 +13,6 @@ func TestRegister(t *testing.T) {
 
 	Register("db", mockChecker)
 
-	mu.RLock()
-	defer mu.RUnlock()
-
 	if len(checkers) != 1 {
 		t.Fatalf("expected 1 checker, got %d", len(checkers))
 	}
@@ -80,7 +77,5 @@ func TestCheckAll(t *testing.T) {
 }
 
 func resetCheckers() {
-	mu.Lock()
-	defer mu.Unlock()
 	checkers = make(map[string]Checker)
 }

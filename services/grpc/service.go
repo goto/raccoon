@@ -47,6 +47,11 @@ func (s *Service) Shutdown(context.Context) error {
 	return nil
 }
 
+// HealthCheck check for grpc
+func (s *Service) HealthCheck() error {
+	return nil
+}
+
 func newGRPCServer() *grpc.Server {
 	if config.ServerGRPC.TLSEnabled {
 		return grpc.NewServer(grpc.Creds(loadTLSCredentials()))

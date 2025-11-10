@@ -41,8 +41,9 @@ func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *co
 	}
 	//to be removed post end-to-end test
 	for _, event := range req.Events {
-		log.Infof("MQTT message content post deserialization %v", event)
+		log.Infof("MQTT message content post deserialization event : %v", event)
 	}
+	log.Infof("MQTT message request id %v", req.ReqGuid)
 
 	//instrument the request number
 	metrics.Increment(
