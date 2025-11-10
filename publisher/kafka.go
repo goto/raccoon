@@ -3,7 +3,6 @@ package publisher
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/goto/raccoon/health"
 	"strings"
 
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
@@ -39,8 +38,6 @@ func NewKafka() (*Kafka, error) {
 		flushInterval: config.PublisherKafka.FlushInterval,
 		topicFormat:   config.EventDistribution.PublisherPattern,
 	}
-	//register the health check of connection to kafka broker
-	health.Register("kafka-broker", k.HealthCheck)
 	return k, nil
 }
 

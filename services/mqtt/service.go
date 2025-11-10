@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/goto/raccoon/health"
 	"os"
 
 	"github.com/goto/raccoon/collection"
@@ -41,8 +40,6 @@ func NewMQTTService(collector collection.Collector, ctx context.Context) *Servic
 		consumers = append(consumers, NewConsumer(mqttClient))
 	}
 	s := &Service{Collector: collector, consumers: consumers}
-	//register the health check of connection to broker
-	health.Register("mqtt-broker", s.HealthCheck)
 
 	return s
 }
