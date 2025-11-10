@@ -13,6 +13,7 @@ import (
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/identification"
 	"github.com/goto/raccoon/metrics"
+	"google.golang.org/protobuf/proto"
 )
 
 // Handler processes MQTT messages and passes them to the Collector.
@@ -39,6 +40,16 @@ func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *co
 		log.Errorf("mqtt message decoding failed due to : %v", err)
 		return
 	}
+
+	if proto.Equal(&req, &pb.SendEventRequest{}) {
+		metrics.Increment(
+			"batches_read_total",
+			fmt.Sprintf("status=failed,conn_group=%s,reason=empty", identifier.Group),
+		)
+		log.Errorf("mqtt request message according proto format is empty")
+		return
+	}
+
 	//to be removed post end-to-end test
 	for _, event := range req.Events {
 		log.Infof("MQTT message content post deserialization event : %v", event)
