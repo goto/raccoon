@@ -29,4 +29,5 @@ func Load() {
 	metricStatsdConfigLoader()
 	eventDistributionConfigLoader()
 	eventConfigLoader()
+	serverMQTTConfigLoader()
 }

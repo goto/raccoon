@@ -29,3 +29,8 @@ func (*Service) Name() string {
 func (s *Service) Shutdown(ctx context.Context) error {
 	return s.s.Shutdown(ctx)
 }
+
+// HealthCheck check for pprof
+func (s *Service) HealthCheck() error {
+	return nil
+}

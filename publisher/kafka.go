@@ -24,6 +24,7 @@ const (
 type KafkaProducer interface {
 	// ProduceBulk message to kafka. Block until all messages are sent. Return array of error. Order is not guaranteed.
 	ProduceBulk(events []*pb.Event, connGroup string, deliveryChannel chan kafka.Event) error
+	HealthCheck() error
 }
 
 func NewKafka() (*Kafka, error) {
@@ -31,11 +32,13 @@ func NewKafka() (*Kafka, error) {
 	if err != nil {
 		return &Kafka{}, err
 	}
-	return &Kafka{
+
+	k := &Kafka{
 		kp:            kp,
 		flushInterval: config.PublisherKafka.FlushInterval,
 		topicFormat:   config.EventDistribution.PublisherPattern,
-	}, nil
+	}
+	return k, nil
 }
 
 func NewKafkaFromClient(client Client, flushInterval int, topicFormat string) *Kafka {
@@ -230,5 +233,11 @@ func (b BulkError) Error() string {
 		}
 		err += mErr.Error()
 	}
+	return err
+}
+
+func (pr *Kafka) HealthCheck() error {
+	topic := config.PublisherKafka.HealthCheckConfig.TopicName
+	_, err := pr.kp.GetMetadata(&topic, false, config.PublisherKafka.HealthCheckConfig.TimeOut)
 	return err
 }

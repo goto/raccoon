@@ -27,6 +27,10 @@ func init() {
 	return
 }
 
+func GetLogger() *log.Logger {
+	return logger
+}
+
 func Debug(args ...interface{}) {
 	logger.Debug(args...)
 }

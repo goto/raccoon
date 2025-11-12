@@ -69,10 +69,11 @@ func isClosed(ch <-chan collection.CollectRequest) bool {
 // mockKafkaClient is a mock for the Client interface
 type mockKafkaClient struct {
 	// Tracking flags
-	ProduceCalled bool
-	CloseCalled   bool
-	FlushCalled   bool
-	EventsCalled  bool
+	ProduceCalled     bool
+	CloseCalled       bool
+	FlushCalled       bool
+	EventsCalled      bool
+	GetMetadataCalled bool
 
 	ReturnFlushLeft int
 	EventChan       chan kafka.Event
@@ -98,4 +99,9 @@ func (m *mockKafkaClient) Events() chan kafka.Event {
 		m.EventChan = make(chan kafka.Event, 1)
 	}
 	return m.EventChan
+}
+
+func (m *mockKafkaClient) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*kafka.Metadata, error) {
+	m.GetMetadataCalled = true
+	return &kafka.Metadata{}, nil
 }
