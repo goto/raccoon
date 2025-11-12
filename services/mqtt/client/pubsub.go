@@ -109,7 +109,11 @@ func registerHandler(ctx context.Context, handler courier.MessageHandler) func(c
 
 // Start begins the MQTT client operation.
 func (m *MqttPubSubClient) Start() error {
+	//start the consul resolver on the separate go routine to provide
+	//the MQTT broker address on a channel
 	go m.resolver.Start()
+	//client will be blocked from start until it
+	//receives the address from the resolver or time out happens.
 	if err := m.client.Start(); err != nil {
 		metrics.Increment(
 			"mqtt_error",
