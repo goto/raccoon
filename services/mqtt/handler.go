@@ -4,15 +4,15 @@ import (
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"context"
 	"fmt"
-	"github.com/goto/raccoon/clients/go/log"
-	"github.com/goto/raccoon/serialization"
 	"time"
 
 	"github.com/gojek/courier-go"
+	"github.com/goto/raccoon/clients/go/log"
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/identification"
 	"github.com/goto/raccoon/metrics"
+	"github.com/goto/raccoon/serialization"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -25,69 +25,81 @@ type Handler struct {
 // and sends them to the Collector.
 func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *courier.Message) {
 	start := time.Now()
-
-	identifier := identification.Identifier{
-		Group: config.ServerMQTT.ConnGroup,
-	}
+	group := config.ServerMQTT.ConnGroup
 	log.Infof("MQTT message received with content %v", message)
 
 	var req pb.SendEventRequest
 	if err := message.DecodePayload(&req); err != nil {
-		metrics.Increment(
-			"batches_read_total",
-			fmt.Sprintf("status=failed,conn_group=%s,reason=serde", identifier.Group),
-		)
-		log.Errorf("mqtt message decoding failed due to : %v", err)
+		h.recordMetrics("request", fmt.Sprintf("status=failed,conn_group=%s,reason=serde", group), nil)
+		log.Errorf("mqtt message decoding failed: %v", err)
 		return
 	}
 
 	if proto.Equal(&req, &pb.SendEventRequest{}) {
-		metrics.Increment(
-			"batches_read_total",
-			fmt.Sprintf("status=failed,conn_group=%s,reason=empty", identifier.Group),
-		)
+		h.recordMetrics("request", fmt.Sprintf("status=failed,conn_group=%s,reason=empty", group), nil)
 		log.Errorf("mqtt request message according proto format is empty")
 		return
 	}
 
-	//to be removed post end-to-end test
+	// Debug — can be removed after E2E verification
 	for _, event := range req.Events {
-		log.Infof("MQTT message content post deserialization event : %v", event)
+		log.Infof("MQTT message content post deserialization event: %v", event)
 	}
-	log.Infof("MQTT message request id %v", req.ReqGuid)
+	log.Infof("MQTT message request id: %v", req.ReqGuid)
 
-	//instrument the request number
-	metrics.Increment(
-		"batches_read_total",
-		fmt.Sprintf("status=success,conn_group=%s", identifier.Group),
-	)
-	//instrument the request size
+	// Serialize to compute request size
 	reqBytes, err := serialization.SerializeProto(&req)
 	if err != nil {
-		log.Errorf("mqtt message serialization failed : %v", err)
-	} else {
-		metrics.Count("request_bytes_total", len(reqBytes),
-			fmt.Sprintf("conn_group=%s", identifier.Group))
+		log.Errorf("mqtt message serialization failed: %v", err)
 	}
 
-	h.recordEventMetrics(req.Events, identifier.Group)
+	// Record all metrics via generic function
+	h.recordMetrics("request", fmt.Sprintf("status=success,conn_group=%s", group), reqBytes)
+	h.recordMetrics("event", fmt.Sprintf("conn_group=%s", group), req.Events)
 
 	h.Collector.Collect(ctx, &collection.CollectRequest{
-		ConnectionIdentifier: identifier,
+		ConnectionIdentifier: identification.Identifier{Group: group},
 		TimeConsumed:         start,
 		SendEventRequest:     &req,
 		AckFunc:              nil,
 	})
 }
 
-// recordEventMetrics updates per-event metrics like byte size and event count.
-func (h *Handler) recordEventMetrics(events []*pb.Event, group string) {
+// recordMetrics is a generic entry function that routes metric recording
+// based on metricName.
+func (h *Handler) recordMetrics(metricName string, tags string, data any) {
+	switch metricName {
+	case "request":
+		h.recordRequestMetrics(tags, data)
+	case "event":
+		h.recordEventMetrics(tags, data)
+	default:
+		log.Errorf("unknown metricName=%s ignored", metricName)
+	}
+}
+
+// recordRequestMetrics captures request-level metrics (success/failure, bytes).
+func (h *Handler) recordRequestMetrics(tags string, data any) {
+	metrics.Increment("batches_read_total", tags)
+
+	if reqBytes, ok := data.([]byte); ok && len(reqBytes) > 0 {
+		metrics.Count("request_bytes_total", len(reqBytes), tags)
+	}
+}
+
+// recordEventMetrics captures per-event metrics like count and size.
+func (h *Handler) recordEventMetrics(tags string, data any) {
+	events, ok := data.([]*pb.Event)
+	if !ok {
+		return
+	}
+
 	for _, e := range events {
 		if e == nil {
 			continue
 		}
-		tags := fmt.Sprintf("conn_group=%s,event_type=%s", group, e.Type)
-		metrics.Count("events_rx_bytes_total", len(e.EventBytes), tags)
-		metrics.Increment("events_rx_total", tags)
+		eventTags := fmt.Sprintf("%s,event_type=%s", tags, e.Type)
+		metrics.Increment("events_rx_total", eventTags)
+		metrics.Count("events_rx_bytes_total", len(e.EventBytes), eventTags)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/gojekfarm/xtools/xproto"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/logger"
+	"github.com/goto/raccoon/metrics"
 	"io"
 )
 
@@ -17,13 +18,30 @@ type MqttPubSubClient struct {
 	resolver resolver
 }
 
+// client defines the minimal interface for a courier MQTT client instance.
+// It abstracts basic lifecycle operations and connection state management.
 type client interface {
+	// Start begins the client’s operation and establishes connections
+	// to the MQTT broker or messaging backend.
 	Start() error
+
+	// Stop terminates the client’s operation gracefully, releasing
+	// any resources and closing network connections.
 	Stop()
+
+	// IsConnected reports whether the client is currently connected
+	// to the MQTT broker.
 	IsConnected() bool
 }
 
+// resolver defines the interface for a service discovery resolver
+// responsible for discovering and updating MQTT broker endpoints dynamically.
+//
+// Implementations like ConsulResolver use this interface to periodically
+// fetch and update broker addresses for high availability and fault tolerance.
 type resolver interface {
+	// Start initiates the resolver’s background process to watch for
+	// endpoint changes.
 	Start()
 }
 
@@ -78,6 +96,10 @@ func registerHandler(ctx context.Context, handler courier.MessageHandler) func(c
 	return func(ps courier.PubSub) {
 		topic := config.ServerMQTT.ConsumerConfig.TopicFormat
 		if err := ps.Subscribe(ctx, topic, handler, courier.QOSZero); err != nil {
+			metrics.Increment(
+				"mqtt_error",
+				fmt.Sprintf("reason=subscribe_failed"),
+			)
 			logger.Errorf("failed to register MQTT handler for topic %q: %v", topic, err)
 		} else {
 			logger.Infof("successfully registered MQTT handler for topic %q", topic)
@@ -89,6 +111,10 @@ func registerHandler(ctx context.Context, handler courier.MessageHandler) func(c
 func (m *MqttPubSubClient) Start() error {
 	go m.resolver.Start()
 	if err := m.client.Start(); err != nil {
+		metrics.Increment(
+			"mqtt_error",
+			fmt.Sprintf("reason=start_failed"),
+		)
 		logger.Infof("MQTT client start failed due to %v", err)
 		return fmt.Errorf("failed to start MQTT client: %w", err)
 	}

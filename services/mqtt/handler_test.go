@@ -60,15 +60,13 @@ func TestHandler_MQTTHandler(t *testing.T) {
 			}
 
 			msg := courier.NewMessageWithDecoder(tt.decoder)
-
 			h.MQTTHandler(ctx, nil, msg)
-
 			mockCollector.AssertExpectations(t)
 		})
 	}
 }
 
-func TestHandler_RecordEventMetrics(t *testing.T) {
+func TestHandler_RecordMetrics(t *testing.T) {
 	h := &Handler{}
 
 	events := []*pb.Event{
@@ -76,35 +74,57 @@ func TestHandler_RecordEventMetrics(t *testing.T) {
 		makeEvent("click", "data123"),
 		nil, // ensure nil events are skipped
 	}
+	reqBytes := []byte("test-req")
 
-	// We don’t need to verify metrics, just ensure no panics occur
-	assert.NotPanics(t, func() {
-		h.recordEventMetrics(events, "test-group")
-	}, "recordEventMetrics should not panic")
+	tests := []struct {
+		name   string
+		metric string
+		data   any
+	}{
+		{
+			name:   "record request metrics with valid data",
+			metric: "request",
+			data:   reqBytes,
+		},
+		{
+			name:   "record event metrics with valid data",
+			metric: "event",
+			data:   events,
+		},
+		{
+			name:   "record metrics with nil data",
+			metric: "event",
+			data:   nil,
+		},
+		{
+			name:   "record metrics with wrong type",
+			metric: "event",
+			data:   "unexpected-type",
+		},
+	}
 
-	// Basic structural test
-	assert.Equal(t, "purchase", events[0].Type)
-	assert.Equal(t, []byte("xyz"), events[0].EventBytes)
-
-	assert.Equal(t, "click", events[1].Type)
-	assert.Equal(t, []byte("data123"), events[1].EventBytes)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.NotPanics(t, func() {
+				h.recordMetrics(tt.metric, "conn_group=test-group", tt.data)
+			}, "recordMetrics should not panic even with nil or unexpected type")
+		})
+	}
 }
 
+// Helper for decoding
 func protoDecoder(ctx context.Context, r io.Reader) courier.Decoder {
 	return xproto.NewDecoder(r)
 }
 
-// --- Mock Definitions ---
-
-type mockInvalidDecoder struct {
-}
+// Mock invalid decoder
+type mockInvalidDecoder struct{}
 
 func (m mockInvalidDecoder) Decode(v interface{}) error {
 	return errors.New("invalid proto message")
 }
 
-// --- Helper setup ---
-
+// Helper event factory
 func makeEvent(eventType string, data string) *pb.Event {
 	return &pb.Event{
 		Type:       eventType,

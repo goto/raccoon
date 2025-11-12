@@ -3,6 +3,7 @@ package rest
 import (
 	"context"
 	"fmt"
+	"github.com/goto/raccoon/constant"
 	"github.com/goto/raccoon/health"
 	"net/http"
 	"time"
@@ -50,7 +51,7 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 	results := health.CheckAll()
 	allHealthy := true
 	for _, status := range results {
-		if status != "healthy" {
+		if status != constant.HealthStatusHealthy {
 			allHealthy = false
 			break
 		}
