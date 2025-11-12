@@ -26,3 +26,8 @@ func (p *mockClient) Flush(config int) int {
 func (p *mockClient) Events() chan kafka.Event {
 	return make(chan kafka.Event)
 }
+
+func (p *mockClient) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*kafka.Metadata, error) {
+	args := p.Called(topic, allTopics, timeoutMs)
+	return &kafka.Metadata{}, args.Error(0)
+}
