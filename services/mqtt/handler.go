@@ -26,7 +26,6 @@ type Handler struct {
 func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *courier.Message) {
 	start := time.Now()
 	group := config.ServerMQTT.ConnGroup
-	log.Infof("MQTT message received with content %v", message)
 
 	var req pb.SendEventRequest
 	if err := message.DecodePayload(&req); err != nil {
@@ -40,12 +39,6 @@ func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *co
 		log.Errorf("mqtt request message according proto format is empty")
 		return
 	}
-
-	// Debug — can be removed after E2E verification
-	for _, event := range req.Events {
-		log.Infof("MQTT message content post deserialization event: %v", event)
-	}
-	log.Infof("MQTT message request id: %v", req.ReqGuid)
 
 	// Serialize to compute request size
 	reqBytes, err := serialization.SerializeProto(&req)
