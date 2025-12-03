@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
-	// Importing librd to make it work on vendor mode
-	_ "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka/librdkafka"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/config"

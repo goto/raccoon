@@ -2,14 +2,15 @@ package app
 
 import (
 	"context"
-	"github.com/goto/raccoon/publisher"
-	"github.com/goto/raccoon/services"
-	"github.com/goto/raccoon/worker"
-	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 	"os"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/goto/raccoon/publisher"
+	"github.com/goto/raccoon/services"
+	"github.com/goto/raccoon/worker"
 
 	"github.com/goto/raccoon/collection"
 )
