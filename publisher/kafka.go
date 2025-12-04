@@ -84,9 +84,9 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s",
 				errorTag, event.Type, connGroup))
-				
-			metrics.Increment("data_loss", fmt.Sprintf("type=%s,event_name=%s,conn_group=%s,event_timestamp=%s",
-				errorTag, event.EventName, connGroup, event.EventTimestamp.AsTime().String(),
+
+			metrics.Increment("clickstream_data_loss", fmt.Sprintf("type=%s,event_name=%s,conn_group=%s",
+				errorTag, event.EventName, connGroup,
 			))
 
 			continue
@@ -105,8 +105,8 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 			metrics.Decrement("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s", "delivery_failed", eventType, connGroup))
-			metrics.Increment("data_loss", fmt.Sprintf("type=%s,event_name=%s,conn_group=%s,event_timestamp=%s",
-				"delivery_failed", events[i].EventName, connGroup, events[i].EventTimestamp.AsTime().String(),
+			metrics.Increment("clickstream_data_loss", fmt.Sprintf("type=%s,event_name=%s,conn_group=%s",
+				"delivery_failed", events[i].EventName, connGroup,
 			))
 			order := m.Opaque.(int)
 			errors[order] = m.TopicPartition.Error

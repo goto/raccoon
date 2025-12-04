@@ -16,15 +16,5 @@ jobs:
         run: cp .env.test .env
       - name: Run Raccoon
         run: make docker-run
-      - name: Wait for Raccoon Service
-        timeout-minutes: 2
-        run: |
-          echo "Waiting for service to be ready on localhost:8080..."
-          # Loop until netcat successfully connects to localhost 8080
-          until nc -z localhost 8080; do
-            echo "Service not ready yet... sleeping"
-            sleep 2
-          done
-          echo "Service is ready!"
       - name: Invoking go test
         run: INTEGTEST_BOOTSTRAP_SERVER=localhost:9094 INTEGTEST_HOST=localhost:8080 INTEGTEST_TOPIC_FORMAT="clickstream-%s-log" GRPC_SERVER_ADDR="localhost:8081" go test ./integration -v
