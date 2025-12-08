@@ -81,13 +81,21 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 				logger.Errorf("produce to kafka failed due to: %v on topic : %s", err, topic)
 				errorTag = "unknown"
 			}
+
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s",
 				errorTag, event.Type, connGroup))
+
+			metrics.Increment("clickstream_data_loss", fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s",
+				errorTag, event.EventName, event.Product, connGroup,
+			))
+
 			continue
 		}
+
 		metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, event.Type))
 		totalProcessed++
 	}
+
 	// Wait for deliveryChannel as many as processed
 	for i := 0; i < totalProcessed; i++ {
 		d := <-deliveryChannel
@@ -97,6 +105,9 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 			metrics.Decrement("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s", "delivery_failed", eventType, connGroup))
+			metrics.Increment("clickstream_data_loss", fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s",
+				"delivery_failed", events[i].EventName, events[i].Product, connGroup,
+			))
 			order := m.Opaque.(int)
 			errors[order] = m.TopicPartition.Error
 		}

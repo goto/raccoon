@@ -54,22 +54,36 @@ func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices
 			httpServices.Shutdown(ctx)
 			logger.Info("Server shutdown all the listeners")
 			cancel()
+
 			close(bufferChannel)
+
 			timedOut := workerPool.FlushWithTimeOut(config.Worker.WorkerFlushTimeout)
 			if timedOut {
 				logger.Info(fmt.Sprintf("WorkerPool flush timedout %t", timedOut))
 			} else {
 				logger.Info("WorkerPool flushed all events")
 			}
+
 			flushInterval := config.PublisherKafka.FlushInterval
 			logger.Info("Closing Kafka producer")
 			logger.Info(fmt.Sprintf("Wait %d ms for all messages to be delivered", flushInterval))
+
 			eventsInProducer := kp.Close()
 			eventCountInChannel := 0
-			for i := 0; i < len(bufferChannel); i++ {
-				req := <-bufferChannel
-				eventCountInChannel += len(req.Events)
+
+			for req := range bufferChannel {
+				for _, event := range req.Events {
+					eventCountInChannel++
+
+					metrics.Increment("clickstream_data_loss", fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s",
+						"buffer_channel_closed",
+						event.EventName,
+						event.Product,
+						req.ConnectionIdentifier,
+					))
+				}
 			}
+
 			logger.Info(fmt.Sprintf("number of events dropped during the shutdown %d", eventCountInChannel+eventsInProducer))
 			metrics.Count("total_data_loss", eventCountInChannel+eventsInProducer, "reason=shutdown")
 			logger.Info("Exiting server")
@@ -77,7 +91,6 @@ func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices
 		default:
 			logger.Info(fmt.Sprintf("[App.Server] Received a unexpected signal %s", sig))
 		}
-		return
 	}
 }
 
