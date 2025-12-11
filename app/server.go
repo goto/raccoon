@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -78,7 +79,7 @@ func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices
 					metrics.Increment("clickstream_data_loss", fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s",
 						"buffer_channel_closed",
 						event.EventName,
-						event.Product,
+						strings.ReplaceAll(strings.ToLower(event.Product), "_", ""),
 						req.ConnectionIdentifier,
 					))
 				}
