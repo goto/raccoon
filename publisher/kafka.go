@@ -1,15 +1,19 @@
 package publisher
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
+	"time"
 
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 	// Importing librd to make it work on vendor mode
 	_ "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka/librdkafka"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+	clients "github.com/goto/raccoon/clients/http"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
@@ -43,6 +47,7 @@ func NewKafkaFromClient(client Client, flushInterval int, topicFormat string) *K
 		kp:            client,
 		flushInterval: flushInterval,
 		topicFormat:   topicFormat,
+		clients:       clients.NewHTTPClient(1 * time.Second),
 	}
 }
 
@@ -50,6 +55,7 @@ type Kafka struct {
 	kp            Client
 	flushInterval int
 	topicFormat   string
+	clients       *clients.HTTPClient
 }
 
 // ProduceBulk messages to kafka. Block until all messages are sent. Return array of error. Order of Errors is guaranteed.
@@ -57,6 +63,9 @@ type Kafka struct {
 func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChannel chan kafka.Event) error {
 	errors := make([]error, len(events))
 	totalProcessed := 0
+
+	var failedEvents []*pb.Event
+
 	for order, event := range events {
 		topic := fmt.Sprintf(pr.topicFormat, event.Type)
 		message := &kafka.Message{
@@ -75,6 +84,8 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 
 		err := pr.kp.Produce(message, deliveryChannel)
 		if err != nil {
+			failedEvents = append(failedEvents, event)
+
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, event.Type))
 			var errorTag string
 			switch err.Error() {
@@ -109,6 +120,11 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 		d := <-deliveryChannel
 		m := d.(*kafka.Message)
 		if m.TopicPartition.Error != nil {
+			order := m.Opaque.(int)
+			event := events[order]
+
+			failedEvents = append(failedEvents, event)
+
 			eventType := events[i].Type
 			metrics.Decrement("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, eventType))
@@ -116,15 +132,60 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 			metrics.Increment("clickstream_data_loss", fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s",
 				"delivery_failed", events[i].EventName, events[i].Product, connGroup,
 			))
-			order := m.Opaque.(int)
+
 			errors[order] = m.TopicPartition.Error
 		}
+	}
+
+	if len(failedEvents) > 0 {
+		go pr.sendFallback(failedEvents, connGroup)
 	}
 
 	if allNil(errors) {
 		return nil
 	}
+
 	return BulkError{Errors: errors}
+}
+
+func (pr *Kafka) sendFallback(events []*pb.Event, connGroup string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	payloadEvents := make([]IngestEvent, 0, len(events))
+	for _, e := range events {
+		hexBytes := fmt.Sprintf("% X", e.EventBytes)
+		payloadEvents = append(payloadEvents, IngestEvent{
+			Type:           e.Type,
+			EventName:      e.EventName,
+			Product:        e.Product,
+			EventTimestamp: e.EventTimestamp.AsTime().Format(time.RFC3339),
+			Bytes:          hexBytes,
+		})
+	}
+
+	reqBody := IngestPayload{
+		ConnGroup: connGroup,
+		Events:    payloadEvents,
+	}
+
+	req := clients.Request{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/ingest",
+		ContentType: "application/json",
+		Body:        reqBody,
+	}
+
+	// Now we use the context that has the TraceID but NOT the parent's cancellation
+	_, err := pr.clients.DoRequest(ctx, req)
+	if err != nil {
+		logger.Errorf("Failed to send fallback events for connGroup %s: %v", connGroup, err)
+		metrics.Increment("fallback_ingest_error", fmt.Sprintf("conn_group=%s", connGroup))
+		return
+	}
+
+	logger.Infof("Successfully sent %d failed events to fallback API for connGroup %s", len(events), connGroup)
+	metrics.Increment("fallback_ingest_success", fmt.Sprintf("conn_group=%s", connGroup))
 }
 
 func (pr *Kafka) ReportStats() {
