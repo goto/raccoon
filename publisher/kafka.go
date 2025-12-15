@@ -171,6 +171,7 @@ func (pr *Kafka) sendFallback(events []*pb.Event, connGroup string) {
 
 	req := clients.Request{
 		Method:      http.MethodPost,
+		BaseURL:     "http://kafka-producer.i.s-id-gtdp-01.gopay.sh",
 		Path:        "/api/v1/ingest",
 		ContentType: "application/json",
 		Body:        reqBody,
