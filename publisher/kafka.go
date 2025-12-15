@@ -39,6 +39,7 @@ func NewKafka() (*Kafka, error) {
 		kp:            kp,
 		flushInterval: config.PublisherKafka.FlushInterval,
 		topicFormat:   config.EventDistribution.PublisherPattern,
+		clients:       clients.NewHTTPClient(1 * time.Second),
 	}, nil
 }
 
@@ -47,7 +48,6 @@ func NewKafkaFromClient(client Client, flushInterval int, topicFormat string) *K
 		kp:            client,
 		flushInterval: flushInterval,
 		topicFormat:   topicFormat,
-		clients:       clients.NewHTTPClient(1 * time.Second),
 	}
 }
 
