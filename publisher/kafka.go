@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
@@ -35,12 +36,21 @@ func NewKafka() (*Kafka, error) {
 	if err != nil {
 		return &Kafka{}, err
 	}
-	return &Kafka{
+	k := &Kafka{
 		kp:            kp,
 		flushInterval: config.PublisherKafka.FlushInterval,
 		topicFormat:   config.EventDistribution.PublisherPattern,
 		clients:       clients.NewHTTPClient(1 * time.Second),
-	}, nil
+
+		// Initialize the nested map structure
+		fallbackBuffer:   make(map[string]map[fallbackKey]int),
+		fallbackInterval: 30 * time.Second,
+		fallbackStop:     make(chan struct{}),
+	}
+
+	k.startFallbackWorker()
+
+	return k, nil
 }
 
 func NewKafkaFromClient(client Client, flushInterval int, topicFormat string) *Kafka {
@@ -51,11 +61,25 @@ func NewKafkaFromClient(client Client, flushInterval int, topicFormat string) *K
 	}
 }
 
+// Key for aggregation (Publisher is removed from key if it's always same as connGroup,
+// but keeping it here for clarity or if logic changes is fine.
+// Optimization: We can remove Publisher from key since it's redundant with ConnGroup key in the map).
+type fallbackKey struct {
+	EventName string
+	Product   string
+}
+
 type Kafka struct {
 	kp            Client
 	flushInterval int
 	topicFormat   string
 	clients       *clients.HTTPClient
+
+	fallbackBuffer   map[string]map[fallbackKey]int
+	fallbackMu       sync.Mutex
+	fallbackInterval time.Duration
+	fallbackStop     chan struct{}
+	fallbackWg       sync.WaitGroup
 }
 
 // ProduceBulk messages to kafka. Block until all messages are sent. Return array of error. Order of Errors is guaranteed.
@@ -138,7 +162,7 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 	}
 
 	if len(failedEvents) > 0 {
-		go pr.sendFallback(failedEvents, connGroup)
+		pr.queueFallback(failedEvents, connGroup)
 	}
 
 	if allNil(errors) {
@@ -148,25 +172,91 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 	return BulkError{Errors: errors}
 }
 
-func (pr *Kafka) sendFallback(events []*pb.Event, connGroup string) {
+func (pr *Kafka) startFallbackWorker() {
+	pr.fallbackWg.Add(1)
+	go func() {
+		defer pr.fallbackWg.Done()
+		ticker := time.NewTicker(pr.fallbackInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				pr.flushFallbackBuffer()
+			case <-pr.fallbackStop:
+				return
+			}
+		}
+	}()
+}
+
+func (pr *Kafka) queueFallback(events []*pb.Event, connGroup string) {
+	pr.fallbackMu.Lock()
+	defer pr.fallbackMu.Unlock()
+
+	if _, ok := pr.fallbackBuffer[connGroup]; !ok {
+		pr.fallbackBuffer[connGroup] = make(map[fallbackKey]int)
+	}
+
+	for _, e := range events {
+		// 1. Extract ONLY the lightweight strings we need
+		key := fallbackKey{
+			EventName: e.EventName,
+			Product:   e.Product,
+		}
+
+		// 2. Increment count
+		pr.fallbackBuffer[connGroup][key]++
+
+		// 3. CRITICAL: We do NOT store 'e' (the heavy protobuf pointer).
+		// Once this function finishes, the heavy 'events' slice
+		// is eligible for Garbage Collection.
+	}
+
+	metrics.Gauge("fallback_buffer_unique_keys", len(pr.fallbackBuffer[connGroup]), fmt.Sprintf("conn_group=%s", connGroup))
+}
+
+func (pr *Kafka) flushFallbackBuffer() {
+	pr.fallbackMu.Lock()
+	if len(pr.fallbackBuffer) == 0 {
+		pr.fallbackMu.Unlock()
+		return
+	}
+
+	// Swap buffer
+	batchToSend := pr.fallbackBuffer
+	pr.fallbackBuffer = make(map[string]map[fallbackKey]int)
+	pr.fallbackMu.Unlock()
+
+	for connGroup, countsMap := range batchToSend {
+		if len(countsMap) == 0 {
+			continue
+		}
+
+		payloadEvents := make([]IngestEvent, 0, len(countsMap))
+
+		for key, count := range countsMap {
+			payloadEvents = append(payloadEvents, IngestEvent{
+				// REQUIREMENT: Publisher is set to connGroup
+				Publisher:  connGroup,
+				EventName:  key.EventName,
+				Product:    key.Product,
+				EventCount: count,
+			})
+		}
+
+		pr.sendFallback(payloadEvents, connGroup)
+	}
+}
+
+func (pr *Kafka) sendFallback(events []IngestEvent, connGroup string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	payloadEvents := make([]IngestEvent, 0, len(events))
-	for _, e := range events {
-		hexBytes := fmt.Sprintf("% X", e.EventBytes)
-		payloadEvents = append(payloadEvents, IngestEvent{
-			Type:           e.Type,
-			EventName:      e.EventName,
-			Product:        e.Product,
-			EventTimestamp: e.EventTimestamp.AsTime().Format(time.RFC3339),
-			Bytes:          hexBytes,
-		})
-	}
-
+	// Updated JSON Contract
 	reqBody := IngestPayload{
-		ConnGroup: connGroup,
-		Events:    payloadEvents,
+		ReqQuid: "",
+		Events:  events,
 	}
 
 	req := clients.Request{
@@ -177,7 +267,6 @@ func (pr *Kafka) sendFallback(events []*pb.Event, connGroup string) {
 		Body:        reqBody,
 	}
 
-	// Now we use the context that has the TraceID but NOT the parent's cancellation
 	_, err := pr.clients.DoRequest(ctx, req)
 	if err != nil {
 		logger.Errorf("Failed to send fallback events for connGroup %s: %v", connGroup, err)
@@ -185,7 +274,7 @@ func (pr *Kafka) sendFallback(events []*pb.Event, connGroup string) {
 		return
 	}
 
-	logger.Infof("Successfully sent %d failed events to fallback API for connGroup %s", len(events), connGroup)
+	logger.Infof("Successfully sent fallback batch for connGroup %s", connGroup)
 	metrics.Increment("fallback_ingest_success", fmt.Sprintf("conn_group=%s", connGroup))
 }
 
@@ -258,6 +347,10 @@ func getFloat(m map[string]interface{}, key string) float64 {
 
 // Close wait for outstanding messages to be delivered within given flush interval timeout.
 func (pr *Kafka) Close() int {
+	close(pr.fallbackStop)
+	pr.fallbackWg.Wait()
+	pr.flushFallbackBuffer() // Flush counts before exit
+
 	remaining := pr.kp.Flush(pr.flushInterval)
 	logger.Info(fmt.Sprintf("Outstanding events still un-flushed : %d", remaining))
 	pr.kp.Close()
