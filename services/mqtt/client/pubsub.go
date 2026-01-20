@@ -95,7 +95,7 @@ func NewMqttPubSubClient(ctx context.Context, handler courier.MessageHandler, cl
 func registerHandler(ctx context.Context, handler courier.MessageHandler) func(courier.PubSub) {
 	return func(ps courier.PubSub) {
 		topic := config.ServerMQTT.ConsumerConfig.TopicFormat
-		if err := ps.Subscribe(ctx, topic, handler, courier.QOSZero); err != nil {
+		if err := ps.Subscribe(ctx, topic, handler, courier.QOSOne); err != nil {
 			metrics.Increment(
 				"mqtt_error",
 				fmt.Sprintf("reason=subscribe_failed"),
