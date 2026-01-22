@@ -26,18 +26,9 @@ type Handler struct {
 // and sends them to the Collector.
 func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *courier.Message) {
 	start := time.Now()
-	var connGroup string
-
-	topicParts := strings.Split(message.Topic, "/")
-	for i, part := range topicParts {
-		if part == "v1" && i+1 < len(topicParts) {
-			connGroup = topicParts[i+1]
-			break
-		}
-	}
-
-	if connGroup == "" {
-		h.recordMetrics("request", "status=failed,conn_group=,reason=invalid_topic_format", nil)
+	connGroup, err := h.extractConnGroup(message)
+	if err != nil {
+		h.recordMetrics("request", fmt.Sprintf("status=failed,conn_group=unknown,reason=%v", err), nil)
 		log.Errorf("mqtt message topic format is invalid: %s", message.Topic)
 	}
 
@@ -109,4 +100,17 @@ func (h *Handler) recordEventMetrics(tags string, data any) {
 		metrics.Increment("events_rx_total", eventTags)
 		metrics.Count("events_rx_bytes_total", len(e.EventBytes), eventTags)
 	}
+}
+
+func (h *Handler) extractConnGroup(message *courier.Message) (string, error) {
+	topicParts := strings.Split(message.Topic, "/")
+	if len(topicParts) != 4 {
+		return "", fmt.Errorf("invalid topic format: %s", message.Topic)
+	}
+
+	if topicParts[1] != "v1" {
+		return "", fmt.Errorf("unexpected topic version: %s", message.Topic)
+	}
+
+	return topicParts[2], nil
 }

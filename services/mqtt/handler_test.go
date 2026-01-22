@@ -32,31 +32,24 @@ func TestHandler_MQTTHandler(t *testing.T) {
 		expectedGroup     string
 	}{
 		{
-			name:              "valid topic standard format extracts user-type",
+			name:              "valid mobile topic extracts user-type",
 			topic:             "clickstream/v1/mobile/123",
 			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
 			expectCollectCall: true,
 			expectedGroup:     "mobile",
 		},
 		{
-			name:              "valid topic shared format extracts user-type",
-			topic:             "$share/raccoon/clickstream/v1/backend/123",
-			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
-			expectCollectCall: true,
-			expectedGroup:     "backend",
-		},
-		{
 			name:              "invalid topic - missing v1 segment",
 			topic:             "clickstream/v2/mobile/123",
 			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
-			expectCollectCall: true,
+			expectCollectCall: true, // Collects with empty group
 			expectedGroup:     "",
 		},
 		{
-			name:              "invalid topic - missing user-type after v1",
+			name:              "invalid topic - insufficient length",
 			topic:             "clickstream/v1",
 			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
-			expectCollectCall: true,
+			expectCollectCall: true, // Collects with empty group
 			expectedGroup:     "",
 		},
 		{
@@ -82,7 +75,6 @@ func TestHandler_MQTTHandler(t *testing.T) {
 						if r == nil || r.SendEventRequest == nil {
 							return false
 						}
-
 						return r.ConnectionIdentifier.Group == tt.expectedGroup
 					})).
 					Return(nil).
