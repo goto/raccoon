@@ -49,13 +49,15 @@ func TestHandler_MQTTHandler(t *testing.T) {
 			name:              "invalid topic - missing v1 segment",
 			topic:             "clickstream/v2/mobile/123",
 			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
-			expectCollectCall: false,
+			expectCollectCall: true,
+			expectedGroup:     "",
 		},
 		{
 			name:              "invalid topic - missing user-type after v1",
 			topic:             "clickstream/v1",
 			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
-			expectCollectCall: false,
+			expectCollectCall: true,
+			expectedGroup:     "",
 		},
 		{
 			name:              "decode fails - should not call collector",
