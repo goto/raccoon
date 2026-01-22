@@ -1,15 +1,16 @@
 package mqtt
 
 import (
-	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"context"
 	"fmt"
+	"strings"
 	"time"
+
+	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 
 	"github.com/gojek/courier-go"
 	"github.com/goto/raccoon/clients/go/log"
 	"github.com/goto/raccoon/collection"
-	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/identification"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/serialization"
@@ -25,17 +26,30 @@ type Handler struct {
 // and sends them to the Collector.
 func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *courier.Message) {
 	start := time.Now()
-	group := config.ServerMQTT.ConnGroup
+	var connGroup string
+
+	topicParts := strings.Split(message.Topic, "/")
+	for i, part := range topicParts {
+		if part == "v1" && i+1 < len(topicParts) {
+			connGroup = topicParts[i+1]
+			break
+		}
+	}
+
+	if connGroup == "" {
+		h.recordMetrics("request", "status=failed,conn_group=,reason=invalid_topic_format", nil)
+		log.Errorf("mqtt message topic format is invalid: %s", message.Topic)
+	}
 
 	var req pb.SendEventRequest
 	if err := message.DecodePayload(&req); err != nil {
-		h.recordMetrics("request", fmt.Sprintf("status=failed,conn_group=%s,reason=serde", group), nil)
+		h.recordMetrics("request", fmt.Sprintf("status=failed,conn_group=%s,reason=serde", connGroup), nil)
 		log.Errorf("mqtt message decoding failed: %v", err)
 		return
 	}
 
 	if proto.Equal(&req, &pb.SendEventRequest{}) {
-		h.recordMetrics("request", fmt.Sprintf("status=failed,conn_group=%s,reason=empty", group), nil)
+		h.recordMetrics("request", fmt.Sprintf("status=failed,conn_group=%s,reason=empty", connGroup), nil)
 		log.Errorf("mqtt request message according proto format is empty")
 		return
 	}
@@ -47,11 +61,11 @@ func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *co
 	}
 
 	// Record all metrics via generic function
-	h.recordMetrics("request", fmt.Sprintf("status=success,conn_group=%s", group), reqBytes)
-	h.recordMetrics("event", fmt.Sprintf("conn_group=%s", group), req.Events)
+	h.recordMetrics("request", fmt.Sprintf("status=success,conn_group=%s", connGroup), reqBytes)
+	h.recordMetrics("event", fmt.Sprintf("conn_group=%s", connGroup), req.Events)
 
 	h.Collector.Collect(ctx, &collection.CollectRequest{
-		ConnectionIdentifier: identification.Identifier{Group: group},
+		ConnectionIdentifier: identification.Identifier{Group: connGroup},
 		TimeConsumed:         start,
 		SendEventRequest:     &req,
 		AckFunc:              nil,

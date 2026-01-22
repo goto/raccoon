@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
+	"testing"
+
 	"github.com/gojekfarm/xtools/xproto"
 	"github.com/goto/raccoon/serialization"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"io"
-	"testing"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/gojek/courier-go"
@@ -25,16 +26,40 @@ func TestHandler_MQTTHandler(t *testing.T) {
 
 	tests := []struct {
 		name              string
+		topic             string
 		decoder           courier.Decoder
 		expectCollectCall bool
+		expectedGroup     string
 	}{
 		{
-			name:              "successfully decodes and collects message",
+			name:              "valid topic standard format extracts user-type",
+			topic:             "clickstream/v1/mobile/123",
 			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
 			expectCollectCall: true,
+			expectedGroup:     "mobile",
+		},
+		{
+			name:              "valid topic shared format extracts user-type",
+			topic:             "$share/raccoon/clickstream/v1/backend/123",
+			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
+			expectCollectCall: true,
+			expectedGroup:     "backend",
+		},
+		{
+			name:              "invalid topic - missing v1 segment",
+			topic:             "clickstream/v2/mobile/123",
+			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
+			expectCollectCall: false,
+		},
+		{
+			name:              "invalid topic - missing user-type after v1",
+			topic:             "clickstream/v1",
+			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
+			expectCollectCall: false,
 		},
 		{
 			name:              "decode fails - should not call collector",
+			topic:             "clickstream/v1/mobile/123",
 			decoder:           mockInvalidDecoder{},
 			expectCollectCall: false,
 		},
@@ -42,7 +67,6 @@ func TestHandler_MQTTHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			mockCollector := new(collection.MockCollector)
 			ctx := context.Background()
 
@@ -53,14 +77,21 @@ func TestHandler_MQTTHandler(t *testing.T) {
 			if tt.expectCollectCall {
 				mockCollector.
 					On("Collect", mock.Anything, mock.MatchedBy(func(r *collection.CollectRequest) bool {
-						return r != nil && r.SendEventRequest != nil
+						if r == nil || r.SendEventRequest == nil {
+							return false
+						}
+
+						return r.ConnectionIdentifier.Group == tt.expectedGroup
 					})).
 					Return(nil).
 					Once()
 			}
 
 			msg := courier.NewMessageWithDecoder(tt.decoder)
+			msg.Topic = tt.topic
+
 			h.MQTTHandler(ctx, nil, msg)
+
 			mockCollector.AssertExpectations(t)
 		})
 	}

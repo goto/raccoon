@@ -77,7 +77,6 @@ func TestServerMQTTConfig(t *testing.T) {
 	assert.Equal(t, "warn", ServerMQTT.ConsumerConfig.LogLevel)
 	assert.Equal(t, 1, ServerMQTT.ConsumerConfig.PoolSize)
 	assert.Equal(t, "default-topic", ServerMQTT.ConsumerConfig.TopicFormat)
-	assert.Equal(t, "consumer", ServerMQTT.ConnGroup)
 
 }
 

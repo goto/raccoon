@@ -44,7 +44,6 @@ type serverMQTT struct {
 	ConsulConfig   consul   // Configuration related to Consul service discovery
 	AuthConfig     auth     // MQTT authentication credentials
 	ConsumerConfig consumer // Consumer behavior and connection settings
-	ConnGroup      string   // Connection group name used for identifying MQTT client group
 }
 
 // auth defines MQTT authentication credentials.
@@ -154,6 +153,5 @@ func serverMQTTConfigLoader() {
 			TopicFormat:        util.MustGetString("SERVER_MQTT_CONSUMER_TOPIC_FORMAT"),
 			KeepAlive:          util.MustGetDuration("SERVER_MQTT_CONSUMER_KEEP_ALIVE_IN_SEC", time.Second),
 		},
-		ConnGroup: util.MustGetString("SERVER_MQTT_CONNECTION_GROUP"),
 	}
 }
