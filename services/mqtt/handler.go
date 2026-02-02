@@ -96,7 +96,7 @@ func (h *Handler) recordEventMetrics(tags string, data any) {
 		if e == nil {
 			continue
 		}
-		eventTags := fmt.Sprintf("%s,event_type=%s", tags, e.Type)
+		eventTags := fmt.Sprintf("%s,event_type=%s,protocol_type=mqtt", tags, e.Type)
 		metrics.Increment("events_rx_total", eventTags)
 		metrics.Count("events_rx_bytes_total", len(e.EventBytes), eventTags)
 	}
