@@ -15,6 +15,7 @@ func init() {
 	if logger != nil {
 		return
 	}
+
 	logger = &log.Logger{
 		Out: os.Stdout,
 		Formatter: &log.TextFormatter{
@@ -23,8 +24,6 @@ func init() {
 		Hooks: make(log.LevelHooks),
 		Level: defaultLevel,
 	}
-
-	return
 }
 
 func GetLogger() *log.Logger {
