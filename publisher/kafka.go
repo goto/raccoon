@@ -105,11 +105,11 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 		d := <-deliveryChannel
 		m := d.(*kafka.Message)
 		if m.TopicPartition.Error != nil {
-			order := m.Opaque.(int)
-			eventType := events[order].Type
+			eventType := events[i].Type
 			metrics.Decrement("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s", "delivery_failed", eventType, connGroup))
+			order := m.Opaque.(int)
 			errors[order] = m.TopicPartition.Error
 		}
 	}
