@@ -68,6 +68,14 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 			Opaque:         order,
 		}
 
+		logger.Infof("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s",
+			event.EventName,
+			event.Product,
+			event.Type,
+			connGroup,
+			event.EventTimestamp.AsTime().String(),
+		)
+
 		err := pr.kp.Produce(message, deliveryChannel)
 		if err != nil {
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, event.Type))
