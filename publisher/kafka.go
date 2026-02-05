@@ -74,7 +74,7 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 			event.GetType(),
 			connGroup,
 			event.GetEventTimestamp().AsTime().String(),
-			event.GetIsMirrored(),
+			fmt.Sprintf("%t", event.GetIsMirrored()),
 		)
 
 		err := pr.kp.Produce(message, deliveryChannel)
