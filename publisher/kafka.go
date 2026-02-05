@@ -68,12 +68,13 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 			Opaque:         order,
 		}
 
-		logger.Infof("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s",
-			event.EventName,
-			event.Product,
-			event.Type,
+		logger.Infof("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s, is_mirrored=%s",
+			event.GetEventName(),
+			event.GetProduct(),
+			event.GetType(),
 			connGroup,
-			event.EventTimestamp.AsTime().String(),
+			event.GetEventTimestamp().AsTime().String(),
+			event.GetIsMirrored(),
 		)
 
 		err := pr.kp.Produce(message, deliveryChannel)
