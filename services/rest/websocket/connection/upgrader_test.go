@@ -132,25 +132,29 @@ func TestConnectionGroup(t *testing.T) {
 	})
 
 	t.Run("Should be able to reconnect when connection is closed", func(t *testing.T) {
-		config.ConnGroupHeader = "X-User-Group"
-		defer func() { config.ConnGroupHeader = "" }()
-		upgrader := NewUpgrader(config)
-		headers := []http.Header{{
-			"X-User-ID":    []string{"user1"},
-			"X-User-Group": []string{"viewer"},
-		}, {
-			"X-User-ID":    []string{"user1"},
-			"X-User-Group": []string{"viewer"},
-		}, {
-			"X-User-ID":    []string{"user1"},
-			"X-User-Group": []string{"viewer"},
-		}}
+		localConfig := UpgraderConfig{
+			ReadBufferSize:    1024,
+			WriteBufferSize:   1024,
+			MaxUser:           2,
+			ConnIDHeader:      "X-User-ID",
+			ConnGroupDefault:  "--default--",
+			PongWaitInterval:  time.Second,
+			WriteWaitInterval: time.Second,
+		}
+
+		upgrader := NewUpgrader(localConfig)
+		headers := []http.Header{
+			{"X-User-ID": []string{"user-1"}},
+			{"X-User-ID": []string{"user-2"}},
+			{"X-User-ID": []string{"user-3"}},
+		}
+
 		upgradeConnectionTestHelper(t, upgrader, headers, assertUpgrade{
 			callback: func(u upgradeRes) {
-				assert.Equal(t, 1, upgrader.Table.TotalConnection())
-				assert.NoError(t, u.err)
-				u.conn.Close()
+				assert.Error(t, u.err)
+				assert.EqualError(t, u.err, "max connection reached")
 			},
+			onIteration: 3,
 		})
 	})
 }

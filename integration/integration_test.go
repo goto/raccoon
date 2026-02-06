@@ -382,7 +382,8 @@ func TestIntegration(t *testing.T) {
 				assert.Fail(t, "setup kafka consumer failed")
 			}
 
-			e := c.Subscribe(fmt.Sprintf(topicFormat, "type_b"), nil)
+			topic := fmt.Sprintf(activeFormat, "type_b")
+			e := c.Subscribe(topic, nil)
 			if e != nil {
 				assert.Fail(t, fmt.Sprintf("Pls try again. %v", e))
 			}
