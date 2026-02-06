@@ -27,8 +27,6 @@ type KafkaProducer interface {
 	HealthCheck() error
 }
 
-var topicFormat map[bool]string
-
 func NewKafka() (*Kafka, error) {
 	kp, err := newKafkaClient(config.PublisherKafka.ToKafkaConfigMap())
 	if err != nil {
@@ -39,8 +37,8 @@ func NewKafka() (*Kafka, error) {
 		kp:            kp,
 		flushInterval: config.PublisherKafka.FlushInterval,
 		topicFormat: map[bool]string{
-			true:  config.EventDistribution.NotExclusivePublisherPattern,
-			false: config.EventDistribution.PublisherPattern,
+			false: config.EventDistribution.NotExclusivePublisherPattern,
+			true:  config.EventDistribution.PublisherPattern,
 		},
 	}
 	return k, nil
