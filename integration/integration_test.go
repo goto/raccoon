@@ -26,7 +26,6 @@ import (
 
 var uuid string
 var timeout time.Duration
-var topicFormat string
 var exclusiveTopicFormat string
 var notExclusiveTopicFormat string
 var url, wsurl string
