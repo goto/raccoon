@@ -2,8 +2,10 @@ package services
 
 import (
 	"context"
-	"github.com/goto/raccoon/services/mqtt"
 	"net/http"
+
+	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/services/mqtt"
 
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/logger"
@@ -47,12 +49,20 @@ func (s *Services) Shutdown(ctx context.Context) {
 
 func Create(b chan collection.CollectRequest, ctx context.Context) Services {
 	c := collection.NewChannelCollector(b)
+	services := []bootstrapper{
+		grpc.NewGRPCService(c),
+		pprof.NewPprofService(),
+		rest.NewRestService(c, ctx),
+	}
+
+	if config.ServerMQTT.Enable {
+		logger.Info("MQTT Service is enabled via config, initializing...")
+		services = append(services, mqtt.NewMQTTService(c, ctx))
+	} else {
+		logger.Info("MQTT Service is disabled via config")
+	}
+
 	return Services{
-		B: []bootstrapper{
-			grpc.NewGRPCService(c),
-			pprof.NewPprofService(),
-			rest.NewRestService(c, ctx),
-			mqtt.NewMQTTService(c, ctx),
-		},
+		B: services,
 	}
 }
