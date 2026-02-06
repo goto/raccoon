@@ -5,6 +5,8 @@ buf.build/gen/go/gotocompany/proton/grpc/go v1.3.0-20230313110213-9a3d240d5293.1
 buf.build/gen/go/gotocompany/proton/protocolbuffers/go v1.28.1-20230313110213-9a3d240d5293.4/go.mod h1:SkLAgdMqJ3u9UGFY064fVrnkkfAIaR8JqyOkoa9mz3U=
 buf.build/gen/go/gotocompany/proton/protocolbuffers/go v1.36.10-20251128145252-a39fdacd3422.1 h1:kUTpuSlPh2uJf7I8BIwO21wMDx8YRYH79d+F3zvcSAA=
 buf.build/gen/go/gotocompany/proton/protocolbuffers/go v1.36.10-20251128145252-a39fdacd3422.1/go.mod h1:eQ5R7S66J7fl//DIJVVMajHGBHzToT+4E+b5d7YvlKE=
+buf.build/gen/go/gotocompany/proton/protocolbuffers/go v1.36.11-20260205053014-4e3f02a95cd3.1 h1:awvN7ZcsRV+HKa+o6DdWxwe1Ce9goTZOh6pIh9PN1Xg=
+buf.build/gen/go/gotocompany/proton/protocolbuffers/go v1.36.11-20260205053014-4e3f02a95cd3.1/go.mod h1:aQ7+OoM4XogfFGiKYLn2x5iMHtjfQN1kax5qnPbK9lw=
 buf.build/gen/go/grpc-ecosystem/grpc-gateway/grpc/go v1.3.0-20220906183531-bc28b723cd77.1/go.mod h1:9Ec7rvBnjfZvU/TnWjtcSGgiLQ4B+U3B+6SnZgVTA7A=
 buf.build/gen/go/grpc-ecosystem/grpc-gateway/protocolbuffers/go v1.28.1-20220906183531-bc28b723cd77.4/go.mod h1:92ejKVTiuvnKoAtRlpJpIxKfloI935DDqhs0NCRx+KM=
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
@@ -1257,6 +1259,8 @@ google.golang.org/protobuf v1.28.0/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqw
 google.golang.org/protobuf v1.28.1/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqwMG9pJV4I=
 google.golang.org/protobuf v1.36.10 h1:AYd7cD/uASjIL6Q9LiTjz8JLcrh/88q5UObnmY3aOOE=
 google.golang.org/protobuf v1.36.10/go.mod h1:HTf+CrKn2C3g5S8VImy6tdcUvCska2kB7j23XfzDpco=
+google.golang.org/protobuf v1.36.11 h1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE=
+google.golang.org/protobuf v1.36.11/go.mod h1:HTf+CrKn2C3g5S8VImy6tdcUvCska2kB7j23XfzDpco=
 gopkg.in/alecthomas/kingpin.v2 v2.2.6/go.mod h1:FMv+mEhP44yOT+4EoQTLFTRgOQ1FBLkstjWtayDeSgw=
 gopkg.in/alexcesaro/statsd.v2 v2.0.0 h1:FXkZSCZIH17vLCO5sO2UucTHsH9pc+17F6pl3JVCwMc=
 gopkg.in/alexcesaro/statsd.v2 v2.0.0/go.mod h1:i0ubccKGzBVNBpdGV5MocxyA/XlLUJzA7SLonnE4drU=
