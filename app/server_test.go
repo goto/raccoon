@@ -2,14 +2,15 @@ package app
 
 import (
 	"context"
-	"github.com/goto/raccoon/publisher"
-	"github.com/goto/raccoon/services"
-	"github.com/goto/raccoon/worker"
-	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 	"os"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/goto/raccoon/publisher"
+	"github.com/goto/raccoon/services"
+	"github.com/goto/raccoon/worker"
+	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 
 	"github.com/goto/raccoon/collection"
 )
@@ -19,13 +20,15 @@ func TestShutDownServer(t *testing.T) {
 	defer cancel()
 	mockKafka := &mockKafkaClient{}
 
-	kp := publisher.NewKafkaFromClient(mockKafka, 50, "test")
+	kp := publisher.NewKafkaFromClient(mockKafka, 50, map[bool]string{
+		true:  "test",
+		false: "test",
+	})
 
 	shutdownCh := make(chan bool, 1)
 	bufferCh := make(chan collection.CollectRequest, 1)
 
 	services := services.Create(bufferCh, ctx)
-
 	wp := worker.CreateWorkerPool(1, bufferCh, 1, kp)
 
 	// run shutdown in background
