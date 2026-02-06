@@ -27,110 +27,112 @@ func TestMain(t *testing.M) {
 }
 
 func TestProducer_Close(suite *testing.T) {
-	suite.Run("Should flush before closing the client", func(t *testing.T) {
-		client := &mockClient{}
-		client.On("Flush", 10).Return(0)
-		client.On("Close").Return()
-		kp := NewKafkaFromClient(client, 10, "%s")
-		kp.Close()
-		client.AssertExpectations(t)
-	})
+    suite.Run("Should flush before closing the client", func(t *testing.T) {
+        client := &mockClient{}
+        client.On("Flush", 10).Return(0)
+        client.On("Close").Return()
+        kp := NewKafkaFromClient(client, 10, map[bool]string{true: "%s", false: "%s"})
+        kp.Close()
+        client.AssertExpectations(t)
+    })
 }
 
 func TestKafka_ProduceBulk(suite *testing.T) {
-	suite.Parallel()
-	topic := "test_topic"
-	suite.Run("AllMessagesSuccessfulProduce", func(t *testing.T) {
-		t.Run("Should return nil when all message succesfully published", func(t *testing.T) {
-			client := &mockClient{}
-			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
-				go func() {
-					args.Get(1).(chan kafka.Event) <- &kafka.Message{
-						TopicPartition: kafka.TopicPartition{
-							Topic:     args.Get(0).(*kafka.Message).TopicPartition.Topic,
-							Partition: 0,
-							Offset:    0,
-							Error:     nil,
-						},
-					}
-				}()
-			})
-			kp := NewKafkaFromClient(client, 10, "%s")
+    suite.Parallel()
+    topic := "test_topic"
+    testFormat := map[bool]string{true: "%s", false: "%s"}
 
-			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, group1, make(chan kafka.Event, 2))
-			assert.NoError(t, err)
-		})
-	})
+    suite.Run("AllMessagesSuccessfulProduce", func(t *testing.T) {
+        t.Run("Should return nil when all message succesfully published", func(t *testing.T) {
+            client := &mockClient{}
+            client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+                go func() {
+                    args.Get(1).(chan kafka.Event) <- &kafka.Message{
+                        TopicPartition: kafka.TopicPartition{
+                            Topic:     args.Get(0).(*kafka.Message).TopicPartition.Topic,
+                            Partition: 0,
+                            Offset:    0,
+                            Error:     nil,
+                        },
+                    }
+                }()
+            })
+            kp := NewKafkaFromClient(client, 10, testFormat)
 
-	suite.Run("PartialSuccessfulProduce", func(t *testing.T) {
-		t.Run("Should process non producer error messages", func(t *testing.T) {
-			client := &mockClient{}
-			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf("buffer full")).Once()
-			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
-				go func() {
-					args.Get(1).(chan kafka.Event) <- &kafka.Message{
-						TopicPartition: kafka.TopicPartition{
-							Topic:     args.Get(0).(*kafka.Message).TopicPartition.Topic,
-							Partition: 0,
-							Offset:    0,
-							Error:     nil,
-						},
-					}
-				}()
-			}).Once()
-			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf("buffer full")).Once()
-			kp := NewKafkaFromClient(client, 10, "%s")
+            err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, group1, make(chan kafka.Event, 2))
+            assert.NoError(t, err)
+        })
+    })
 
-			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, group1, make(chan kafka.Event, 2))
-			assert.Len(t, err.(BulkError).Errors, 3)
-			assert.Error(t, err.(BulkError).Errors[0])
-			assert.Empty(t, err.(BulkError).Errors[1])
-			assert.Error(t, err.(BulkError).Errors[2])
-		})
+    suite.Run("PartialSuccessfulProduce", func(t *testing.T) {
+        t.Run("Should process non producer error messages", func(t *testing.T) {
+            client := &mockClient{}
+            client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf("buffer full")).Once()
+            client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+                go func() {
+                    args.Get(1).(chan kafka.Event) <- &kafka.Message{
+                        TopicPartition: kafka.TopicPartition{
+                            Topic:     args.Get(0).(*kafka.Message).TopicPartition.Topic,
+                            Partition: 0,
+                            Offset:    0,
+                            Error:     nil,
+                        },
+                    }
+                }()
+            }).Once()
+            client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf("buffer full")).Once()
+            kp := NewKafkaFromClient(client, 10, testFormat)
 
-		t.Run("Should return topic name when unknown topic is returned", func(t *testing.T) {
-			client := &mockClient{}
-			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errUnknownTopic)).Once()
-			kp := NewKafkaFromClient(client, 10, "%s")
+            err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, group1, make(chan kafka.Event, 2))
+            assert.Len(t, err.(BulkError).Errors, 3)
+            assert.Error(t, err.(BulkError).Errors[0])
+            assert.Empty(t, err.(BulkError).Errors[1])
+            assert.Error(t, err.(BulkError).Errors[2])
+        })
 
-			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2))
-			assert.EqualError(t, err.(BulkError).Errors[0], errUnknownTopic+" "+topic)
-		})
+        t.Run("Should return topic name when unknown topic is returned", func(t *testing.T) {
+            client := &mockClient{}
+            client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errUnknownTopic)).Once()
+            kp := NewKafkaFromClient(client, 10, testFormat)
 
-		t.Run("Should return topic name when message size is too large", func(t *testing.T) {
-			client := &mockClient{}
-			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errLargeMessageSize)).Once()
-			kp := NewKafkaFromClient(client, 10, "%s")
+            err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2))
+            assert.EqualError(t, err.(BulkError).Errors[0], errUnknownTopic+" "+topic)
+        })
 
-			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2))
-			assert.EqualError(t, err.(BulkError).Errors[0], errLargeMessageSize+" "+topic)
-		})
-	})
+        t.Run("Should return topic name when message size is too large", func(t *testing.T) {
+            client := &mockClient{}
+            client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errLargeMessageSize)).Once()
+            kp := NewKafkaFromClient(client, 10, testFormat)
 
-	suite.Run("MessageFailedToProduce", func(t *testing.T) {
-		t.Run("Should fill all errors when all messages fail", func(t *testing.T) {
-			client := &mockClient{}
-			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf("buffer full")).Once()
-			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
-				go func() {
-					args.Get(1).(chan kafka.Event) <- &kafka.Message{
-						TopicPartition: kafka.TopicPartition{
-							Topic:     args.Get(0).(*kafka.Message).TopicPartition.Topic,
-							Partition: 0,
-							Offset:    0,
-							Error:     fmt.Errorf("timeout"),
-						},
-						Opaque: 1,
-					}
-				}()
-			}).Once()
-			kp := NewKafkaFromClient(client, 10, "%s")
+            err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2))
+            assert.EqualError(t, err.(BulkError).Errors[0], errLargeMessageSize+" "+topic)
+        })
+    })
 
-			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2))
-			assert.NotEmpty(t, err)
-			assert.Len(t, err.(BulkError).Errors, 2)
-			assert.Equal(t, "buffer full", err.(BulkError).Errors[0].Error())
-			assert.Equal(t, "timeout", err.(BulkError).Errors[1].Error())
-		})
-	})
+    suite.Run("MessageFailedToProduce", func(t *testing.T) {
+        t.Run("Should fill all errors when all messages fail", func(t *testing.T) {
+            client := &mockClient{}
+            client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf("buffer full")).Once()
+            client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+                go func() {
+                    args.Get(1).(chan kafka.Event) <- &kafka.Message{
+                        TopicPartition: kafka.TopicPartition{
+                            Topic:     args.Get(0).(*kafka.Message).TopicPartition.Topic,
+                            Partition: 0,
+                            Offset:    0,
+                            Error:     fmt.Errorf("timeout"),
+                        },
+                        Opaque: 1,
+                    }
+                }()
+            }).Once()
+            kp := NewKafkaFromClient(client, 10, testFormat)
+
+            err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2))
+            assert.NotEmpty(t, err)
+            assert.Len(t, err.(BulkError).Errors, 2)
+            assert.Equal(t, "buffer full", err.(BulkError).Errors[0].Error())
+            assert.Equal(t, "timeout", err.(BulkError).Errors[1].Error())
+        })
+    })
 }
