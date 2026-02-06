@@ -29,6 +29,7 @@ func TestShutDownServer(t *testing.T) {
 	bufferCh := make(chan collection.CollectRequest, 1)
 
 	services := services.Create(bufferCh, ctx)
+
 	wp := worker.CreateWorkerPool(1, bufferCh, 1, kp)
 
 	// run shutdown in background

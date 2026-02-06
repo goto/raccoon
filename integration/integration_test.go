@@ -26,8 +26,7 @@ import (
 
 var uuid string
 var timeout time.Duration
-var exclusiveTopicFormat string
-var notExclusiveTopicFormat string
+var topicFormat string
 var url, wsurl string
 var bootstrapServers string
 var grpcServerAddr string
@@ -35,8 +34,7 @@ var grpcServerAddr string
 func TestMain(m *testing.M) {
 	uuid = fmt.Sprintf("%d-test", rand.Int())
 	timeout = 20 * time.Second
-	exclusiveTopicFormat = os.Getenv("INTEGTEST_TOPIC_FORMAT")
-	notExclusiveTopicFormat = os.Getenv("INTEGTEST_NOT_EXCLUSIVE_TOPIC_FORMAT")
+	topicFormat = os.Getenv("INTEGTEST_TOPIC_FORMAT")
 	wsurl = fmt.Sprintf("ws://%v/api/v1/events", os.Getenv("INTEGTEST_HOST"))
 	url = fmt.Sprintf("http://%v/api/v1/events", os.Getenv("INTEGTEST_HOST"))
 	grpcServerAddr = os.Getenv("GRPC_SERVER_ADDR")
@@ -329,11 +327,6 @@ func TestIntegration(t *testing.T) {
 	})
 
 	t.Run("Should be able to consume published message", func(t *testing.T) {
-		activeFormat := exclusiveTopicFormat
-		if activeFormat == "" {
-			activeFormat = "clickstream-%s-log"
-		}
-
 		t.Run("type_a", func(t *testing.T) {
 			t.Parallel()
 			c, err := kafka.NewConsumer(&kafka.ConfigMap{
@@ -346,8 +339,7 @@ func TestIntegration(t *testing.T) {
 				assert.Fail(t, "setup kafka consumer failed")
 			}
 
-			topic := fmt.Sprintf(activeFormat, "type_a")
-			e := c.Subscribe(topic, nil)
+			e := c.Subscribe(fmt.Sprintf(topicFormat, "type_a"), nil)
 			if e != nil {
 				assert.Fail(t, fmt.Sprintf("Pls try again. %v", e))
 			}
@@ -381,8 +373,7 @@ func TestIntegration(t *testing.T) {
 				assert.Fail(t, "setup kafka consumer failed")
 			}
 
-			topic := fmt.Sprintf(activeFormat, "type_b")
-			e := c.Subscribe(topic, nil)
+			e := c.Subscribe(fmt.Sprintf(topicFormat, "type_b"), nil)
 			if e != nil {
 				assert.Fail(t, fmt.Sprintf("Pls try again. %v", e))
 			}

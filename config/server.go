@@ -41,6 +41,7 @@ type serverGRPC struct {
 // serverMQTT represents the complete configuration for an MQTT server setup.
 // It includes authentication, Consul configuration, and consumer-specific settings.
 type serverMQTT struct {
+	Enable         bool     // Flag to enable or disable the MQTT server
 	ConsulConfig   consul   // Configuration related to Consul service discovery
 	AuthConfig     auth     // MQTT authentication credentials
 	ConsumerConfig consumer // Consumer behavior and connection settings
@@ -120,6 +121,7 @@ func serverGRPCConfigLoader() {
 }
 
 func serverMQTTConfigLoader() {
+	viper.SetDefault("SERVER_MQTT_ENABLE", true)
 	viper.SetDefault("SERVER_MQTT_CONSUL_ADDRESS", "consul:8081")
 	viper.SetDefault("SERVER_MQTT_CONSUL_KV_KEY", "kv/path")
 	viper.SetDefault("SERVER_MQTT_CONSUL_HEALTH_ONLY", true)
@@ -135,6 +137,7 @@ func serverMQTTConfigLoader() {
 	viper.SetDefault("SERVER_MQTT_CONNECTION_GROUP", "default")
 
 	ServerMQTT = serverMQTT{
+		Enable: util.MustGetBool("SERVER_MQTT_ENABLE"),
 		ConsulConfig: consul{
 			Address:    util.MustGetString("SERVER_MQTT_CONSUL_ADDRESS"),
 			HealthOnly: util.MustGetBool("SERVER_MQTT_CONSUL_HEALTH_ONLY"),

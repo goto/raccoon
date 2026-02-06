@@ -33,14 +33,21 @@ func NewKafka() (*Kafka, error) {
 		return &Kafka{}, err
 	}
 
+	topicFormat := map[bool]string{
+		false: config.EventDistribution.PublisherPattern,
+		true:  config.EventDistribution.PublisherPattern,
+	}
+
+	if config.ServerMQTT.Enable {
+		topicFormat[false] = config.EventDistribution.NotExclusivePublisherPattern
+	}
+
 	k := &Kafka{
 		kp:            kp,
 		flushInterval: config.PublisherKafka.FlushInterval,
-		topicFormat: map[bool]string{
-			false: config.EventDistribution.NotExclusivePublisherPattern,
-			true:  config.EventDistribution.PublisherPattern,
-		},
+		topicFormat:   topicFormat,
 	}
+
 	return k, nil
 }
 
