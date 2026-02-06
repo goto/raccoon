@@ -121,7 +121,7 @@ func serverGRPCConfigLoader() {
 }
 
 func serverMQTTConfigLoader() {
-	viper.SetDefault("SERVER_MQTT_ENABLE", true)
+	viper.SetDefault("SERVER_MQTT_ENABLED", false)
 	viper.SetDefault("SERVER_MQTT_CONSUL_ADDRESS", "consul:8081")
 	viper.SetDefault("SERVER_MQTT_CONSUL_KV_KEY", "kv/path")
 	viper.SetDefault("SERVER_MQTT_CONSUL_HEALTH_ONLY", true)
@@ -137,7 +137,7 @@ func serverMQTTConfigLoader() {
 	viper.SetDefault("SERVER_MQTT_CONNECTION_GROUP", "default")
 
 	ServerMQTT = serverMQTT{
-		Enable: util.MustGetBool("SERVER_MQTT_ENABLE"),
+		Enable: util.MustGetBool("SERVER_MQTT_ENABLED"),
 		ConsulConfig: consul{
 			Address:    util.MustGetString("SERVER_MQTT_CONSUL_ADDRESS"),
 			HealthOnly: util.MustGetBool("SERVER_MQTT_CONSUL_HEALTH_ONLY"),
