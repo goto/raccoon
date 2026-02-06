@@ -331,9 +331,9 @@ func TestIntegration(t *testing.T) {
 
 	t.Run("Should be able to consume published message", func(t *testing.T) {
 		activeFormat := exclusiveTopicFormat
-        if activeFormat == "" {
-             activeFormat = "clickstream-%s-log"
-        }
+		if activeFormat == "" {
+			activeFormat = "clickstream-%s-log"
+		}
 
 		t.Run("type_a", func(t *testing.T) {
 			t.Parallel()
@@ -348,7 +348,7 @@ func TestIntegration(t *testing.T) {
 			}
 
 			topic := fmt.Sprintf(activeFormat, "type_a")
-			e := c.Subscribe(fmt.Sprintf(topic, "type_a"), nil)
+			e := c.Subscribe(topic, nil)
 			if e != nil {
 				assert.Fail(t, fmt.Sprintf("Pls try again. %v", e))
 			}
