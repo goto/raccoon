@@ -8,6 +8,7 @@ import (
 
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/services/mqtt/client"
 )
 
@@ -76,10 +77,12 @@ func (s *Service) Shutdown(ctx context.Context) error {
 
 // HealthCheck checks the health all consumers.
 func (s *Service) HealthCheck() error {
+	logger.Debug("Health Check: probing mqtt-broker")
 	for _, con := range s.consumers {
 		if status := con.IsHealthy(); !status {
 			return errors.New("consumer connection is broken")
 		}
 	}
+
 	return nil
 }
