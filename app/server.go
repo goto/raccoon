@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/goto/raccoon/health"
 	"os"
 	"os/signal"
 	"runtime"
@@ -32,7 +33,7 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 		logger.Info("Exiting server")
 		os.Exit(0)
 	}
-
+	registerHealthCheck(httpServices, kPublisher)
 	logger.Info("Start worker -->")
 	workerPool := worker.CreateWorkerPool(config.Worker.WorkersPoolSize, bufferChannel, config.Worker.DeliveryChannelSize, kPublisher)
 	workerPool.StartWorkers()
@@ -111,5 +112,14 @@ func reportProcMetrics() {
 		metrics.Gauge("server_mem_gc_pauseNs_current", m.PauseNs[(m.NumGC+255)%256]/1000, "")
 		metrics.Gauge("server_mem_gc_count_current", m.NumGC, "")
 		metrics.Gauge("server_mem_gc_pauseTotalNs_current", m.PauseTotalNs, "")
+	}
+}
+
+func registerHealthCheck(svcs services.Services, kafka *publisher.Kafka) {
+	health.Register("kafka-broker", kafka.HealthCheck)
+	for _, svc := range svcs.B {
+		if svc.Name() == "MQTT" {
+			health.Register("mqtt-broker", svc.HealthCheck)
+		}
 	}
 }

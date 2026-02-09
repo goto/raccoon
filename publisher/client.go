@@ -9,6 +9,7 @@ type Client interface {
 	Close()
 	Flush(int) int
 	Events() chan kafka.Event
+	GetMetadata(topic *string, allTopics bool, timeoutMs int) (*kafka.Metadata, error)
 }
 
 func newKafkaClient(cfg *kafka.ConfigMap) (Client, error) {

@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install unzip  --no-install-recommends --assume-ye
 COPY . .
 RUN make update-deps && make compile
 
+#bookworm-slim comparible with golang:1.24 and has glibc 2.34
 FROM debian:bookworm-slim
 WORKDIR /app
 COPY --from=0 /app/raccoon ./raccoon

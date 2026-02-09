@@ -24,6 +24,7 @@ const (
 type KafkaProducer interface {
 	// ProduceBulk message to kafka. Block until all messages are sent. Return array of error. Order is not guaranteed.
 	ProduceBulk(events []*pb.Event, connGroup string, deliveryChannel chan kafka.Event) error
+	HealthCheck() error
 }
 
 func NewKafka() (*Kafka, error) {
@@ -31,14 +32,26 @@ func NewKafka() (*Kafka, error) {
 	if err != nil {
 		return &Kafka{}, err
 	}
-	return &Kafka{
+
+	topicFormat := map[bool]string{
+		false: config.EventDistribution.PublisherPattern,
+		true:  config.EventDistribution.PublisherPattern,
+	}
+
+	if config.ServerMQTT.Enable {
+		topicFormat[false] = config.EventDistribution.NotExclusivePublisherPattern
+	}
+
+	k := &Kafka{
 		kp:            kp,
 		flushInterval: config.PublisherKafka.FlushInterval,
-		topicFormat:   config.EventDistribution.PublisherPattern,
-	}, nil
+		topicFormat:   topicFormat,
+	}
+
+	return k, nil
 }
 
-func NewKafkaFromClient(client Client, flushInterval int, topicFormat string) *Kafka {
+func NewKafkaFromClient(client Client, flushInterval int, topicFormat map[bool]string) *Kafka {
 	return &Kafka{
 		kp:            client,
 		flushInterval: flushInterval,
@@ -49,7 +62,7 @@ func NewKafkaFromClient(client Client, flushInterval int, topicFormat string) *K
 type Kafka struct {
 	kp            Client
 	flushInterval int
-	topicFormat   string
+	topicFormat   map[bool]string
 }
 
 // ProduceBulk messages to kafka. Block until all messages are sent. Return array of error. Order of Errors is guaranteed.
@@ -58,20 +71,20 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 	errors := make([]error, len(events))
 	totalProcessed := 0
 	for order, event := range events {
-		topic := fmt.Sprintf(pr.topicFormat, event.Type)
+		topic := fmt.Sprintf(pr.topicFormat[event.GetIsExclusive()], event.Type)
 		message := &kafka.Message{
 			Value:          event.EventBytes,
 			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 			Opaque:         order,
 		}
 
-		logger.Debugf("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s, is_mirrored=%s",
+		logger.Debugf("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s, is_exclusive=%s",
 			event.GetEventName(),
 			event.GetProduct(),
 			event.GetType(),
 			connGroup,
 			event.GetEventTimestamp().AsTime().String(),
-			fmt.Sprintf("%t", event.GetIsMirrored()),
+			fmt.Sprintf("%t", event.GetIsExclusive()),
 		)
 
 		err := pr.kp.Produce(message, deliveryChannel)
@@ -230,5 +243,11 @@ func (b BulkError) Error() string {
 		}
 		err += mErr.Error()
 	}
+	return err
+}
+
+func (pr *Kafka) HealthCheck() error {
+	topic := config.PublisherKafka.HealthCheckConfig.TopicName
+	_, err := pr.kp.GetMetadata(&topic, false, config.PublisherKafka.HealthCheckConfig.TimeOut)
 	return err
 }

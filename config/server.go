@@ -10,6 +10,7 @@ import (
 var Server server
 var ServerWs serverWs
 var ServerGRPC serverGRPC
+var ServerMQTT serverMQTT
 
 type server struct {
 	DedupEnabled bool
@@ -35,6 +36,39 @@ type serverGRPC struct {
 	TLSEnabled   bool
 	TLSCertPath  string
 	TLSPublicKey string
+}
+
+// serverMQTT represents the complete configuration for an MQTT server setup.
+// It includes authentication, Consul configuration, and consumer-specific settings.
+type serverMQTT struct {
+	Enable         bool     // Flag to enable or disable the MQTT server
+	ConsulConfig   consul   // Configuration related to Consul service discovery
+	AuthConfig     auth     // MQTT authentication credentials
+	ConsumerConfig consumer // Consumer behavior and connection settings
+}
+
+// auth defines MQTT authentication credentials.
+type auth struct {
+	Username string // Username for authenticating with the MQTT broker
+	Password string // Password for authenticating with the MQTT broker
+}
+
+// consul holds configuration details for connecting and interacting with a Consul agent.
+type consul struct {
+	Address    string        // Address of the Consul agent (e.g., localhost:8500)
+	HealthOnly bool          // When true, only healthy service instances are used
+	KVKey      string        // Key in Consul KV store for retrieving MQTT Broker Address
+	WaitTime   time.Duration // Maximum wait time for Consul blocking queries
+}
+
+// consumer contains configuration parameters controlling MQTT message consumption.
+type consumer struct {
+	RetryIntervalInSec time.Duration // Time interval (in seconds) before retrying connection
+	LogLevel           string        // Log verbosity level (e.g., "info", "debug", "error")
+	WriteTimeoutInSec  time.Duration // Timeout duration (in seconds) for write operations
+	PoolSize           int           // Number of concurrent consumers to consume from MQTT topic
+	TopicFormat        string        // Format or pattern for subscribing to MQTT topics (e.g., "share/raccoon/{service}")
+	KeepAlive          time.Duration // Amount of time that the client should wait before sending a PING request to the broker
 }
 
 func serverConfigLoader() {
@@ -83,5 +117,44 @@ func serverGRPCConfigLoader() {
 		TLSEnabled:   util.MustGetBool("SERVER_GRPC_TLS_ENABLED"),
 		TLSCertPath:  util.MustGetString("SERVER_GRPC_TLS_CERT_PATH"),
 		TLSPublicKey: util.MustGetString("SERVER_GRPC_TLS_PUBLIC_KEY"),
+	}
+}
+
+func serverMQTTConfigLoader() {
+	viper.SetDefault("SERVER_MQTT_ENABLED", false)
+	viper.SetDefault("SERVER_MQTT_CONSUL_ADDRESS", "consul:8081")
+	viper.SetDefault("SERVER_MQTT_CONSUL_KV_KEY", "kv/path")
+	viper.SetDefault("SERVER_MQTT_CONSUL_HEALTH_ONLY", true)
+	viper.SetDefault("SERVER_MQTT_CONSUL_WAIT_TIME", 300)
+	viper.SetDefault("SERVER_MQTT_AUTH_USERNAME", "test")
+	viper.SetDefault("SERVER_MQTT_AUTH_PASSWORD", "pass")
+	viper.SetDefault("SERVER_MQTT_CONSUMER_RETRY_INTERVAL_IN_SEC", 1)
+	viper.SetDefault("SERVER_MQTT_CONSUMER_WRITE_TIMEOUT_IN_SEC", 1)
+	viper.SetDefault("SERVER_MQTT_CONSUMER_KEEP_ALIVE_IN_SEC", 45)
+	viper.SetDefault("SERVER_MQTT_CONSUMER_LOG_LEVEL", "warn")
+	viper.SetDefault("SERVER_MQTT_CONSUMER_POOL_SIZE", 1)
+	viper.SetDefault("SERVER_MQTT_CONSUMER_TOPIC_FORMAT", "default-topic")
+	viper.SetDefault("SERVER_MQTT_CONNECTION_GROUP", "default")
+
+	ServerMQTT = serverMQTT{
+		Enable: util.MustGetBool("SERVER_MQTT_ENABLED"),
+		ConsulConfig: consul{
+			Address:    util.MustGetString("SERVER_MQTT_CONSUL_ADDRESS"),
+			HealthOnly: util.MustGetBool("SERVER_MQTT_CONSUL_HEALTH_ONLY"),
+			KVKey:      util.MustGetString("SERVER_MQTT_CONSUL_KV_KEY"),
+			WaitTime:   util.MustGetDuration("SERVER_MQTT_CONSUL_WAIT_TIME", time.Second),
+		},
+		AuthConfig: auth{
+			Username: util.MustGetString("SERVER_MQTT_AUTH_USERNAME"),
+			Password: util.MustGetString("SERVER_MQTT_AUTH_PASSWORD"),
+		},
+		ConsumerConfig: consumer{
+			RetryIntervalInSec: util.MustGetDuration("SERVER_MQTT_CONSUMER_RETRY_INTERVAL_IN_SEC", time.Second),
+			LogLevel:           util.MustGetString("SERVER_MQTT_CONSUMER_LOG_LEVEL"),
+			WriteTimeoutInSec:  util.MustGetDuration("SERVER_MQTT_CONSUMER_WRITE_TIMEOUT_IN_SEC", time.Second),
+			PoolSize:           util.MustGetInt("SERVER_MQTT_CONSUMER_POOL_SIZE"),
+			TopicFormat:        util.MustGetString("SERVER_MQTT_CONSUMER_TOPIC_FORMAT"),
+			KeepAlive:          util.MustGetDuration("SERVER_MQTT_CONSUMER_KEEP_ALIVE_IN_SEC", time.Second),
+		},
 	}
 }

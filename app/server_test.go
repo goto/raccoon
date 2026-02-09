@@ -2,14 +2,15 @@ package app
 
 import (
 	"context"
-	"github.com/goto/raccoon/publisher"
-	"github.com/goto/raccoon/services"
-	"github.com/goto/raccoon/worker"
-	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 	"os"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/goto/raccoon/publisher"
+	"github.com/goto/raccoon/services"
+	"github.com/goto/raccoon/worker"
+	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 
 	"github.com/goto/raccoon/collection"
 )
@@ -19,7 +20,10 @@ func TestShutDownServer(t *testing.T) {
 	defer cancel()
 	mockKafka := &mockKafkaClient{}
 
-	kp := publisher.NewKafkaFromClient(mockKafka, 50, "test")
+	kp := publisher.NewKafkaFromClient(mockKafka, 50, map[bool]string{
+		true:  "test",
+		false: "test",
+	})
 
 	shutdownCh := make(chan bool, 1)
 	bufferCh := make(chan collection.CollectRequest, 1)
@@ -69,10 +73,11 @@ func isClosed(ch <-chan collection.CollectRequest) bool {
 // mockKafkaClient is a mock for the Client interface
 type mockKafkaClient struct {
 	// Tracking flags
-	ProduceCalled bool
-	CloseCalled   bool
-	FlushCalled   bool
-	EventsCalled  bool
+	ProduceCalled     bool
+	CloseCalled       bool
+	FlushCalled       bool
+	EventsCalled      bool
+	GetMetadataCalled bool
 
 	ReturnFlushLeft int
 	EventChan       chan kafka.Event
@@ -98,4 +103,9 @@ func (m *mockKafkaClient) Events() chan kafka.Event {
 		m.EventChan = make(chan kafka.Event, 1)
 	}
 	return m.EventChan
+}
+
+func (m *mockKafkaClient) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*kafka.Metadata, error) {
+	m.GetMetadataCalled = true
+	return &kafka.Metadata{}, nil
 }
