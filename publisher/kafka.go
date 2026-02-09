@@ -247,6 +247,7 @@ func (b BulkError) Error() string {
 }
 
 func (pr *Kafka) HealthCheck() error {
+	logger.Debug("Health Check: probing kafka-broker")
 	topic := config.PublisherKafka.HealthCheckConfig.TopicName
 	_, err := pr.kp.GetMetadata(&topic, false, config.PublisherKafka.HealthCheckConfig.TimeOut)
 	return err
