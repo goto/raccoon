@@ -90,7 +90,7 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 		metrics.Increment(
 			"clickstream_event_routed_total",
 			fmt.Sprintf(
-				"conn_group=%s,event_type=%s,topic=%s,is_exclusive=%t,",
+				"conn_group=%s,event_type=%s,topic=%s,is_exclusive=%t",
 				connGroup,
 				event.Type,
 				topic,
