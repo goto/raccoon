@@ -87,6 +87,17 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 			fmt.Sprintf("%t", event.GetIsExclusive()),
 		)
 
+		metrics.Increment(
+			"clickstream_event_routed_total",
+			fmt.Sprintf(
+				"conn_group=%s,event_type=%s,topic=%s,is_exclusive=%t,",
+				connGroup,
+				event.Type,
+				topic,
+				event.GetIsExclusive(),
+			),
+		)
+
 		err := pr.kp.Produce(message, deliveryChannel)
 		if err != nil {
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, event.Type))
