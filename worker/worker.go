@@ -40,18 +40,22 @@ func (w *Pool) StartWorkers() {
 			logger.Info("Running worker: " + workerName)
 			deliveryChan := make(chan kafka.Event, w.deliveryChannelSize)
 			for request := range w.EventsChannel {
-				metrics.Timing("batch_idle_in_channel_milliseconds", (time.Now().Sub(request.TimePushed)).Milliseconds(), "worker="+workerName)
-				batchReadTime := time.Now()
-				//@TODO - Should add integration tests to prove that the worker receives the same message that it produced, on the delivery channel it created
+				startTimeWorker := time.Now()
 
+				metrics.Timing("batch_idle_in_channel_milliseconds", (startTimeWorker.Sub(request.TimePushed)).Milliseconds(), "worker="+workerName)
+
+				//@TODO - Should add integration tests to prove that the worker receives the same message that it produced, on the delivery channel it created
+				startTimeProduce := time.Now()
 				err := w.kafkaProducer.ProduceBulk(request.GetEvents(), request.ConnectionIdentifier.Group, deliveryChan)
 
-				produceTime := time.Since(batchReadTime)
-				metrics.Timing("kafka_producebulk_tt_ms", produceTime.Milliseconds(), "")
+				metrics.Timing("kafka_producebulk_tt_ms", time.Since(startTimeProduce).Milliseconds(), "worker="+workerName)
 
+				startTimeAck := time.Now()
 				if request.AckFunc != nil {
 					request.AckFunc(err)
 				}
+
+				metrics.Timing("acknowledgement_duration_milliseconds", time.Since(startTimeAck).Milliseconds(), "worker="+workerName)
 
 				totalErr := 0
 				if err != nil {
@@ -65,11 +69,14 @@ func (w *Pool) StartWorkers() {
 				lenBatch := int64(len(request.GetEvents()))
 				logger.Debug(fmt.Sprintf("Success sending messages, %v", lenBatch-int64(totalErr)))
 				if lenBatch > 0 {
-					eventTimingMs := time.Since(request.GetSentTime().AsTime()).Milliseconds() / lenBatch
-					metrics.Timing("event_processing_duration_milliseconds", eventTimingMs, fmt.Sprintf("conn_group=%s", request.ConnectionIdentifier.Group))
-					now := time.Now()
-					metrics.Timing("worker_processing_duration_milliseconds", (now.Sub(batchReadTime).Milliseconds())/lenBatch, "worker="+workerName)
-					metrics.Timing("server_processing_latency_milliseconds", (now.Sub(request.TimeConsumed)).Milliseconds()/lenBatch, fmt.Sprintf("conn_group=%s", request.ConnectionIdentifier.Group))
+					timing_worker_process := time.Since(startTimeWorker).Milliseconds() / lenBatch
+					metrics.Timing("worker_processing_duration_milliseconds", timing_worker_process, "worker="+workerName)
+
+					timing_server_process := time.Since(request.TimeConsumed).Milliseconds() / lenBatch
+					metrics.Timing("server_processing_latency_milliseconds", timing_server_process, fmt.Sprintf("conn_group=%s", request.ConnectionIdentifier.Group))
+
+					timing_event_process := time.Since(request.GetSentTime().AsTime()).Milliseconds() / lenBatch
+					metrics.Timing("event_processing_duration_milliseconds", timing_event_process, fmt.Sprintf("conn_group=%s", request.ConnectionIdentifier.Group))
 				}
 			}
 			w.wg.Done()
