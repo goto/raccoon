@@ -108,7 +108,7 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 				errorTag = "TOPIC_NOT_FOUND"
 			case errLargeMessageSize:
 				errors[order] = fmt.Errorf("%v %s", err, topic)
-				errorTag = "KAFKA_ERROR"
+				errorTag = "MESSAGE_TOO_LARGE"
 			default:
 				errors[order] = err
 				logger.Errorf("produce to kafka failed due to: %v on topic : %s", err, topic)
