@@ -74,10 +74,16 @@ func Count(bucket string, i int, tags string) {
 }
 
 func Timing(bucket string, t int64, tags string) {
-	err := Setup()
-	if err == nil {
-		instance.timing(bucket, t, tags)
+	if Setup() != nil {
+		return
 	}
+
+	duration := t
+	if duration < 0 {
+		duration = 0
+	}
+
+	instance.timing(bucket, duration, tags)
 }
 
 func Increment(bucket string, tags string) {
