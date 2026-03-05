@@ -78,12 +78,9 @@ func Timing(bucket string, t int64, tags string) {
 		return
 	}
 
-	duration := t
-	if duration < 0 {
-		duration = 0
+	if t >= 0 {
+		instance.timing(bucket, t, tags)
 	}
-
-	instance.timing(bucket, duration, tags)
 }
 
 func Increment(bucket string, tags string) {
