@@ -124,10 +124,10 @@ func (pr *Kafka) ProduceBulk(
 			switch err.Error() {
 			case errUnknownTopic:
 				errors[order] = fmt.Errorf("%v %s", err, topic)
-				errorTag = "unknown_topic"
+				errorTag = "TOPIC_NOT_FOUND"
 			case errLargeMessageSize:
 				errors[order] = fmt.Errorf("%v %s", err, topic)
-				errorTag = "message_too_large"
+				errorTag = "MESSAGE_TOO_LARGE"
 			default:
 				errors[order] = err
 				logger.Errorf("produce to kafka failed due to: %v on topic : %s", err, topic)
@@ -136,6 +136,10 @@ func (pr *Kafka) ProduceBulk(
 
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s",
 				errorTag, event.Type, connGroup))
+
+			if errorTag == "unknown" {
+				errorTag = "KAFKA_ERROR"
+			}
 
 			metrics.Increment("clickstream_data_loss", fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s",
 				errorTag, event.EventName, strings.ReplaceAll(strings.ToLower(event.Product), "_", ""), connGroup,
@@ -163,11 +167,12 @@ func (pr *Kafka) ProduceBulk(
 
 		if m.TopicPartition.Error != nil {
 			eventType := events[i].Type
+			order := m.Opaque.(int)
 			metrics.Decrement("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s", "delivery_failed", eventType, connGroup))
 			metrics.Increment("clickstream_data_loss", fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s",
-				"delivery_failed", events[i].EventName, strings.ReplaceAll(strings.ToLower(events[i].Product), "_", ""), connGroup,
+				"KAFKA_ERROR", events[order].EventName, strings.ReplaceAll(strings.ToLower(events[order].Product), "_", ""), connGroup,
 			))
 			errors[order] = m.TopicPartition.Error
 		} else {
