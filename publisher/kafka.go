@@ -154,6 +154,13 @@ func (pr *Kafka) ProduceBulk(
 	for i := 0; i < totalProcessed; i++ {
 		d := <-deliveryChannel
 		m := d.(*kafka.Message)
+
+		order, ok := m.Opaque.(messageOrder)
+		if !ok {
+			logger.Errorf("failed to cast kafka event opaque to int for conn_group=%s, skipping processing the delivery report for this message", connGroup)
+			continue
+		}
+
 		if m.TopicPartition.Error != nil {
 			eventType := events[i].Type
 			metrics.Decrement("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, eventType))
@@ -162,10 +169,8 @@ func (pr *Kafka) ProduceBulk(
 			metrics.Increment("clickstream_data_loss", fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s",
 				"delivery_failed", events[i].EventName, strings.ReplaceAll(strings.ToLower(events[i].Product), "_", ""), connGroup,
 			))
-			order := m.Opaque.(int)
 			errors[order] = m.TopicPartition.Error
 		} else {
-			order := m.Opaque.(int)
 			startTimeEvent := startTimeEvents[order]
 			event := producedEvents[order]
 

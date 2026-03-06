@@ -57,6 +57,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 							Offset:    0,
 							Error:     nil,
 						},
+						Opaque: 0,
 					}
 				}()
 			})
@@ -80,6 +81,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 							Offset:    0,
 							Error:     nil,
 						},
+						Opaque: 1,
 					}
 				}()
 			}).Once()
