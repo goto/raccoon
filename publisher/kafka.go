@@ -95,6 +95,14 @@ func (pr *Kafka) ProduceBulk(
 			Opaque:         order,
 		}
 
+		logger.Debugf("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, order=%d",
+			event.GetEventName(),
+			event.GetProduct(),
+			event.GetType(),
+			connGroup,
+			order,
+		)
+
 		logger.Debugf("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s, is_exclusive=%s",
 			event.GetEventName(),
 			event.GetProduct(),
@@ -165,9 +173,17 @@ func (pr *Kafka) ProduceBulk(
 			continue
 		}
 
+		event := producedEvents[order]
+		logger.Debugf("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, order=%d",
+			event.GetEventName(),
+			event.GetProduct(),
+			event.GetType(),
+			connGroup,
+			order,
+		)
+
 		if m.TopicPartition.Error != nil {
 			eventType := events[i].Type
-			order := m.Opaque.(int)
 			metrics.Decrement("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s", "delivery_failed", eventType, connGroup))
@@ -177,7 +193,6 @@ func (pr *Kafka) ProduceBulk(
 			errors[order] = m.TopicPartition.Error
 		} else {
 			startTimeEvent := startTimeEvents[order]
-			event := producedEvents[order]
 
 			// granular metric, el: event level
 			metrics.Timing("el_kafka_processing_duration_milliseconds", time.Since(startTimeEvent).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))
