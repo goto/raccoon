@@ -3,7 +3,9 @@ package publisher
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"strings"
+	"time"
 
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 	// Importing librd to make it work on vendor mode
@@ -20,10 +22,16 @@ const (
 	errLargeMessageSize = "Broker: Message size too large" //error msg while producing a message which is larger than message.max.bytes config
 )
 
+type messageOrder = int
+
 // KafkaProducer Produce data to kafka synchronously
 type KafkaProducer interface {
 	// ProduceBulk message to kafka. Block until all messages are sent. Return array of error. Order is not guaranteed.
-	ProduceBulk(events []*pb.Event, connGroup string, deliveryChannel chan kafka.Event) error
+	ProduceBulk(
+		events []*pb.Event, connGroup string, deliveryChannel chan kafka.Event,
+		startTimeClient, startTimeServer, startTimeWorker time.Time,
+	) error
+
 	HealthCheck() error
 }
 
@@ -67,7 +75,18 @@ type Kafka struct {
 
 // ProduceBulk messages to kafka. Block until all messages are sent. Return array of error. Order of Errors is guaranteed.
 // DeliveryChannel needs to be exclusive. DeliveryChannel is exposed for recyclability purpose.
-func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChannel chan kafka.Event) error {
+//
+// startTimeClient: represents the event send time specified by client
+// startTimeServer: represents the time when the event is received by raccoon server
+// startTimeWorker: represents the time when the event is picked up by worker to be sent to kafka
+func (pr *Kafka) ProduceBulk(
+	events []*pb.Event, connGroup string, deliveryChannel chan kafka.Event,
+	startTimeClient, startTimeServer, startTimeWorker time.Time,
+) error {
+	startTimeEvents := make(map[messageOrder]time.Time, len(events))
+	producedEvents := make(map[messageOrder]*pb.Event, len(events))
+	randoms := make([]int, len(events))
+
 	errors := make([]error, len(events))
 	totalProcessed := 0
 	for order, event := range events {
@@ -77,6 +96,16 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 			Opaque:         order,
 		}
+
+		randoms[order] = rand.Int()
+		logger.Debugf("Kafka Request: event_name=%s, product=%s, type=%s, conn_group=%s, order=%d, random=%d",
+			event.GetEventName(),
+			event.GetProduct(),
+			event.GetType(),
+			connGroup,
+			order,
+			randoms[order],
+		)
 
 		logger.Debugf("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s, is_exclusive=%s",
 			event.GetEventName(),
@@ -97,6 +126,8 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 				event.GetIsExclusive(),
 			),
 		)
+
+		startTimeEvents[order] = time.Now()
 
 		err := pr.kp.Produce(message, deliveryChannel)
 		if err != nil {
@@ -131,15 +162,33 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 
 		metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, event.Type))
 		totalProcessed++
+
+		producedEvents[order] = event
 	}
 
 	// Wait for deliveryChannel as many as processed
 	for i := 0; i < totalProcessed; i++ {
 		d := <-deliveryChannel
 		m := d.(*kafka.Message)
+
+		order, ok := m.Opaque.(messageOrder)
+		if !ok {
+			logger.Errorf("failed to cast kafka event opaque to int for conn_group=%s, skipping processing the delivery report for this message", connGroup)
+			continue
+		}
+
+		event := producedEvents[order]
+		logger.Debugf("Kafka Response: event_name=%s, product=%s, type=%s, conn_group=%s, order=%d, random=%d",
+			event.GetEventName(),
+			event.GetProduct(),
+			event.GetType(),
+			connGroup,
+			order,
+			randoms[order],
+		)
+
 		if m.TopicPartition.Error != nil {
 			eventType := events[i].Type
-			order := m.Opaque.(int)
 			metrics.Decrement("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s", "delivery_failed", eventType, connGroup))
@@ -147,6 +196,16 @@ func (pr *Kafka) ProduceBulk(events []*pb.Event, connGroup string, deliveryChann
 				"KAFKA_ERROR", events[order].EventName, strings.ReplaceAll(strings.ToLower(events[order].Product), "_", ""), connGroup,
 			))
 			errors[order] = m.TopicPartition.Error
+		} else {
+			startTimeEvent := startTimeEvents[order]
+
+			// granular metric, el: event level
+			metrics.Timing("el_kafka_processing_duration_milliseconds", time.Since(startTimeEvent).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))
+
+			// grouped metric, el: event level
+			metrics.Timing("el_worker_processing_duration_milliseconds", time.Since(startTimeWorker).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))
+			metrics.Timing("el_server_processing_duration_milliseconds", time.Since(startTimeServer).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))
+			metrics.Timing("el_event_processing_duration_milliseconds", time.Since(startTimeClient).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))
 		}
 	}
 
