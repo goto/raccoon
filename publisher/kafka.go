@@ -3,6 +3,7 @@ package publisher
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -84,6 +85,7 @@ func (pr *Kafka) ProduceBulk(
 ) error {
 	startTimeEvents := make(map[messageOrder]time.Time, len(events))
 	producedEvents := make(map[messageOrder]*pb.Event, len(events))
+	randoms := make([]int, len(events))
 
 	errors := make([]error, len(events))
 	totalProcessed := 0
@@ -95,12 +97,14 @@ func (pr *Kafka) ProduceBulk(
 			Opaque:         order,
 		}
 
-		logger.Debugf("Kafka Request: event_name=%s, product=%s, type=%s, conn_group=%s, order=%d",
+		randoms[order] = rand.Int()
+		logger.Debugf("Kafka Request: event_name=%s, product=%s, type=%s, conn_group=%s, order=%d, random=%d",
 			event.GetEventName(),
 			event.GetProduct(),
 			event.GetType(),
 			connGroup,
 			order,
+			randoms[order],
 		)
 
 		logger.Debugf("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s, is_exclusive=%s",
@@ -174,12 +178,13 @@ func (pr *Kafka) ProduceBulk(
 		}
 
 		event := producedEvents[order]
-		logger.Debugf("Kafka Response: event_name=%s, product=%s, type=%s, conn_group=%s, order=%d",
+		logger.Debugf("Kafka Response: event_name=%s, product=%s, type=%s, conn_group=%s, order=%d, random=%d",
 			event.GetEventName(),
 			event.GetProduct(),
 			event.GetType(),
 			connGroup,
 			order,
+			randoms[order],
 		)
 
 		if m.TopicPartition.Error != nil {
