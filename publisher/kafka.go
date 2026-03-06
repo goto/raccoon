@@ -95,7 +95,7 @@ func (pr *Kafka) ProduceBulk(
 			Opaque:         order,
 		}
 
-		logger.Debugf("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, order=%d",
+		logger.Debugf("Kafka Request: event_name=%s, product=%s, type=%s, conn_group=%s, order=%d",
 			event.GetEventName(),
 			event.GetProduct(),
 			event.GetType(),
@@ -174,7 +174,7 @@ func (pr *Kafka) ProduceBulk(
 		}
 
 		event := producedEvents[order]
-		logger.Debugf("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, order=%d",
+		logger.Debugf("Kafka Response: event_name=%s, product=%s, type=%s, conn_group=%s, order=%d",
 			event.GetEventName(),
 			event.GetProduct(),
 			event.GetType(),
