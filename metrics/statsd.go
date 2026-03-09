@@ -74,8 +74,11 @@ func Count(bucket string, i int, tags string) {
 }
 
 func Timing(bucket string, t int64, tags string) {
-	err := Setup()
-	if err == nil {
+	if Setup() != nil {
+		return
+	}
+
+	if t >= 0 {
 		instance.timing(bucket, t, tags)
 	}
 }

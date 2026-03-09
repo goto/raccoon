@@ -41,7 +41,7 @@ func TestWorker(t *testing.T) {
 			}
 			worker.StartWorkers()
 
-			kp.On("ProduceBulk", mock.Anything, mock.Anything, mock.Anything).Return(nil).Twice()
+			kp.On("ProduceBulk", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Twice()
 			bc <- *request
 			bc <- *request
 			time.Sleep(10 * time.Millisecond)
@@ -67,7 +67,7 @@ func TestWorker(t *testing.T) {
 				wg:                  sync.WaitGroup{},
 			}
 			worker.StartWorkers()
-			kp.On("ProduceBulk", mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(3).After(3 * time.Millisecond)
+			kp.On("ProduceBulk", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(3).After(3 * time.Millisecond)
 			bc <- *request
 			bc <- *request
 			bc <- *request

@@ -50,6 +50,9 @@ func (h *Handler) SendEvent(ctx context.Context, req *pb.SendEventRequest) (*pb.
 
 	timeConsumed := time.Now()
 
+	timing_event_received := timeConsumed.Sub(req.GetSentTime().AsTime()).Milliseconds()
+	metrics.Timing("event_received_duration_milliseconds", timing_event_received, fmt.Sprintf("conn_group=%s", identifier.Group))
+
 	metrics.Increment("batches_read_total", fmt.Sprintf("status=success,conn_group=%s", identifier.Group))
 	h.sendEventCounters(req.Events, identifier.Group)
 

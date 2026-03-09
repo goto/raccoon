@@ -1,6 +1,8 @@
 package worker
 
 import (
+	"time"
+
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	mock "github.com/stretchr/testify/mock"
 	kafka "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
@@ -12,8 +14,11 @@ type mockKafkaPublisher struct {
 }
 
 // ProduceBulk provides a mock function with given fields: events, deliveryChannel
-func (m *mockKafkaPublisher) ProduceBulk(events []*pb.Event, connGroup string, deliveryChannel chan kafka.Event) error {
-	mock := m.Called(events, connGroup, deliveryChannel)
+func (m *mockKafkaPublisher) ProduceBulk(
+	events []*pb.Event, connGroup string, deliveryChannel chan kafka.Event,
+	startTimeClient, startTimeServer, startTimeWorker time.Time,
+) error {
+	mock := m.Called(events, connGroup, deliveryChannel, startTimeClient, startTimeServer, startTimeWorker)
 	return mock.Error(0)
 }
 
