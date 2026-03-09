@@ -3,7 +3,6 @@ package publisher
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"strings"
 	"time"
 
@@ -21,8 +20,6 @@ const (
 	errUnknownTopic     = "Local: Unknown topic"           //error msg while producing a message to a topic which is not present in the kafka cluster
 	errLargeMessageSize = "Broker: Message size too large" //error msg while producing a message which is larger than message.max.bytes config
 )
-
-type messageOrder = int
 
 // KafkaProducer Produce data to kafka synchronously
 type KafkaProducer interface {
@@ -83,9 +80,7 @@ func (pr *Kafka) ProduceBulk(
 	events []*pb.Event, connGroup string, deliveryChannel chan kafka.Event,
 	startTimeClient, startTimeServer, startTimeWorker time.Time,
 ) error {
-	startTimeEvents := make(map[messageOrder]time.Time, len(events))
-	producedEvents := make(map[messageOrder]*pb.Event, len(events))
-	randoms := make([]int, len(events))
+	startTimeEvents := make([]time.Time, len(events))
 
 	errors := make([]error, len(events))
 	totalProcessed := 0
@@ -96,16 +91,6 @@ func (pr *Kafka) ProduceBulk(
 			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 			Opaque:         order,
 		}
-
-		randoms[order] = rand.Int()
-		logger.Debugf("Kafka Request: event_name=%s, product=%s, type=%s, conn_group=%s, order=%d, random=%d",
-			event.GetEventName(),
-			event.GetProduct(),
-			event.GetType(),
-			connGroup,
-			order,
-			randoms[order],
-		)
 
 		logger.Debugf("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s, is_exclusive=%s",
 			event.GetEventName(),
@@ -162,8 +147,6 @@ func (pr *Kafka) ProduceBulk(
 
 		metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, event.Type))
 		totalProcessed++
-
-		producedEvents[order] = event
 	}
 
 	// Wait for deliveryChannel as many as processed
@@ -171,29 +154,20 @@ func (pr *Kafka) ProduceBulk(
 		d := <-deliveryChannel
 		m := d.(*kafka.Message)
 
-		order, ok := m.Opaque.(messageOrder)
+		order, ok := m.Opaque.(int)
 		if !ok {
 			logger.Errorf("failed to cast kafka event opaque to int for conn_group=%s, skipping processing the delivery report for this message", connGroup)
 			continue
 		}
 
-		event := producedEvents[order]
-		logger.Debugf("Kafka Response: event_name=%s, product=%s, type=%s, conn_group=%s, order=%d, random=%d",
-			event.GetEventName(),
-			event.GetProduct(),
-			event.GetType(),
-			connGroup,
-			order,
-			randoms[order],
-		)
-
+		event := events[order]
 		if m.TopicPartition.Error != nil {
 			eventType := events[i].Type
 			metrics.Decrement("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s", "delivery_failed", eventType, connGroup))
 			metrics.Increment("clickstream_data_loss", fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s",
-				"KAFKA_ERROR", events[order].EventName, strings.ReplaceAll(strings.ToLower(events[order].Product), "_", ""), connGroup,
+				"KAFKA_ERROR", event.EventName, strings.ReplaceAll(strings.ToLower(event.Product), "_", ""), connGroup,
 			))
 			errors[order] = m.TopicPartition.Error
 		} else {
