@@ -55,6 +55,9 @@ func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *co
 	h.recordMetrics("request", fmt.Sprintf("status=success,conn_group=%s", connGroup), reqBytes)
 	h.recordMetrics("event", fmt.Sprintf("conn_group=%s", connGroup), req.Events)
 
+	timing_event_received := start.Sub(req.GetSentTime().AsTime()).Milliseconds()
+	metrics.Timing("event_received_duration_milliseconds", timing_event_received, fmt.Sprintf("conn_group=%s", connGroup))
+
 	h.Collector.Collect(ctx, &collection.CollectRequest{
 		ConnectionIdentifier: identification.Identifier{Group: connGroup},
 		TimeConsumed:         start,
