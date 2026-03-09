@@ -30,4 +30,5 @@ func Load() {
 	eventDistributionConfigLoader()
 	eventConfigLoader()
 	serverMQTTConfigLoader()
+	policyConfigLoader()
 }

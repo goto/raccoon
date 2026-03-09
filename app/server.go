@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"github.com/goto/raccoon/health"
 	"os"
 	"os/signal"
 	"runtime"
@@ -11,13 +10,17 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/goto/raccoon/health"
+
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
+	"github.com/goto/raccoon/policy"
 	"github.com/goto/raccoon/publisher"
 	"github.com/goto/raccoon/services"
 	"github.com/goto/raccoon/worker"
+	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
 // StartServer starts the server
@@ -36,6 +39,7 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 	registerHealthCheck(httpServices, kPublisher)
 	logger.Info("Start worker -->")
 	workerPool := worker.CreateWorkerPool(config.Worker.WorkersPoolSize, bufferChannel, config.Worker.DeliveryChannelSize, kPublisher)
+	initPolicy(workerPool, kPublisher)
 	workerPool.StartWorkers()
 	go kPublisher.ReportStats()
 	go reportProcMetrics()
@@ -113,6 +117,32 @@ func reportProcMetrics() {
 		metrics.Gauge("server_mem_gc_count_current", m.NumGC, "")
 		metrics.Gauge("server_mem_gc_pauseTotalNs_current", m.PauseTotalNs, "")
 	}
+}
+
+// initPolicy loads the ingestion policy config and attaches it to the worker pool when
+// policy enforcement is enabled (POLICY_ENABLED=true).
+func initPolicy(workerPool *worker.Pool, kPublisher publisher.KafkaProducer) {
+	if !config.PolicyCfg.Enabled {
+		logger.Info("Policy enforcement disabled")
+		return
+	}
+	policies, err := policy.Load(config.PolicyCfg.ConfigFile)
+	if err != nil {
+		logger.Errorf("[App.Server] Failed to load policy config: %v — policy enforcement disabled", err)
+		return
+	}
+	cache := policy.NewCache(policies)
+	overrideDeliveryChan := make(chan kafka.Event, config.Worker.DeliveryChannelSize)
+	chain := policy.HandlerChain{
+		&policy.DropHandler{},
+		&policy.OverrideTimestampHandler{
+			Producer:        kPublisher,
+			OverrideTopic:   config.PolicyCfg.OverrideTopic,
+			DeliveryChannel: overrideDeliveryChan,
+		},
+	}
+	workerPool.WithPolicy(cache, chain, policy.DefaultChain())
+	logger.Infof("Policy enforcement enabled: loaded %d policies, override topic=%s", len(policies), config.PolicyCfg.OverrideTopic)
 }
 
 func registerHealthCheck(svcs services.Services, kafka *publisher.Kafka) {
