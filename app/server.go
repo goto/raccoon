@@ -26,9 +26,7 @@ import (
 // StartServer starts the server
 func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
-	httpServices := services.Create(bufferChannel, ctx)
 	logger.Info("Start Server -->")
-	httpServices.Start(ctx, cancel)
 	logger.Info("Start publisher -->")
 	kPublisher, err := publisher.NewKafka()
 	if err != nil {
@@ -36,10 +34,12 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 		logger.Info("Exiting server")
 		os.Exit(0)
 	}
+	channelCollector := collection.NewChannelCollector(bufferChannel)
+	httpServices := services.Create(channelCollector, initPolicy(kPublisher), ctx)
+	httpServices.Start(ctx, cancel)
 	registerHealthCheck(httpServices, kPublisher)
 	logger.Info("Start worker -->")
 	workerPool := worker.CreateWorkerPool(config.Worker.WorkersPoolSize, bufferChannel, config.Worker.DeliveryChannelSize, kPublisher)
-	initPolicy(workerPool, kPublisher)
 	workerPool.StartWorkers()
 	go kPublisher.ReportStats()
 	go reportProcMetrics()
@@ -119,30 +119,22 @@ func reportProcMetrics() {
 	}
 }
 
-// initPolicy loads the ingestion policy config and attaches it to the worker pool when
-// policy enforcement is enabled (POLICY_ENABLED=true).
-func initPolicy(workerPool *worker.Pool, kPublisher publisher.KafkaProducer) {
+// initPolicy builds a *policy.Service when POLICY_ENABLED=true.
+// Returns nil when policy is disabled; a nil *policy.Service is safe (Apply is a no-op).
+func initPolicy(kPublisher publisher.KafkaProducer) *policy.Service {
 	if !config.PolicyCfg.Enabled {
 		logger.Info("Policy enforcement disabled")
-		return
+		return nil
 	}
-	policies, err := policy.Load(config.PolicyCfg.ConfigFile)
-	if err != nil {
-		logger.Errorf("[App.Server] Failed to load policy config: %v — policy enforcement disabled", err)
-		return
-	}
-	cache := policy.NewCache(policies)
-	overrideDeliveryChan := make(chan kafka.Event, config.Worker.DeliveryChannelSize)
-	chain := policy.HandlerChain{
-		&policy.DropHandler{},
-		&policy.OverrideTimestampHandler{
-			Producer:        kPublisher,
-			OverrideTopic:   config.PolicyCfg.OverrideTopic,
-			DeliveryChannel: overrideDeliveryChan,
-		},
-	}
-	workerPool.WithPolicy(cache, chain, policy.DefaultChain())
-	logger.Infof("Policy enforcement enabled: loaded %d policies, override topic=%s", len(policies), config.PolicyCfg.OverrideTopic)
+	deliveryChan := make(chan kafka.Event, config.Worker.DeliveryChannelSize)
+	svc := policy.NewService(
+		config.PolicyCfg.Rules,
+		kPublisher,
+		config.PolicyCfg.OverrideTopic,
+		deliveryChan,
+	)
+	logger.Infof("Policy enforcement enabled: loaded %d rules, override topic=%s", len(config.PolicyCfg.Rules), config.PolicyCfg.OverrideTopic)
+	return svc
 }
 
 func registerHealthCheck(svcs services.Services, kafka *publisher.Kafka) {

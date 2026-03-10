@@ -13,6 +13,7 @@ import (
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/identification"
 	"github.com/goto/raccoon/metrics"
+	"github.com/goto/raccoon/policy"
 	"github.com/goto/raccoon/serialization"
 	"google.golang.org/protobuf/proto"
 )
@@ -20,6 +21,7 @@ import (
 // Handler processes MQTT messages and passes them to the Collector.
 type Handler struct {
 	Collector collection.Collector
+	filter    *policy.Service
 }
 
 // MQTTHandler handles incoming MQTT messages, decodes them, records metrics,
@@ -54,6 +56,7 @@ func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *co
 	// Record all metrics via generic function
 	h.recordMetrics("request", fmt.Sprintf("status=success,conn_group=%s", connGroup), reqBytes)
 	h.recordMetrics("event", fmt.Sprintf("conn_group=%s", connGroup), req.Events)
+	req.Events = h.filter.Apply(req.Events, connGroup)
 
 	h.Collector.Collect(ctx, &collection.CollectRequest{
 		ConnectionIdentifier: identification.Identifier{Group: connGroup},

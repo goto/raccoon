@@ -13,11 +13,13 @@ import (
 	"github.com/goto/raccoon/identification"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
+	"github.com/goto/raccoon/policy"
 	"google.golang.org/grpc/metadata"
 )
 
 type Handler struct {
-	C collection.Collector
+	C      collection.Collector
+	filter *policy.Service
 	pbgrpc.UnimplementedEventServiceServer
 }
 
@@ -52,6 +54,7 @@ func (h *Handler) SendEvent(ctx context.Context, req *pb.SendEventRequest) (*pb.
 
 	metrics.Increment("batches_read_total", fmt.Sprintf("status=success,conn_group=%s", identifier.Group))
 	h.sendEventCounters(req.Events, identifier.Group)
+	req.Events = h.filter.Apply(req.Events, identifier.Group)
 
 	responseChannel := make(chan *pb.SendEventResponse, 1)
 	h.C.Collect(ctx, &collection.CollectRequest{
