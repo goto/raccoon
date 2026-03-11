@@ -115,6 +115,9 @@ func (h *Handler) HandlerWSEvents(w http.ResponseWriter, r *http.Request) {
 			h.upgrader.Table.StoreBatch(conn.Identifier, payload.ReqGuid)
 		}
 
+		timing_event_received := timeConsumed.Sub(payload.GetSentTime().AsTime()).Milliseconds()
+		metrics.Timing("event_received_duration_milliseconds", timing_event_received, fmt.Sprintf("conn_group=%s", conn.Identifier.Group))
+
 		metrics.Increment("batches_read_total", fmt.Sprintf("status=success,conn_group=%s", conn.Identifier.Group))
 		h.sendEventCounters(payload.Events, conn.Identifier.Group)
 
