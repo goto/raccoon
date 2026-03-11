@@ -1,17 +1,27 @@
 package action_test
 
 import (
+<<<<<<< HEAD
 	"errors"
+=======
+>>>>>>> 6d07be4 (chore : fix merge conflict)
 	"testing"
 	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/policy/action"
+<<<<<<< HEAD
 	"github.com/goto/raccoon/policy/action/eval/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/protobuf/types/known/timestamppb"
+=======
+	"github.com/goto/raccoon/policy/action/eval"
+	"github.com/goto/raccoon/policy/action/eval/cache"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+>>>>>>> 6d07be4 (chore : fix merge conflict)
 	kafkalib "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
@@ -35,13 +45,17 @@ func buildOverrideCache(name, product, publisher string, past time.Duration) *ca
 			Details:  config.PolicyDetails{Name: name, Product: product, Publisher: publisher},
 			Action: config.PolicyActionConfig{
 				Type:                    config.PolicyActionOverrideTimestamp,
+<<<<<<< HEAD
 				ConditionType:           config.PolicyConditionTimestampThreshold,
+=======
+>>>>>>> 6d07be4 (chore : fix merge conflict)
 				EventTimestampThreshold: config.PolicyTimestampThreshold{Past: config.PolicyDuration{Duration: past}},
 			},
 		},
 	})
 }
 
+<<<<<<< HEAD
 const overrideTopic = "clickstream-invalid-et-log"
 
 func newOverrideAct(t *testing.T, prod *mockProducer, deliveryChan chan kafkalib.Event) *action.OverrideTimestamp {
@@ -59,13 +73,32 @@ func staleEvent(name string) *pb.Event {
 }
 
 func TestOverrideTimestamp_RedirectsBreachedEvents(t *testing.T) {
+=======
+func TestOverrideTimestamp_RedirectsWhenPolicyBreached(t *testing.T) {
+>>>>>>> 6d07be4 (chore : fix merge conflict)
 	prod := &mockProducer{}
 	prod.On("ProduceBulk", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	deliveryChan := make(chan kafkalib.Event, 10)
 
+<<<<<<< HEAD
 	result := newOverrideAct(t, prod, deliveryChan).Apply([]*pb.Event{staleEvent("click")}, "pub-a")
 
 	assert.Empty(t, result)
+=======
+	c := buildOverrideCache("click", "app", "pub-a", time.Hour)
+	act := action.NewOverrideTimestamp(c, action.DefaultChain(), prod, "clickstream-invalid-et-log", deliveryChan)
+
+	meta := eval.EventMetadata{
+		EventName:      "click",
+		Product:        "app",
+		Publisher:      "pub-a",
+		ConnGroup:      "pub-a",
+		EventTimestamp: time.Now().Add(-2 * time.Hour),
+	}
+	handled, outcome := act.Process(&pb.Event{EventName: "click"}, meta)
+	assert.True(t, handled)
+	assert.Equal(t, action.OutcomeRedirected, outcome)
+>>>>>>> 6d07be4 (chore : fix merge conflict)
 	prod.AssertCalled(t, "ProduceBulk", mock.Anything, "pub-a", deliveryChan)
 }
 
@@ -73,6 +106,7 @@ func TestOverrideTimestamp_PassthroughWhenWithinThreshold(t *testing.T) {
 	prod := &mockProducer{}
 	deliveryChan := make(chan kafkalib.Event, 10)
 
+<<<<<<< HEAD
 	events := []*pb.Event{{EventName: "click", Product: "app", EventTimestamp: timestamppb.New(time.Now())}}
 	result := newOverrideAct(t, prod, deliveryChan).Apply(events, "pub-a")
 
@@ -107,3 +141,18 @@ func TestOverrideTimestamp_PublishError_EventStillRemovedFromBatch(t *testing.T)
 	assert.Empty(t, result)
 	prod.AssertCalled(t, "ProduceBulk", mock.Anything, mock.Anything, mock.Anything)
 }
+=======
+	c := buildOverrideCache("click", "app", "pub-a", time.Hour)
+	act := action.NewOverrideTimestamp(c, action.DefaultChain(), prod, "clickstream-invalid-et-log", deliveryChan)
+
+	meta := eval.EventMetadata{
+		EventName:      "click",
+		Product:        "app",
+		Publisher:      "pub-a",
+		EventTimestamp: time.Now(),
+	}
+	handled, _ := act.Process(&pb.Event{EventName: "click"}, meta)
+	assert.False(t, handled)
+	prod.AssertNotCalled(t, "ProduceBulk")
+}
+>>>>>>> 6d07be4 (chore : fix merge conflict)

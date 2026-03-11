@@ -67,4 +67,3 @@ func rulesForAction(rules []config.PolicyRule, actionType config.PolicyActionTyp
 	}
 	return filtered
 }
-
