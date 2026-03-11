@@ -6,18 +6,6 @@ import (
 	"github.com/goto/raccoon/policy/action/eval/cache"
 )
 
-// Outcome represents the final result of processing an event through an action.
-type Outcome int
-
-const (
-	// OutcomePassthrough means the event should proceed to normal ingestion.
-	OutcomePassthrough Outcome = iota
-	// OutcomeDropped means the event was discarded by a DROP policy.
-	OutcomeDropped
-	// OutcomeRedirected means the event was forwarded to the override topic.
-	OutcomeRedirected
-)
-
 // Evaluator is implemented by every step in the evaluation chain.
 // Resource declares the policy resource type this evaluator handles so the
 // chain can look up the correct conditions from the cache.

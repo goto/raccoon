@@ -31,6 +31,7 @@ func buildRules(pastDrop, pastOverride time.Duration) []config.PolicyRule {
 			Details:  config.PolicyDetails{Name: "click", Product: "app", Publisher: "grp"},
 			Action: config.PolicyActionConfig{
 				Type:                    config.PolicyActionDrop,
+				ConditionType:           config.PolicyConditionTimestampThreshold,
 				EventTimestampThreshold: config.PolicyTimestampThreshold{Past: config.PolicyDuration{Duration: pastDrop}},
 			},
 		},
@@ -39,6 +40,7 @@ func buildRules(pastDrop, pastOverride time.Duration) []config.PolicyRule {
 			Details:  config.PolicyDetails{Name: "click", Product: "app", Publisher: "grp"},
 			Action: config.PolicyActionConfig{
 				Type:                    config.PolicyActionOverrideTimestamp,
+				ConditionType:           config.PolicyConditionTimestampThreshold,
 				EventTimestampThreshold: config.PolicyTimestampThreshold{Past: config.PolicyDuration{Duration: pastOverride}},
 			},
 		},
@@ -76,6 +78,7 @@ func TestService_Apply_OverrideWhenNoDrop(t *testing.T) {
 			Details:  config.PolicyDetails{Name: "click", Product: "app", Publisher: "grp"},
 			Action: config.PolicyActionConfig{
 				Type:                    config.PolicyActionOverrideTimestamp,
+				ConditionType:           config.PolicyConditionTimestampThreshold,
 				EventTimestampThreshold: config.PolicyTimestampThreshold{Past: config.PolicyDuration{Duration: time.Hour}},
 			},
 		},

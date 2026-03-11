@@ -2,30 +2,26 @@ package policy
 
 import (
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-	"github.com/goto/raccoon/policy/action"
-	"github.com/goto/raccoon/policy/action/eval"
 )
 
 // Action is implemented by each ingestion policy action (Drop, OverrideTimestamp).
-// Process returns (true, outcome) when the action consumed the event, stopping the chain.
-// Process returns (false, OutcomePassthrough) when the action does not apply, letting the
-// next action in the chain evaluate the event.
+// Apply receives the full event batch and connection group, returns only the events
+// that should continue to normal ingestion. Each action owns its iteration and
+// I/O, allowing batch-level optimisations such as a single ProduceBulk call.
 type Action interface {
-	Process(event *pb.Event, meta eval.EventMetadata) (handled bool, outcome action.Outcome)
+	Apply(events []*pb.Event, connGroup string) []*pb.Event
 }
 
-// Chain is an ordered list of Actions applied to a single event.
-// It runs each action in sequence and stops at the first one that handles the event.
+// Chain is an ordered pipeline of Actions. Each action receives the output of the
+// previous one, so Drop filters first, then OverrideTimestamp processes the remainder.
 type Chain []Action
 
-// Process runs the event through every action in the chain.
-// Returns the outcome of the first action that handles the event,
-// or OutcomePassthrough if no action consumed it.
-func (c Chain) Process(event *pb.Event, meta eval.EventMetadata) action.Outcome {
+// Apply runs the event batch through every action in sequence.
+// Each action removes the events it consumed; the final slice contains only
+// events that no action handled (passthrough).
+func (c Chain) Apply(events []*pb.Event, connGroup string) []*pb.Event {
 	for _, a := range c {
-		if handled, outcome := a.Process(event, meta); handled {
-			return outcome
-		}
+		events = a.Apply(events, connGroup)
 	}
-	return action.OutcomePassthrough
+	return events
 }

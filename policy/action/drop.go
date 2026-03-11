@@ -2,14 +2,13 @@ package action
 
 import (
 	"fmt"
+	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/metrics"
-	"github.com/goto/raccoon/policy/action/eval"
 	"github.com/goto/raccoon/policy/action/eval/cache"
 )
-
-const metricDroppedTotal = "policy_events_dropped_total"
 
 // Drop is a policy action that drops events matching the configured rules.
 type Drop struct {
@@ -22,13 +21,19 @@ func NewDrop(c *cache.Cache, evalChain Chain) *Drop {
 	return &Drop{cache: c, evalChain: evalChain}
 }
 
-// Process evaluates the event against the policy rules. If the rules match and
-// the threshold is breached the event is dropped (handled=true, OutcomeDropped).
-// Otherwise it is passed through.
-func (d *Drop) Process(event *pb.Event, meta eval.EventMetadata) (bool, Outcome) {
-	if !d.evalChain.Run(meta, d.cache) {
-		return false, OutcomePassthrough
+// Apply evaluates every event in the batch against the drop policy rules.
+// Events whose condition is breached are dropped (removed from the returned slice).
+func (d *Drop) Apply(events []*pb.Event, connGroup string) []*pb.Event {
+	start := time.Now()
+	filtered := make([]*pb.Event, 0, len(events))
+	for _, event := range events {
+		meta := ExtractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern)
+		if d.evalChain.Run(meta, d.cache) {
+			metrics.Increment(metricEventLoss, fmt.Sprintf("reason=DROP_POLICY,event_name=%s,product=%s,publisher=%s", meta.EventName, meta.Product, meta.Publisher))
+			continue
+		}
+		filtered = append(filtered, event)
 	}
-	metrics.Increment(metricDroppedTotal, fmt.Sprintf("conn_group=%s,event_type=%s", meta.ConnGroup, meta.EventType))
-	return true, OutcomeDropped
+	metrics.Timing(MetricEvalLatency, time.Since(start).Milliseconds(), fmt.Sprintf("action=drop,conn_group=%s", connGroup))
+	return filtered
 }

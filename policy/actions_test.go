@@ -5,49 +5,62 @@ import (
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/policy"
-	"github.com/goto/raccoon/policy/action"
-	"github.com/goto/raccoon/policy/action/eval"
 	"github.com/stretchr/testify/assert"
 )
 
 // stubAction is a test double for policy.Action.
-// If handled is true it returns the given outcome and stops the chain.
+// It removes events whose EventName is in the drop set.
 type stubAction struct {
-	handled bool
-	outcome action.Outcome
+	dropNames map[string]bool
 }
 
-func (s *stubAction) Process(_ *pb.Event, _ eval.EventMetadata) (bool, action.Outcome) {
-	return s.handled, s.outcome
-}
-
-var dummyEvent = &pb.Event{EventName: "click"}
-var dummyMeta = eval.EventMetadata{}
-
-func TestPolicyChain_Process_ReturnsFirstHandledOutcome(t *testing.T) {
-	chain := policy.Chain{
-		&stubAction{handled: true, outcome: action.OutcomeDropped},
-		&stubAction{handled: true, outcome: action.OutcomeRedirected},
+func (s *stubAction) Apply(events []*pb.Event, _ string) []*pb.Event {
+	var out []*pb.Event
+	for _, e := range events {
+		if !s.dropNames[e.GetEventName()] {
+			out = append(out, e)
+		}
 	}
-	assert.Equal(t, action.OutcomeDropped, chain.Process(dummyEvent, dummyMeta))
+	return out
 }
 
-func TestPolicyChain_Process_SkipsNonHandlingAction(t *testing.T) {
+func TestPolicyChain_Apply_FiltersAcrossActions(t *testing.T) {
 	chain := policy.Chain{
-		&stubAction{handled: false, outcome: action.OutcomePassthrough},
-		&stubAction{handled: true, outcome: action.OutcomeRedirected},
+		&stubAction{dropNames: map[string]bool{"click": true}},
+		&stubAction{dropNames: map[string]bool{"scroll": true}},
 	}
-	assert.Equal(t, action.OutcomeRedirected, chain.Process(dummyEvent, dummyMeta))
+	events := []*pb.Event{
+		{EventName: "click"},
+		{EventName: "scroll"},
+		{EventName: "view"},
+	}
+	result := chain.Apply(events, "grp")
+	assert.Len(t, result, 1)
+	assert.Equal(t, "view", result[0].GetEventName())
 }
 
-func TestPolicyChain_Process_PassthroughWhenNoActionHandles(t *testing.T) {
+func TestPolicyChain_Apply_PassthroughWhenNoActionFilters(t *testing.T) {
 	chain := policy.Chain{
-		&stubAction{handled: false},
-		&stubAction{handled: false},
+		&stubAction{dropNames: map[string]bool{}},
+		&stubAction{dropNames: map[string]bool{}},
 	}
-	assert.Equal(t, action.OutcomePassthrough, chain.Process(dummyEvent, dummyMeta))
+	events := []*pb.Event{{EventName: "click"}, {EventName: "scroll"}}
+	result := chain.Apply(events, "grp")
+	assert.Equal(t, events, result)
 }
 
-func TestPolicyChain_Process_PassthroughWhenEmpty(t *testing.T) {
-	assert.Equal(t, action.OutcomePassthrough, policy.Chain{}.Process(dummyEvent, dummyMeta))
+func TestPolicyChain_Apply_PassthroughWhenEmpty(t *testing.T) {
+	events := []*pb.Event{{EventName: "click"}}
+	assert.Equal(t, events, policy.Chain{}.Apply(events, "grp"))
+}
+
+func TestPolicyChain_Apply_FirstActionRemovesEvents(t *testing.T) {
+	chain := policy.Chain{
+		&stubAction{dropNames: map[string]bool{"click": true}},
+		&stubAction{dropNames: map[string]bool{}},
+	}
+	events := []*pb.Event{{EventName: "click"}, {EventName: "view"}}
+	result := chain.Apply(events, "grp")
+	assert.Len(t, result, 1)
+	assert.Equal(t, "view", result[0].GetEventName())
 }

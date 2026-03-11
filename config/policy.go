@@ -17,12 +17,19 @@ type PolicyResourceType string
 // PolicyActionType identifies the action to be taken when a policy condition is met.
 type PolicyActionType string
 
+// PolicyConditionType identifies the kind of condition that triggers an action.
+type PolicyConditionType string
+
 const (
 	PolicyResourceEvent PolicyResourceType = "event"
 	PolicyResourceTopic PolicyResourceType = "topic"
 
 	PolicyActionDrop              PolicyActionType = "DROP"
 	PolicyActionOverrideTimestamp PolicyActionType = "OVERRIDE_TIMESTAMP"
+
+	// PolicyConditionTimestampThreshold triggers the action when the event timestamp
+	// falls outside the configured past/future window.
+	PolicyConditionTimestampThreshold PolicyConditionType = "timestamp_threshold"
 )
 
 // PolicyDuration is a time.Duration that unmarshals from a Go duration string (e.g. "1h", "30m").
@@ -58,9 +65,10 @@ type PolicyTimestampThreshold struct {
 	Future PolicyDuration `json:"future"`
 }
 
-// PolicyActionConfig describes what action to take and the timestamp thresholds that trigger it.
+// PolicyActionConfig describes what action to take and the condition that triggers it.
 type PolicyActionConfig struct {
 	Type                    PolicyActionType         `json:"type"`
+	ConditionType           PolicyConditionType      `json:"condition_type"`
 	EventTimestampThreshold PolicyTimestampThreshold `json:"event_timestamp_threshold"`
 }
 

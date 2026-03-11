@@ -2,24 +2,21 @@ package action
 
 import (
 	"fmt"
+	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
-	"github.com/goto/raccoon/policy/action/eval"
 	"github.com/goto/raccoon/policy/action/eval/cache"
 	"github.com/goto/raccoon/publisher"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
-const (
-	metricRedirectedTotal     = "policy_events_redirected_total"
-	metricRedirectFailedTotal = "policy_events_redirect_failed_total"
-)
-
 // OverrideTimestamp evaluates OVERRIDE_TIMESTAMP policies. When a matching rule's
-// timestamp threshold is breached, the event is published to the configured override
-// topic for downstream timestamp correction and removed from normal ingestion.
+// condition is breached, the event is published to the configured override topic
+// for downstream timestamp correction and removed from normal ingestion.
+// Events are batched so that ProduceBulk is invoked at most once per Apply call.
 type OverrideTimestamp struct {
 	cache           *cache.Cache
 	evalChain       Chain
@@ -30,7 +27,13 @@ type OverrideTimestamp struct {
 
 // NewOverrideTimestamp creates an OverrideTimestamp action.
 // The cache must be pre-populated with OVERRIDE_TIMESTAMP rules only.
-func NewOverrideTimestamp(c *cache.Cache, evalChain Chain, producer publisher.KafkaProducer, overrideTopic string, deliveryChannel chan kafka.Event) *OverrideTimestamp {
+func NewOverrideTimestamp(
+	c *cache.Cache,
+	evalChain Chain,
+	producer publisher.KafkaProducer,
+	overrideTopic string,
+	deliveryChannel chan kafka.Event,
+) *OverrideTimestamp {
 	return &OverrideTimestamp{
 		cache:           c,
 		evalChain:       evalChain,
@@ -40,29 +43,51 @@ func NewOverrideTimestamp(c *cache.Cache, evalChain Chain, producer publisher.Ka
 	}
 }
 
-// Process checks whether an OVERRIDE_TIMESTAMP policy applies to the event.
-// Returns (true, eval.OutcomeRedirected) when the event is forwarded to the override topic.
-// Returns (false, eval.OutcomePassthrough) when no override policy matches or threshold is not breached.
-func (o *OverrideTimestamp) Process(event *pb.Event, meta eval.EventMetadata) (bool, Outcome) {
-	if !o.evalChain.Run(meta, o.cache) {
-		return false, OutcomePassthrough
+// Apply evaluates every event in the batch. Events whose override-timestamp
+// condition is breached are cloned with the override topic and published in a
+// single ProduceBulk call. Only events that are NOT redirected remain in the
+// returned slice.
+func (o *OverrideTimestamp) Apply(events []*pb.Event, connGroup string) []*pb.Event {
+	start := time.Now()
+	filtered := make([]*pb.Event, 0, len(events))
+	var overrideEvents []*pb.Event
+	var metricTags []string
+
+	for _, event := range events {
+		meta := ExtractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern)
+		if o.evalChain.Run(meta, o.cache) {
+			overrideEvents = append(overrideEvents, &pb.Event{
+				EventBytes:     event.GetEventBytes(),
+				Type:           o.overrideTopic,
+				EventName:      event.GetEventName(),
+				Product:        event.GetProduct(),
+				EventTimestamp: event.GetEventTimestamp(),
+				IsMirrored:     event.GetIsMirrored(),
+			})
+			metricTags = append(metricTags, fmt.Sprintf("reason=OVERRIDE_TIMESTAMP,event_name=%s,product=%s,publisher=%s", meta.EventName, meta.Product, meta.Publisher))
+			continue
+		}
+		filtered = append(filtered, event)
 	}
 
-	overrideEvent := &pb.Event{
-		EventBytes:     event.GetEventBytes(),
-		Type:           o.overrideTopic,
-		EventName:      event.GetEventName(),
-		Product:        event.GetProduct(),
-		EventTimestamp: event.GetEventTimestamp(),
-		IsMirrored:     event.GetIsMirrored(),
+	if len(overrideEvents) > 0 {
+		o.publish(overrideEvents, connGroup, metricTags)
 	}
+	metrics.Timing(MetricEvalLatency, time.Since(start).Milliseconds(), fmt.Sprintf("action=override_timestamp,conn_group=%s", connGroup))
+	return filtered
+}
 
-	if err := o.producer.ProduceBulk([]*pb.Event{overrideEvent}, meta.ConnGroup, o.deliveryChannel); err != nil {
-		logger.Errorf("[policy.OverrideTimestamp] failed to publish to override topic %s: %v", o.overrideTopic, err)
-		metrics.Increment(metricRedirectFailedTotal, fmt.Sprintf("conn_group=%s,event_type=%s", meta.ConnGroup, meta.EventType))
-	} else {
-		metrics.Increment(metricRedirectedTotal, fmt.Sprintf("conn_group=%s,event_type=%s", meta.ConnGroup, meta.EventType))
+// publish sends overrideEvents to Kafka in a single ProduceBulk call and records
+// per-event metrics. The metric name is chosen once based on whether the call
+// succeeds or fails, then applied to every tag in the batch.
+func (o *OverrideTimestamp) publish(overrideEvents []*pb.Event, connGroup string, metricTags []string) {
+	result := "success"
+	if err := o.producer.ProduceBulk(overrideEvents, connGroup, o.deliveryChannel); err != nil {
+		logger.Errorf("[policy.OverrideTimestamp] failed to publish %d events to override topic %s: %v",
+			len(overrideEvents), o.overrideTopic, err)
+		result = "failure"
 	}
-
-	return true, OutcomeRedirected
+	for _, tag := range metricTags {
+		metrics.Increment(metricEventOverride, fmt.Sprintf("%s,result=%s", tag, result))
+	}
 }

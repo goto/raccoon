@@ -10,9 +10,9 @@ import (
 
 func TestNewCache_IndexesByResource(t *testing.T) {
 	rules := []config.PolicyRule{
-		{Resource: config.PolicyResourceEvent, Details: config.PolicyDetails{Name: "e1", Product: "app", Publisher: "pub-a"}},
-		{Resource: config.PolicyResourceEvent, Details: config.PolicyDetails{Name: "e2", Product: "app", Publisher: "pub-a"}},
-		{Resource: config.PolicyResourceTopic, Details: config.PolicyDetails{Name: "t1"}},
+		{Resource: config.PolicyResourceEvent, Details: config.PolicyDetails{Name: "e1", Product: "app", Publisher: "pub-a"}, Action: config.PolicyActionConfig{ConditionType: config.PolicyConditionTimestampThreshold}},
+		{Resource: config.PolicyResourceEvent, Details: config.PolicyDetails{Name: "e2", Product: "app", Publisher: "pub-a"}, Action: config.PolicyActionConfig{ConditionType: config.PolicyConditionTimestampThreshold}},
+		{Resource: config.PolicyResourceTopic, Details: config.PolicyDetails{Name: "t1"}, Action: config.PolicyActionConfig{ConditionType: config.PolicyConditionTimestampThreshold}},
 	}
 	c := cache.NewCache(rules)
 

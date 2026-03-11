@@ -30,7 +30,10 @@ func NewCache(rules []config.PolicyRule) *Cache {
 		} else {
 			key = r.Details.Name + r.Details.Product + r.Details.Publisher
 		}
-		c.m[r.Resource][key] = eval.NewTimestampCondition(r.Action.EventTimestampThreshold)
+		switch r.Action.ConditionType {
+		case config.PolicyConditionTimestampThreshold:
+			c.m[r.Resource][key] = eval.NewTimestampCondition(r.Action.EventTimestampThreshold)
+		}
 	}
 	return c
 }
