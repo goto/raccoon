@@ -5,9 +5,12 @@ import (
 	"sync"
 	"time"
 
+	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/collection"
+	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
+	"github.com/goto/raccoon/policy"
 	"github.com/goto/raccoon/publisher"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
@@ -19,6 +22,12 @@ type Pool struct {
 	EventsChannel       <-chan collection.CollectRequest
 	kafkaProducer       publisher.KafkaProducer
 	wg                  sync.WaitGroup
+	// policyCache holds parsed ingestion policies; nil means policy enforcement is disabled.
+	policyCache *policy.Cache
+	// policyChain is the ordered list of action handlers applied to every event.
+	policyChain policy.HandlerChain
+	// policyEvalChain is the ordered list of evaluators used inside each handler.
+	policyEvalChain policy.Chain
 }
 
 // CreateWorkerPool create new Pool struct given size and EventsChannel worker.
@@ -70,6 +79,45 @@ func (w *Pool) StartWorkers() {
 			w.wg.Done()
 		}(fmt.Sprintf("worker-%d", i))
 	}
+}
+
+// WithPolicy attaches a policy cache, handler chain, and evaluator chain to the pool.
+// When set, the policy chain is applied to every event before it is sent to Kafka.
+// Call this before StartWorkers.
+func (w *Pool) WithPolicy(cache *policy.Cache, handlerChain policy.HandlerChain, evalChain policy.Chain) *Pool {
+	w.policyCache = cache
+	w.policyChain = handlerChain
+	w.policyEvalChain = evalChain
+	return w
+}
+
+// applyPolicy runs each event in the batch through the policy handler chain.
+// Events with an OutcomePassthrough are kept; dropped or redirected events are excluded
+// from the returned slice. Returns the original slice unchanged when policy is disabled.
+func (w *Pool) applyPolicy(events []*pb.Event, connGroup string) []*pb.Event {
+	if w.policyCache == nil || len(w.policyChain) == 0 {
+		return events
+	}
+	filtered := make([]*pb.Event, 0, len(events))
+	for _, event := range events {
+		evalStart := time.Now()
+		meta := policy.ExtractMetadata(
+			event,
+			connGroup,
+			config.PolicyCfg.PublisherMapping,
+			config.EventDistribution.PublisherPattern,
+		)
+		outcome := w.policyChain.Process(event, meta, w.policyCache, w.policyEvalChain)
+		metrics.Timing(
+			policy.MetricEvalDuration,
+			time.Since(evalStart).Milliseconds(),
+			fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, meta.EventType),
+		)
+		if outcome == policy.OutcomePassthrough {
+			filtered = append(filtered, event)
+		}
+	}
+	return filtered
 }
 
 // FlushWithTimeOut waits for the workers to complete the pending the messages
