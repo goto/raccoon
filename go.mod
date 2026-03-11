@@ -4,7 +4,7 @@ go 1.24
 
 require (
 	buf.build/gen/go/gotocompany/proton/grpc/go v1.3.0-20230313110213-9a3d240d5293.1
-	buf.build/gen/go/gotocompany/proton/protocolbuffers/go v1.36.11-20260206085023-726ec82aa353.1
+	buf.build/gen/go/gotocompany/proton/protocolbuffers/go v1.36.11-20260310055733-14c36949d393.1
 	github.com/gojek/courier-go v0.7.9
 	github.com/gojek/courier-go/consul v0.7.9
 	github.com/gojekfarm/xtools/xproto v0.10.0

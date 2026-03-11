@@ -92,23 +92,27 @@ func (pr *Kafka) ProduceBulk(
 			Opaque:         order,
 		}
 
-		logger.Debugf("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s, is_exclusive=%s",
+		logger.Debugf("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s, is_exclusive=%s, app_version=%s, platform=%s",
 			event.GetEventName(),
 			event.GetProduct(),
 			event.GetType(),
 			connGroup,
 			event.GetEventTimestamp().AsTime().String(),
 			fmt.Sprintf("%t", event.GetIsExclusive()),
+			event.GetAppVersion(),
+			event.GetPlatform(),
 		)
 
 		metrics.Increment(
 			"clickstream_event_routed_total",
 			fmt.Sprintf(
-				"conn_group=%s,event_type=%s,topic=%s,is_exclusive=%t",
+				"conn_group=%s,event_type=%s,topic=%s,is_exclusive=%t,app_version=%s,platform=%s",
 				connGroup,
 				event.Type,
 				topic,
 				event.GetIsExclusive(),
+				event.GetAppVersion(),
+				event.GetPlatform(),
 			),
 		)
 
