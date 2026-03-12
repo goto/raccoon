@@ -13,7 +13,7 @@ import (
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/metrics"
-	"github.com/goto/raccoon/policy"
+	policypkg "github.com/goto/raccoon/policy"
 	"github.com/goto/raccoon/services/rest/websocket"
 	"github.com/goto/raccoon/services/rest/websocket/connection"
 )
@@ -23,16 +23,16 @@ type Service struct {
 	s         *http.Server
 }
 
-func NewRestService(c collection.Collector, filter *policy.Service, ctx context.Context) *Service {
+func NewRestService(c collection.Collector, policy *policypkg.Service, ctx context.Context) *Service {
 	pingChannel := make(chan connection.Conn, config.ServerWs.ServerMaxConn)
-	wh := websocket.NewHandler(pingChannel, c, filter)
+	wh := websocket.NewHandler(pingChannel, c, policy)
 	go websocket.Pinger(ctx, pingChannel, config.ServerWs.PingerSize, config.ServerWs.PingInterval, config.ServerWs.WriteWaitInterval)
 
 	go reportConnectionMetrics(*wh.Table())
 
 	go websocket.AckHandler(websocket.AckChan)
 
-	restHandler := NewHandler(c, filter)
+	restHandler := NewHandler(c, policy)
 	router := mux.NewRouter()
 	router.Path("/ping").HandlerFunc(pingHandler).Methods(http.MethodGet)
 	subRouter := router.PathPrefix("/api/v1").Subrouter()

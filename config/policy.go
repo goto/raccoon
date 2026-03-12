@@ -104,9 +104,9 @@ type policyConfig struct {
 	// Configure via POLICY_CONFIG as a JSON array string, e.g.:
 	//   POLICY_CONFIG='[{"resource":"event","details":{...},"action":{...}}]'
 	Rules []PolicyRule
-	// OverrideTopic is the Kafka topic used for OVERRIDE_TIMESTAMP redirection.
-	// Defaults to "clickstream-invalid-et-log".
-	OverrideTopic string
+	// OverrideEventType is the event type stamped on events matched by OVERRIDE_TIMESTAMP rules.
+	// Defaults to "invalid-et".
+	OverrideEventType string
 	// PublisherMapping maps conn_group names to publisher names.
 	// Set via POLICY_PUBLISHER_MAPPING as a JSON object string, e.g.:
 	//   POLICY_PUBLISHER_MAPPING='{"customer":"gojek","driver":"gopartner"}'
@@ -116,7 +116,7 @@ type policyConfig struct {
 func policyConfigLoader() {
 	viper.SetDefault("POLICY_ENABLED", "false")
 	viper.SetDefault("POLICY_CONFIG", "[]")
-	viper.SetDefault("POLICY_OVERRIDE_TOPIC", "clickstream-invalid-et-log")
+	viper.SetDefault("POLICY_OVERRIDE_TOPIC", "invalid-et")
 	viper.SetDefault("POLICY_PUBLISHER_MAPPING", "")
 
 	var rules []PolicyRule
@@ -132,9 +132,9 @@ func policyConfigLoader() {
 	}
 
 	PolicyCfg = policyConfig{
-		Enabled:          util.MustGetBool("POLICY_ENABLED"),
-		Rules:            rules,
-		OverrideTopic:    util.MustGetString("POLICY_OVERRIDE_TOPIC"),
-		PublisherMapping: publisherMapping,
+		Enabled:           util.MustGetBool("POLICY_ENABLED"),
+		Rules:             rules,
+		OverrideEventType: util.MustGetString("POLICY_OVERRIDE_TOPIC"),
+		PublisherMapping:  publisherMapping,
 	}
 }

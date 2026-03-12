@@ -12,7 +12,7 @@ import (
 	"github.com/goto/raccoon/deserialization"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
-	"github.com/goto/raccoon/policy"
+	policypkg "github.com/goto/raccoon/policy"
 	"github.com/goto/raccoon/serialization"
 	"github.com/goto/raccoon/services/rest/websocket/connection"
 )
@@ -25,7 +25,7 @@ type Handler struct {
 	upgrader    *connection.Upgrader
 	serdeMap    map[int]*serDe
 	collector   collection.Collector
-	filter      *policy.Service
+	policy      *policypkg.Service
 	PingChannel chan connection.Conn
 }
 
@@ -43,7 +43,7 @@ func getSerDeMap() map[int]*serDe {
 	return serDeMap
 }
 
-func NewHandler(pingC chan connection.Conn, collector collection.Collector, filter *policy.Service) *Handler {
+func NewHandler(pingC chan connection.Conn, collector collection.Collector, policy *policypkg.Service) *Handler {
 	ugConfig := connection.UpgraderConfig{
 		ReadBufferSize:    config.ServerWs.ReadBufferSize,
 		WriteBufferSize:   config.ServerWs.WriteBufferSize,
@@ -62,7 +62,7 @@ func NewHandler(pingC chan connection.Conn, collector collection.Collector, filt
 		serdeMap:    getSerDeMap(),
 		PingChannel: pingC,
 		collector:   collector,
-		filter:      filter,
+		policy:      policy,
 	}
 }
 
@@ -121,7 +121,7 @@ func (h *Handler) HandlerWSEvents(w http.ResponseWriter, r *http.Request) {
 		metrics.Increment("batches_read_total", fmt.Sprintf("status=success,conn_group=%s", conn.Identifier.Group))
 		h.sendEventCounters(payload.Events, conn.Identifier.Group)
 
-		payload.Events = h.filter.Apply(payload.Events, conn.Identifier.Group)
+		payload.Events = h.policy.Apply(payload.Events, conn.Identifier.Group)
 		h.collector.Collect(r.Context(), &collection.CollectRequest{
 			ConnectionIdentifier: conn.Identifier,
 			TimeConsumed:         timeConsumed,

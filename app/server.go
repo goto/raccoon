@@ -20,7 +20,6 @@ import (
 	"github.com/goto/raccoon/publisher"
 	"github.com/goto/raccoon/services"
 	"github.com/goto/raccoon/worker"
-	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
 // StartServer starts the server
@@ -35,7 +34,7 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 		os.Exit(0)
 	}
 	channelCollector := collection.NewChannelCollector(bufferChannel)
-	httpServices := services.Create(channelCollector, initPolicy(kPublisher), ctx)
+	httpServices := services.Create(channelCollector, initPolicy(), ctx)
 	httpServices.Start(ctx, cancel)
 	registerHealthCheck(httpServices, kPublisher)
 	logger.Info("Start worker -->")
@@ -121,19 +120,16 @@ func reportProcMetrics() {
 
 // initPolicy builds a *policy.Service when POLICY_ENABLED=true.
 // Returns nil when policy is disabled; a nil *policy.Service is safe (Apply is a no-op).
-func initPolicy(kPublisher publisher.KafkaProducer) *policy.Service {
+func initPolicy() *policy.Service {
 	if !config.PolicyCfg.Enabled {
 		logger.Info("Policy enforcement disabled")
 		return nil
 	}
-	deliveryChan := make(chan kafka.Event, config.Worker.DeliveryChannelSize)
 	svc := policy.NewService(
 		config.PolicyCfg.Rules,
-		kPublisher,
-		config.PolicyCfg.OverrideTopic,
-		deliveryChan,
+		config.PolicyCfg.OverrideEventType,
 	)
-	logger.Infof("Policy enforcement enabled: loaded %d rules, override topic=%s", len(config.PolicyCfg.Rules), config.PolicyCfg.OverrideTopic)
+	logger.Infof("Policy enforcement enabled: loaded %d rules, override event type=%s", len(config.PolicyCfg.Rules), config.PolicyCfg.OverrideEventType)
 	return svc
 }
 

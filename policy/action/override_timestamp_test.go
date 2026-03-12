@@ -1,7 +1,6 @@
 package action_test
 
 import (
-	"errors"
 	"testing"
 	"time"
 
@@ -10,23 +9,8 @@ import (
 	"github.com/goto/raccoon/policy/action"
 	"github.com/goto/raccoon/policy/action/eval/cache"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	kafkalib "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
-
-type mockProducer struct {
-	mock.Mock
-}
-
-func (m *mockProducer) ProduceBulk(events []*pb.Event, connGroup string, deliveryChan chan kafkalib.Event) error {
-	args := m.Called(events, connGroup, deliveryChan)
-	return args.Error(0)
-}
-
-func (m *mockProducer) HealthCheck() error {
-	return m.Called().Error(0)
-}
 
 func buildOverrideCache(name, product, publisher string, past time.Duration) *cache.Cache {
 	return cache.NewCache([]config.PolicyRule{
@@ -42,12 +26,12 @@ func buildOverrideCache(name, product, publisher string, past time.Duration) *ca
 	})
 }
 
-const overrideTopic = "clickstream-invalid-et-log"
+const overrideEventType = "invalid-et"
 
-func newOverrideAct(t *testing.T, prod *mockProducer, deliveryChan chan kafkalib.Event) *action.OverrideTimestamp {
+func newOverrideAct(t *testing.T) *action.OverrideTimestamp {
 	t.Helper()
 	c := buildOverrideCache("click", "app", "pub-a", time.Hour)
-	return action.NewOverrideTimestamp(c, action.DefaultChain(), prod, overrideTopic, deliveryChan)
+	return action.NewOverrideTimestamp(c, action.DefaultChain(), overrideEventType)
 }
 
 func staleEvent(name string) *pb.Event {
@@ -58,52 +42,36 @@ func staleEvent(name string) *pb.Event {
 	}
 }
 
-func TestOverrideTimestamp_RedirectsBreachedEvents(t *testing.T) {
-	prod := &mockProducer{}
-	prod.On("ProduceBulk", mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	deliveryChan := make(chan kafkalib.Event, 10)
+func TestOverrideTimestamp_OverridesTypeOnBreachedEvent(t *testing.T) {
+	result := newOverrideAct(t).Apply([]*pb.Event{staleEvent("click")}, "pub-a")
 
-	result := newOverrideAct(t, prod, deliveryChan).Apply([]*pb.Event{staleEvent("click")}, "pub-a")
-
-	assert.Empty(t, result)
-	prod.AssertCalled(t, "ProduceBulk", mock.Anything, "pub-a", deliveryChan)
+	assert.Len(t, result, 1)
+	assert.Equal(t, overrideEventType, result[0].GetType())
+	assert.Equal(t, "click", result[0].GetEventName())
 }
 
 func TestOverrideTimestamp_PassthroughWhenWithinThreshold(t *testing.T) {
-	prod := &mockProducer{}
-	deliveryChan := make(chan kafkalib.Event, 10)
-
 	events := []*pb.Event{{EventName: "click", Product: "app", EventTimestamp: timestamppb.New(time.Now())}}
-	result := newOverrideAct(t, prod, deliveryChan).Apply(events, "pub-a")
+	result := newOverrideAct(t).Apply(events, "pub-a")
 
 	assert.Equal(t, events, result)
-	prod.AssertNotCalled(t, "ProduceBulk")
+	assert.Empty(t, result[0].GetType()) // Type not overridden
 }
 
-func TestOverrideTimestamp_BatchesProduceBulk(t *testing.T) {
-	prod := &mockProducer{}
-	prod.On("ProduceBulk", mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	deliveryChan := make(chan kafkalib.Event, 10)
+func TestOverrideTimestamp_PassthroughWhenNoPolicyMatch(t *testing.T) {
+	events := []*pb.Event{staleEvent("scroll")}
+	result := newOverrideAct(t).Apply(events, "pub-a")
 
+	assert.Equal(t, events, result)
+	assert.Empty(t, result[0].GetType())
+}
+
+func TestOverrideTimestamp_MixedBatch(t *testing.T) {
 	events := []*pb.Event{staleEvent("click"), staleEvent("scroll"), staleEvent("click")}
-	result := newOverrideAct(t, prod, deliveryChan).Apply(events, "pub-a")
+	result := newOverrideAct(t).Apply(events, "pub-a")
 
-	// scroll has no matching policy → passthrough; 2 clicks are redirected
-	assert.Len(t, result, 1)
-	assert.Equal(t, "scroll", result[0].GetEventName())
-	// ProduceBulk called exactly once with the 2 override events
-	prod.AssertNumberOfCalls(t, "ProduceBulk", 1)
-	assert.Len(t, prod.Calls[0].Arguments[0].([]*pb.Event), 2)
-}
-
-func TestOverrideTimestamp_PublishError_EventStillRemovedFromBatch(t *testing.T) {
-	prod := &mockProducer{}
-	prod.On("ProduceBulk", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("kafka down"))
-	deliveryChan := make(chan kafkalib.Event, 10)
-
-	result := newOverrideAct(t, prod, deliveryChan).Apply([]*pb.Event{staleEvent("click")}, "pub-a")
-
-	// Event is removed from the ingestion batch regardless of publish outcome.
-	assert.Empty(t, result)
-	prod.AssertCalled(t, "ProduceBulk", mock.Anything, mock.Anything, mock.Anything)
+	assert.Len(t, result, 3)
+	assert.Equal(t, overrideEventType, result[0].GetType())
+	assert.Empty(t, result[1].GetType()) // scroll: no policy match
+	assert.Equal(t, overrideEventType, result[2].GetType())
 }

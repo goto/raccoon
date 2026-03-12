@@ -9,8 +9,6 @@ import (
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/policy/action"
 	"github.com/goto/raccoon/policy/action/eval/cache"
-	"github.com/goto/raccoon/publisher"
-	kafkalib "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
 // MetricEvalDuration is the service-level alias for the shared latency metric.
@@ -27,19 +25,14 @@ type Service struct {
 // NewService builds a fully wired Service from the given config rules.
 // It partitions the rules by action type, creates an eval.Cache per action,
 // and assembles the action chain in priority order: Drop → OverrideTimestamp.
-func NewService(
-	rules []config.PolicyRule,
-	producer publisher.KafkaProducer,
-	overrideTopic string,
-	deliveryChannel chan kafkalib.Event,
-) *Service {
+func NewService(rules []config.PolicyRule, overrideEventType string) *Service {
 	dropCache := cache.NewCache(rulesForAction(rules, config.PolicyActionDrop))
 	overrideCache := cache.NewCache(rulesForAction(rules, config.PolicyActionOverrideTimestamp))
 
 	return &Service{
 		chain: Chain{
 			action.NewDrop(dropCache, action.DefaultChain()),
-			action.NewOverrideTimestamp(overrideCache, action.DefaultChain(), producer, overrideTopic, deliveryChannel),
+			action.NewOverrideTimestamp(overrideCache, action.DefaultChain(), overrideEventType),
 		},
 	}
 }
@@ -67,4 +60,3 @@ func rulesForAction(rules []config.PolicyRule, actionType config.PolicyActionTyp
 	}
 	return filtered
 }
-
