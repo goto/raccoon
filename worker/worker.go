@@ -40,11 +40,21 @@ func (w *Pool) StartWorkers() {
 			logger.Info("Running worker: " + workerName)
 			deliveryChan := make(chan kafka.Event, w.deliveryChannelSize)
 			for request := range w.EventsChannel {
-				metrics.Timing("batch_idle_in_channel_milliseconds", (time.Now().Sub(request.TimePushed)).Milliseconds(), "worker="+workerName)
-				batchReadTime := time.Now()
+				startTimeWorker := time.Now()
+				tags := fmt.Sprintf("conn_group=%s", request.ConnectionIdentifier.Group)
+
+				metrics.Timing("event_idle_in_channel_duration_milliseconds", (startTimeWorker.Sub(request.TimePushed)).Milliseconds(), tags)
+
 				//@TODO - Should add integration tests to prove that the worker receives the same message that it produced, on the delivery channel it created
+<<<<<<< HEAD
 
 				err := w.kafkaProducer.ProduceBulk(request.GetEvents(), request.ConnectionIdentifier.Group, deliveryChan)
+=======
+				err := w.kafkaProducer.ProduceBulk(
+					request.GetEvents(), request.ConnectionIdentifier.Group, deliveryChan,
+					request.GetSentTime().AsTime(), request.TimeConsumed, startTimeWorker,
+				)
+>>>>>>> main
 
 				if request.AckFunc != nil {
 					request.AckFunc(err)
@@ -61,13 +71,6 @@ func (w *Pool) StartWorkers() {
 				}
 				lenBatch := int64(len(request.GetEvents()))
 				logger.Debug(fmt.Sprintf("Success sending messages, %v", lenBatch-int64(totalErr)))
-				if lenBatch > 0 {
-					eventTimingMs := time.Since(request.GetSentTime().AsTime()).Milliseconds() / lenBatch
-					metrics.Timing("event_processing_duration_milliseconds", eventTimingMs, fmt.Sprintf("conn_group=%s", request.ConnectionIdentifier.Group))
-					now := time.Now()
-					metrics.Timing("worker_processing_duration_milliseconds", (now.Sub(batchReadTime).Milliseconds())/lenBatch, "worker="+workerName)
-					metrics.Timing("server_processing_latency_milliseconds", (now.Sub(request.TimeConsumed)).Milliseconds()/lenBatch, fmt.Sprintf("conn_group=%s", request.ConnectionIdentifier.Group))
-				}
 			}
 			w.wg.Done()
 		}(fmt.Sprintf("worker-%d", i))
