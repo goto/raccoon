@@ -46,15 +46,10 @@ func (w *Pool) StartWorkers() {
 				metrics.Timing("event_idle_in_channel_duration_milliseconds", (startTimeWorker.Sub(request.TimePushed)).Milliseconds(), tags)
 
 				//@TODO - Should add integration tests to prove that the worker receives the same message that it produced, on the delivery channel it created
-<<<<<<< HEAD
-
-				err := w.kafkaProducer.ProduceBulk(request.GetEvents(), request.ConnectionIdentifier.Group, deliveryChan)
-=======
 				err := w.kafkaProducer.ProduceBulk(
 					request.GetEvents(), request.ConnectionIdentifier.Group, deliveryChan,
 					request.GetSentTime().AsTime(), request.TimeConsumed, startTimeWorker,
 				)
->>>>>>> main
 
 				if request.AckFunc != nil {
 					request.AckFunc(err)
