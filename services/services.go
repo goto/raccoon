@@ -48,7 +48,8 @@ func (s *Services) Shutdown(ctx context.Context) {
 	}
 }
 
-func Create(c collection.Collector, policy *policypkg.Service, ctx context.Context) Services {
+func Create(b chan collection.CollectRequest, policy *policypkg.Service, ctx context.Context) Services {
+	c := collection.NewChannelCollector(b)
 	services := []bootstrapper{
 		grpc.NewGRPCService(c, policy),
 		pprof.NewPprofService(),

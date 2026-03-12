@@ -28,8 +28,7 @@ func TestShutDownServer(t *testing.T) {
 	shutdownCh := make(chan bool, 1)
 	bufferCh := make(chan collection.CollectRequest, 1)
 
-	c := collection.NewChannelCollector(bufferCh)
-	httpServices := services.Create(c, nil, ctx)
+	httpServices := services.Create(bufferCh, nil, ctx)
 
 	wp := worker.CreateWorkerPool(1, bufferCh, 1, kp)
 

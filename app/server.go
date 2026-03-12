@@ -25,7 +25,7 @@ import (
 // StartServer starts the server
 func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
-	httpServices := services.Create(channelCollector, initPolicy(), ctx)
+	httpServices := services.Create(bufferChannel, initPolicy(), ctx)
 	logger.Info("Start Server -->")
 	httpServices.Start(ctx, cancel)
 	logger.Info("Start publisher -->")
@@ -35,9 +35,6 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 		logger.Info("Exiting server")
 		os.Exit(0)
 	}
-	channelCollector := collection.NewChannelCollector(bufferChannel)
-	httpServices := services.Create(channelCollector, initPolicy(), ctx)
-	httpServices.Start(ctx, cancel)
 	registerHealthCheck(httpServices, kPublisher)
 	logger.Info("Start worker -->")
 	workerPool := worker.CreateWorkerPool(config.Worker.WorkersPoolSize, bufferChannel, config.Worker.DeliveryChannelSize, kPublisher)
