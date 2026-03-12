@@ -30,11 +30,20 @@ func TestChain_Run_ApplyWhenFirstEvaluatorMatches(t *testing.T) {
 	assert.True(t, chain.Run(eval.EventMetadata{}, emptyCache()))
 }
 
-func TestChain_Run_SkipWhenFirstEvaluatorSkips(t *testing.T) {
+func TestChain_Run_FalseWhenOnlySkip(t *testing.T) {
 	chain := action.Chain{
 		&stubEvaluator{resource: config.PolicyResourceEvent, result: eval.EvalSkip},
 	}
 	assert.False(t, chain.Run(eval.EventMetadata{}, emptyCache()))
+}
+
+func TestChain_Run_SkipDoesNotShortCircuit(t *testing.T) {
+	// Skip does not stop evaluation; a later Apply should still win.
+	chain := action.Chain{
+		&stubEvaluator{resource: config.PolicyResourceEvent, result: eval.EvalSkip},
+		&stubEvaluator{resource: config.PolicyResourceTopic, result: eval.EvalApply},
+	}
+	assert.True(t, chain.Run(eval.EventMetadata{}, emptyCache()))
 }
 
 func TestChain_Run_ContinuesToNextOnNoMatch(t *testing.T) {
@@ -53,11 +62,10 @@ func TestChain_Run_FalseWhenAllNoMatch(t *testing.T) {
 	assert.False(t, chain.Run(eval.EventMetadata{}, emptyCache()))
 }
 
-func TestChain_Run_SkipShortCircuitsRemainingEvaluators(t *testing.T) {
-	// second evaluator would apply, but skip from first must win
+func TestChain_Run_FalseWhenAllSkipAndNoMatch(t *testing.T) {
 	chain := action.Chain{
 		&stubEvaluator{resource: config.PolicyResourceEvent, result: eval.EvalSkip},
-		&stubEvaluator{resource: config.PolicyResourceTopic, result: eval.EvalApply},
+		&stubEvaluator{resource: config.PolicyResourceTopic, result: eval.EvalNoMatch},
 	}
 	assert.False(t, chain.Run(eval.EventMetadata{}, emptyCache()))
 }

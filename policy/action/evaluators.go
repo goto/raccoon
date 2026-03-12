@@ -19,16 +19,13 @@ type Evaluator interface {
 type Chain []Evaluator
 
 // Run fetches the rules for each evaluator's resource type from the cache,
-// then evaluates in order until a conclusive result is reached.
+// then evaluates in order until a conclusive match is found.
+// Returns true only when an evaluator returns EvalApply; false if no evaluator matched.
 func (c Chain) Run(meta eval.EventMetadata, ruleCache *cache.Cache) bool {
 	for _, ev := range c {
 		rules := ruleCache.Get(ev.Resource())
-		switch ev.Evaluate(meta, rules) {
-		case eval.EvalApply:
+		if ev.Evaluate(meta, rules) == eval.EvalApply {
 			return true
-		case eval.EvalSkip:
-			return false
-			// EvalNoMatch: continue to next evaluator
 		}
 	}
 	return false
