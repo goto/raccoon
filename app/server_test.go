@@ -46,7 +46,7 @@ func TestShutDownServer(t *testing.T) {
 	case <-shutdownCh:
 		t.Log("shutdown executed successfully")
 	case <-time.After(500 * time.Millisecond):
-		t.Fatal("shutdown execution timed out")
+		t.Error("shutdown execution timed out")
 	}
 
 	if !isClosed(bufferCh) {
