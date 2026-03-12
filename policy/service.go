@@ -38,8 +38,7 @@ func NewService(rules []config.PolicyRule, overrideEventType string) *Service {
 }
 
 // Apply runs the event batch through the action pipeline and returns only events
-// that no action consumed (passthrough). Each action in the chain owns its own
-// iteration and I/O, so OverrideTimestamp batches its ProduceBulk call.
+// that no action consumed (passthrough)
 func (s *Service) Apply(events []*pb.Event, connGroup string) []*pb.Event {
 	if s == nil {
 		return events

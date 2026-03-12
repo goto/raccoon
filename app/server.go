@@ -25,7 +25,9 @@ import (
 // StartServer starts the server
 func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
+	httpServices := services.Create(channelCollector, initPolicy(), ctx)
 	logger.Info("Start Server -->")
+	httpServices.Start(ctx, cancel)
 	logger.Info("Start publisher -->")
 	kPublisher, err := publisher.NewKafka()
 	if err != nil {

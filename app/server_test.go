@@ -29,13 +29,13 @@ func TestShutDownServer(t *testing.T) {
 	bufferCh := make(chan collection.CollectRequest, 1)
 
 	c := collection.NewChannelCollector(bufferCh)
-	services := services.Create(c, nil, ctx)
+	httpServices := services.Create(c, nil, ctx)
 
 	wp := worker.CreateWorkerPool(1, bufferCh, 1, kp)
 
 	// run shutdown in background
 	sigCh := make(chan os.Signal, 1)
-	go shutDownServer(ctx, cancel, services, bufferCh, wp, kp, shutdownCh, sigCh)
+	go shutDownServer(ctx, cancel, httpServices, bufferCh, wp, kp, shutdownCh, sigCh)
 
 	// send a termination signal after short delay
 	go func() {
@@ -47,7 +47,7 @@ func TestShutDownServer(t *testing.T) {
 	case <-shutdownCh:
 		t.Log("shutdown executed successfully")
 	case <-time.After(500 * time.Millisecond):
-		t.Error("shutdown execution failed")
+		t.Fatal("shutdown execution timed out")
 	}
 
 	if !isClosed(bufferCh) {
