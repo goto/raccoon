@@ -7,7 +7,7 @@ import (
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/policy/action/eval"
-	log "github.com/sirupsen/logrus"
+	"github.com/goto/raccoon/logger"
 )
 
 // ExtractMetadata builds an EventMetadata from a protobuf Event, its connection
@@ -35,6 +35,6 @@ func ResolvePublisher(connGroup string, publisherMap map[string]string) string {
 	if pub, ok := publisherMap[connGroup]; ok {
 		return pub
 	}
-	log.Warnf("policy: no publisher mapping found for conn_group %q, falling back to conn_group", connGroup)
+	logger.Errorf("policy: no publisher mapping found for conn_group %q, falling back to conn_group", connGroup)
 	return connGroup
 }

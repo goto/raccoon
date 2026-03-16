@@ -3,6 +3,8 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/goto/raccoon/config/util"
@@ -46,12 +48,41 @@ func (d *PolicyDuration) UnmarshalJSON(b []byte) error {
 		d.Duration = 0
 		return nil
 	}
-	dur, err := time.ParseDuration(s)
+	dur, err := parseDuration(s)
 	if err != nil {
 		return fmt.Errorf("policy: invalid duration %q: %w", s, err)
 	}
 	d.Duration = dur
 	return nil
+}
+
+// parseDuration extends Go's time.ParseDuration to support days ("d").
+// Supports combinations like "1d2h30m45s". Units: d, h, m, s.
+func parseDuration(s string) (time.Duration, error) {
+	re := regexp.MustCompile(`(\d+)([dhms])`)
+	matches := re.FindAllStringSubmatch(s, -1)
+	if matches == nil {
+		return 0, fmt.Errorf("invalid duration %q", s)
+	}
+	// ensure the full string is consumed by the regex
+	if re.ReplaceAllString(s, "") != "" {
+		return 0, fmt.Errorf("invalid duration %q", s)
+	}
+	var total time.Duration
+	for _, m := range matches {
+		n, _ := strconv.Atoi(m[1])
+		switch m[2] {
+		case "d":
+			total += time.Duration(n) * 24 * time.Hour
+		case "h":
+			total += time.Duration(n) * time.Hour
+		case "m":
+			total += time.Duration(n) * time.Minute
+		case "s":
+			total += time.Duration(n) * time.Second
+		}
+	}
+	return total, nil
 }
 
 func (d PolicyDuration) MarshalJSON() ([]byte, error) {

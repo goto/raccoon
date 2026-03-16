@@ -106,7 +106,7 @@ func TestService_Apply_UnknownActionTypeSkipped(t *testing.T) {
 			Action:   config.PolicyActionConfig{Type: "UNKNOWN_ACTION"},
 		},
 	}
-	// Should not panic; rule is silently skipped (warning logged).
+	// Should not panic; rule is silently skipped (error logged).
 	svc := policy.NewService(rules, testOverrideEventType)
 	events := []*pb.Event{{EventName: "click", Product: "app"}}
 	assert.Equal(t, events, svc.Apply(events, "grp"))
