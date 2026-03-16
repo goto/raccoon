@@ -101,16 +101,11 @@ func (pr *Kafka) ProduceBulk(
 			fmt.Sprintf("%t", event.GetIsExclusive()),
 		)
 
-		metrics.Increment(
-			"clickstream_event_routed_total",
-			fmt.Sprintf(
-				"conn_group=%s,event_type=%s,topic=%s,is_exclusive=%t",
-				connGroup,
-				event.Type,
-				topic,
-				event.GetIsExclusive(),
-			),
+		tags := fmt.Sprintf(
+			"conn_group=%s,event_type=%s,topic=%s,is_exclusive=%t,app_version=%s,platform=%s",
+			connGroup, event.Type, topic, event.GetIsExclusive(), event.AppVersion, event.Platform,
 		)
+		metrics.Increment("clickstream_event_routed_total", tags)
 
 		startTimeEvents[order] = time.Now()
 
@@ -138,10 +133,11 @@ func (pr *Kafka) ProduceBulk(
 				errorTag = "KAFKA_ERROR"
 			}
 
-			metrics.Increment("clickstream_data_loss", fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s",
-				errorTag, event.EventName, strings.ReplaceAll(strings.ToLower(event.Product), "_", ""), connGroup,
-			))
+			tags := fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s,app_version=%s,platform=%s",
+				errorTag, event.EventName, strings.ReplaceAll(strings.ToLower(event.Product), "_", ""), connGroup, event.AppVersion, event.Platform,
+			)
 
+			metrics.Increment("clickstream_data_loss", tags)
 			continue
 		}
 
@@ -166,9 +162,11 @@ func (pr *Kafka) ProduceBulk(
 			metrics.Decrement("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s", "delivery_failed", eventType, connGroup))
-			metrics.Increment("clickstream_data_loss", fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s",
-				"KAFKA_ERROR", event.EventName, strings.ReplaceAll(strings.ToLower(event.Product), "_", ""), connGroup,
-			))
+
+			tags := fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s,app_version=%s,platform=%s",
+				"KAFKA_ERROR", event.EventName, strings.ReplaceAll(strings.ToLower(event.Product), "_", ""), connGroup, event.AppVersion, event.Platform,
+			)
+			metrics.Increment("clickstream_data_loss", tags)
 			errors[order] = m.TopicPartition.Error
 		} else {
 			startTimeEvent := startTimeEvents[order]
