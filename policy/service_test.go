@@ -97,3 +97,17 @@ func TestService_Apply_MixedBatch(t *testing.T) {
 	result := svc.Apply([]*pb.Event{stale, clean}, "grp")
 	assert.Equal(t, []*pb.Event{clean}, result)
 }
+
+func TestService_Apply_UnknownActionTypeSkipped(t *testing.T) {
+	rules := []config.PolicyRule{
+		{
+			Resource: config.PolicyResourceEvent,
+			Details:  config.PolicyDetails{Name: "click", Product: "app", Publisher: "grp"},
+			Action:   config.PolicyActionConfig{Type: "UNKNOWN_ACTION"},
+		},
+	}
+	// Should not panic; rule is silently skipped (warning logged).
+	svc := policy.NewService(rules, testOverrideEventType)
+	events := []*pb.Event{{EventName: "click", Product: "app"}}
+	assert.Equal(t, events, svc.Apply(events, "grp"))
+}

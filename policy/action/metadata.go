@@ -2,10 +2,12 @@ package action
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/policy/action/eval"
+	log "github.com/sirupsen/logrus"
 )
 
 // ExtractMetadata builds an EventMetadata from a protobuf Event, its connection
@@ -19,7 +21,7 @@ func ExtractMetadata(event *pb.Event, connGroup string, publisherMap map[string]
 	return eval.EventMetadata{
 		EventType:      event.GetType(),
 		EventName:      event.GetEventName(),
-		Product:        event.GetProduct(),
+		Product:        strings.ReplaceAll(strings.ToLower(event.GetProduct()), "_", ""), // normalize across iOS/Android variants (e.g. "My_App" → "myapp")
 		ConnGroup:      connGroup,
 		Publisher:      ResolvePublisher(connGroup, publisherMap),
 		TopicName:      fmt.Sprintf(topicFormat, event.GetType()),
@@ -33,5 +35,6 @@ func ResolvePublisher(connGroup string, publisherMap map[string]string) string {
 	if pub, ok := publisherMap[connGroup]; ok {
 		return pub
 	}
+	log.Warnf("policy: no publisher mapping found for conn_group %q, falling back to conn_group", connGroup)
 	return connGroup
 }

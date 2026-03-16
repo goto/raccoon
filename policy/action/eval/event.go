@@ -11,19 +11,19 @@ func (e *EventEvaluator) Resource() config.PolicyResourceType {
 	return config.PolicyResourceEvent
 }
 
-// Evaluate returns EvalSkip when the event metadata is incomplete (name, product, or publisher absent).
+// Evaluate returns false when the event metadata is incomplete (name, product, or publisher absent).
 // Otherwise it performs a single lookup using nameproductpublisher as the key and delegates
 // to the Condition to decide whether the action should be applied.
-func (e *EventEvaluator) Evaluate(meta EventMetadata, rules map[string]Condition) EvalResult {
+func (e *EventEvaluator) Evaluate(meta EventMetadata, rules map[string]Condition) bool {
 	if meta.EventName == "" || meta.Product == "" || meta.Publisher == "" {
-		return EvalSkip
+		return false
 	}
 	condition, ok := rules[meta.EventName+meta.Product+meta.Publisher]
 	if !ok {
-		return EvalNoMatch
+		return false
 	}
 	if condition.Breached(meta) {
-		return EvalApply
+		return true
 	}
-	return EvalSkip
+	return false
 }

@@ -140,10 +140,10 @@ func TestPolicyConfig_Enabled(t *testing.T) {
 }
 
 func TestPolicyConfig_OverrideEventType(t *testing.T) {
-	os.Setenv("POLICY_OVERRIDE_TOPIC", "my-override-type")
+	os.Setenv("POLICY_OVERRIDE_EVENT_TYPE", "my-override-type")
 	policyConfigLoader()
 	assert.Equal(t, "my-override-type", PolicyCfg.OverrideEventType)
-	os.Unsetenv("POLICY_OVERRIDE_TOPIC")
+	os.Unsetenv("POLICY_OVERRIDE_EVENT_TYPE")
 }
 
 func TestPolicyConfig_Rules(t *testing.T) {
@@ -166,6 +166,25 @@ func TestPolicyConfig_PublisherMapping(t *testing.T) {
 	os.Setenv("POLICY_PUBLISHER_MAPPING", `{"customer":"gojek","driver":"gopartner"}`)
 	policyConfigLoader()
 	assert.Equal(t, map[string]string{"customer": "gojek", "driver": "gopartner"}, PolicyCfg.PublisherMapping)
+	os.Unsetenv("POLICY_PUBLISHER_MAPPING")
+}
+
+func TestPolicyConfig_InvalidRulesPanics(t *testing.T) {
+	os.Setenv("POLICY_CONFIG", `not-valid-json`)
+	assert.Panics(t, policyConfigLoader)
+	os.Unsetenv("POLICY_CONFIG")
+}
+
+func TestPolicyConfig_InvalidRuleFieldsPanics(t *testing.T) {
+	// event rule missing publisher → validation should panic
+	os.Setenv("POLICY_CONFIG", `[{"resource":"event","details":{"name":"click","product":"app"},"action":{"type":"DROP","condition_type":"timestamp_threshold"}}]`)
+	assert.Panics(t, policyConfigLoader)
+	os.Unsetenv("POLICY_CONFIG")
+}
+
+func TestPolicyConfig_InvalidPublisherMappingPanics(t *testing.T) {
+	os.Setenv("POLICY_PUBLISHER_MAPPING", `not-valid-json`)
+	assert.Panics(t, policyConfigLoader)
 	os.Unsetenv("POLICY_PUBLISHER_MAPPING")
 }
 
@@ -200,4 +219,34 @@ func TestPolicyDuration_MarshalJSON(t *testing.T) {
 	b, err := d.MarshalJSON()
 	assert.NoError(t, err)
 	assert.Equal(t, `"30m0s"`, string(b))
+}
+
+func TestValidatePolicyRules(t *testing.T) {
+	valid := func(resource, name, product, publisher string) PolicyRule {
+		return PolicyRule{Resource: resource, Details: PolicyDetails{Name: name, Product: product, Publisher: publisher}}
+	}
+	tests := []struct {
+		name    string
+		rules   []PolicyRule
+		wantErr bool
+	}{
+		{"valid event rule", []PolicyRule{valid(PolicyResourceEvent, "click", "app", "pub-a")}, false},
+		{"valid topic rule", []PolicyRule{valid(PolicyResourceTopic, "topic-a", "", "")}, false},
+		{"event missing name", []PolicyRule{valid(PolicyResourceEvent, "", "app", "pub-a")}, true},
+		{"event missing product", []PolicyRule{valid(PolicyResourceEvent, "click", "", "pub-a")}, true},
+		{"event missing publisher", []PolicyRule{valid(PolicyResourceEvent, "click", "app", "")}, true},
+		{"topic missing name", []PolicyRule{valid(PolicyResourceTopic, "", "", "")}, true},
+		{"unknown resource", []PolicyRule{valid("unknown", "click", "app", "pub-a")}, true},
+		{"empty rules", []PolicyRule{}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidatePolicyRules(tt.rules)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }

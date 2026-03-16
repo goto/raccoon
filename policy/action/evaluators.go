@@ -11,7 +11,7 @@ import (
 // chain can look up the correct conditions from the cache.
 type Evaluator interface {
 	Resource() config.PolicyResourceType
-	Evaluate(meta eval.EventMetadata, rules map[string]eval.Condition) eval.EvalResult
+	Evaluate(meta eval.EventMetadata, rules map[string]eval.Condition) bool
 }
 
 // Chain is an ordered list of evaluators. Run stops at the first non-NoMatch result.
@@ -20,11 +20,11 @@ type Chain []Evaluator
 
 // Run fetches the rules for each evaluator's resource type from the cache,
 // then evaluates in order until a conclusive match is found.
-// Returns true only when an evaluator returns EvalApply; false if no evaluator matched.
+// Returns true only when an evaluator returns true; false if no evaluator matched.
 func (c Chain) Run(meta eval.EventMetadata, ruleCache *cache.Cache) bool {
 	for _, ev := range c {
 		rules := ruleCache.Get(ev.Resource())
-		if ev.Evaluate(meta, rules) == eval.EvalApply {
+		if ev.Evaluate(meta, rules) {
 			return true
 		}
 	}

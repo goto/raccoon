@@ -26,7 +26,7 @@ func TestTopicEvaluator_ApplyWhenPastThresholdBreached(t *testing.T) {
 		TopicName:      "clickstream-foo-log",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
 	}
-	assert.Equal(t, eval.EvalApply, ev.Evaluate(meta, rules))
+	assert.True(t, ev.Evaluate(meta, rules))
 }
 
 func TestTopicEvaluator_SkipWhenWithinThreshold(t *testing.T) {
@@ -36,7 +36,7 @@ func TestTopicEvaluator_SkipWhenWithinThreshold(t *testing.T) {
 		TopicName:      "clickstream-foo-log",
 		EventTimestamp: time.Now(),
 	}
-	assert.Equal(t, eval.EvalSkip, ev.Evaluate(meta, rules))
+	assert.False(t, ev.Evaluate(meta, rules))
 }
 
 func TestTopicEvaluator_NoMatchOnDifferentTopic(t *testing.T) {
@@ -46,7 +46,7 @@ func TestTopicEvaluator_NoMatchOnDifferentTopic(t *testing.T) {
 		TopicName:      "clickstream-bar-log",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
 	}
-	assert.Equal(t, eval.EvalNoMatch, ev.Evaluate(meta, rules))
+	assert.False(t, ev.Evaluate(meta, rules))
 }
 
 func TestTopicEvaluator_SkipWhenMetadataIncomplete(t *testing.T) {
@@ -56,7 +56,7 @@ func TestTopicEvaluator_SkipWhenMetadataIncomplete(t *testing.T) {
 		// TopicName missing
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
 	}
-	assert.Equal(t, eval.EvalSkip, ev.Evaluate(meta, rules))
+	assert.False(t, ev.Evaluate(meta, rules))
 }
 
 func TestTopicEvaluator_Resource(t *testing.T) {

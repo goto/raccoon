@@ -12,13 +12,13 @@ import (
 // ---- Policy rule schema types ----
 
 // PolicyResourceType identifies the kind of resource a policy applies to.
-type PolicyResourceType string
+type PolicyResourceType = string
 
 // PolicyActionType identifies the action to be taken when a policy condition is met.
-type PolicyActionType string
+type PolicyActionType = string
 
 // PolicyConditionType identifies the kind of condition that triggers an action.
-type PolicyConditionType string
+type PolicyConditionType = string
 
 const (
 	PolicyResourceEvent PolicyResourceType = "event"
@@ -77,18 +77,39 @@ type PolicyActionConfig struct {
 type PolicyDetails struct {
 	Name      string `json:"name"`
 	Product   string `json:"product,omitempty"`
-	Publisher string `json:"publisher"`
+	Publisher string `json:"publisher,omitempty"`
 }
 
 // PolicyRule is the top-level structure representing one policy entry.
 // Example JSON:
 //
 //	{"resource":"event","details":{"name":"click","product":"app","publisher":"gojek"},
-//	 "action":{"type":"DROP","event_timestamp_threshold":{"past":"24h","future":"1h"}}}
+//	 "action":{"type":"DROP","condition_type": "timestamp_threshold","event_timestamp_threshold":{"past":"24h","future":"1h"}}}
 type PolicyRule struct {
 	Resource PolicyResourceType `json:"resource"`
 	Details  PolicyDetails      `json:"details"`
 	Action   PolicyActionConfig `json:"action"`
+}
+
+// ValidatePolicyRules returns an error if any rule has a missing required field.
+// For event rules: resource, details.name, details.product, details.publisher are required.
+// For topic rules: resource and details.name are required.
+func ValidatePolicyRules(rules []PolicyRule) error {
+	for i, r := range rules {
+		switch r.Resource {
+		case PolicyResourceEvent:
+			if r.Details.Name == "" || r.Details.Product == "" || r.Details.Publisher == "" {
+				return fmt.Errorf("policy: rule[%d]: event rule requires details.name, details.product, and details.publisher", i)
+			}
+		case PolicyResourceTopic:
+			if r.Details.Name == "" {
+				return fmt.Errorf("policy: rule[%d]: topic rule requires details.name", i)
+			}
+		default:
+			return fmt.Errorf("policy: rule[%d]: unknown resource type %q", i, r.Resource)
+		}
+	}
+	return nil
 }
 
 // ---- Policy system configuration ----
@@ -116,25 +137,32 @@ type policyConfig struct {
 func policyConfigLoader() {
 	viper.SetDefault("POLICY_ENABLED", "false")
 	viper.SetDefault("POLICY_CONFIG", "[]")
-	viper.SetDefault("POLICY_OVERRIDE_TOPIC", "invalid-et")
+	viper.SetDefault("POLICY_OVERRIDE_EVENT_TYPE", "invalid-et")
 	viper.SetDefault("POLICY_PUBLISHER_MAPPING", "")
 
 	var rules []PolicyRule
 	rawConfig := util.MustGetString("POLICY_CONFIG")
 	if rawConfig != "" && rawConfig != "[]" {
-		_ = json.Unmarshal([]byte(rawConfig), &rules)
+		if err := json.Unmarshal([]byte(rawConfig), &rules); err != nil {
+			panic("policy: invalid POLICY_CONFIG: " + err.Error())
+		}
+		if err := ValidatePolicyRules(rules); err != nil {
+			panic("policy: invalid POLICY_RULES: " + err.Error())
+		}
 	}
 
 	publisherMapping := make(map[string]string)
 	rawMapping := util.MustGetString("POLICY_PUBLISHER_MAPPING")
 	if rawMapping != "" {
-		_ = json.Unmarshal([]byte(rawMapping), &publisherMapping)
+		if err := json.Unmarshal([]byte(rawMapping), &publisherMapping); err != nil {
+			panic("policy: invalid POLICY_PUBLISHER_MAPPING: " + err.Error())
+		}
 	}
 
 	PolicyCfg = policyConfig{
 		Enabled:           util.MustGetBool("POLICY_ENABLED"),
 		Rules:             rules,
-		OverrideEventType: util.MustGetString("POLICY_OVERRIDE_TOPIC"),
+		OverrideEventType: util.MustGetString("POLICY_OVERRIDE_EVENT_TYPE"),
 		PublisherMapping:  publisherMapping,
 	}
 }

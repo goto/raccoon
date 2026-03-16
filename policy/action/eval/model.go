@@ -2,18 +2,6 @@ package eval
 
 import "time"
 
-// EvalResult is the outcome of a single evaluator.
-type EvalResult int
-
-const (
-	// EvalNoMatch means no applicable policy was found; the chain continues.
-	EvalNoMatch EvalResult = iota
-	// EvalApply means the condition was breached; apply the action.
-	EvalApply
-	// EvalSkip means a matching policy was found but the condition was not breached; skip the action.
-	EvalSkip
-)
-
 // EventMetadata holds the attributes extracted from an incoming event and its
 // connection context. It is the primary input to the policy evaluation chain.
 type EventMetadata struct {

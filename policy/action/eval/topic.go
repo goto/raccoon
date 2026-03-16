@@ -11,19 +11,19 @@ func (t *TopicEvaluator) Resource() config.PolicyResourceType {
 	return config.PolicyResourceTopic
 }
 
-// Evaluate returns EvalSkip when the topic name is absent in the event metadata.
+// Evaluate returns false when the topic name is absent in the event metadata.
 // Otherwise it performs a single lookup using topicName as the key and delegates
 // to the Condition to decide whether the action should be applied.
-func (t *TopicEvaluator) Evaluate(meta EventMetadata, rules map[string]Condition) EvalResult {
+func (t *TopicEvaluator) Evaluate(meta EventMetadata, rules map[string]Condition) bool {
 	if meta.TopicName == "" {
-		return EvalSkip
+		return false
 	}
 	condition, ok := rules[meta.TopicName]
 	if !ok {
-		return EvalNoMatch
+		return false
 	}
 	if condition.Breached(meta) {
-		return EvalApply
+		return true
 	}
-	return EvalSkip
+	return false
 }

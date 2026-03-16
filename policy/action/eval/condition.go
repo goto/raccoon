@@ -28,10 +28,14 @@ func (c timestampCondition) Breached(meta EventMetadata) bool {
 }
 
 // WithinThreshold returns true when the event timestamp is within the allowed window
-// (no action should be taken). It returns false (threshold breached) when:
+// (no action should be taken). It also returns true (skip action) when the timestamp
+// is zero (missing). It returns false (threshold breached) when:
 //   - past  > 0 AND eventTs < now - past
 //   - future > 0 AND eventTs > now + future
 func WithinThreshold(threshold config.PolicyTimestampThreshold, eventTs time.Time) bool {
+	if eventTs.IsZero() {
+		return true // no timestamp → skip action
+	}
 	now := time.Now()
 	if threshold.Past.Duration > 0 && eventTs.Before(now.Add(-threshold.Past.Duration)) {
 		return false

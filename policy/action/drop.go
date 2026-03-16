@@ -29,11 +29,11 @@ func (d *Drop) Apply(events []*pb.Event, connGroup string) []*pb.Event {
 	for _, event := range events {
 		meta := ExtractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern)
 		if d.evalChain.Run(meta, d.cache) {
-			metrics.Increment(metricEventLoss, fmt.Sprintf("reason=DROP_POLICY,event_name=%s,product=%s,publisher=%s", meta.EventName, meta.Product, meta.Publisher))
+			metrics.Increment(metricEventLossCount, fmt.Sprintf("reason=DROP_POLICY,event_name=%s,product=%s,publisher=%s", meta.EventName, meta.Product, meta.Publisher))
 			continue
 		}
 		filtered = append(filtered, event)
 	}
-	metrics.Timing(MetricEvalLatency, time.Since(start).Milliseconds(), fmt.Sprintf("action=drop,conn_group=%s", connGroup))
+	metrics.Timing(MetricEvalLatency, time.Since(start).Milliseconds(), fmt.Sprintf("action=DROP,conn_group=%s", connGroup))
 	return filtered
 }

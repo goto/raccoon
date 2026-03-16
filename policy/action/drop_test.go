@@ -63,7 +63,7 @@ func TestDrop_PassthroughWhenNoPolicyMatch(t *testing.T) {
 }
 
 func TestDrop_PassthroughWhenMetadataIncomplete(t *testing.T) {
-	// Product is empty → EventEvaluator returns EvalSkip → passthrough.
+	// Product is empty → EventEvaluator returns false → passthrough.
 	c := buildDropCache("click", "app", "pub-a", time.Hour)
 	events := []*pb.Event{{
 		EventName:      "click",

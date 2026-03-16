@@ -65,3 +65,12 @@ func TestTimestampCondition_NotBreachedWhenNoBoundsSet(t *testing.T) {
 	meta := eval.EventMetadata{EventTimestamp: time.Now().Add(-100 * time.Hour)}
 	assert.False(t, cond.Breached(meta))
 }
+
+func TestWithinThreshold_TrueWhenTimestampZero(t *testing.T) {
+	assert.True(t, eval.WithinThreshold(threshold(time.Hour, time.Hour), time.Time{}))
+}
+
+func TestTimestampCondition_NotBreachedWhenTimestampZero(t *testing.T) {
+	cond := eval.NewTimestampCondition(threshold(time.Hour, time.Hour))
+	assert.False(t, cond.Breached(eval.EventMetadata{}))
+}

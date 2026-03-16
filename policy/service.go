@@ -6,6 +6,7 @@ import (
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/policy/action"
 	"github.com/goto/raccoon/policy/action/eval/cache"
@@ -28,6 +29,16 @@ type Service struct {
 func NewService(rules []config.PolicyRule, overrideEventType string) *Service {
 	dropCache := cache.NewCache(rulesForAction(rules, config.PolicyActionDrop))
 	overrideCache := cache.NewCache(rulesForAction(rules, config.PolicyActionOverrideTimestamp))
+
+	known := map[config.PolicyActionType]bool{
+		config.PolicyActionDrop:              true,
+		config.PolicyActionOverrideTimestamp: true,
+	}
+	for _, r := range rules {
+		if !known[r.Action.Type] {
+			logger.Errorf("policy: rule skipped — unknown action type %q for resource %q, details %+v", r.Action.Type, r.Resource, r.Details)
+		}
+	}
 
 	return &Service{
 		chain: Chain{

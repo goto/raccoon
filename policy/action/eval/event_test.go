@@ -28,7 +28,7 @@ func TestEventEvaluator_ApplyWhenPastThresholdBreached(t *testing.T) {
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
 	}
-	assert.Equal(t, eval.EvalApply, ev.Evaluate(meta, rules))
+	assert.True(t, ev.Evaluate(meta, rules))
 }
 
 func TestEventEvaluator_SkipWhenWithinThreshold(t *testing.T) {
@@ -40,7 +40,7 @@ func TestEventEvaluator_SkipWhenWithinThreshold(t *testing.T) {
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now(),
 	}
-	assert.Equal(t, eval.EvalSkip, ev.Evaluate(meta, rules))
+	assert.False(t, ev.Evaluate(meta, rules))
 }
 
 func TestEventEvaluator_NoMatchOnDifferentName(t *testing.T) {
@@ -52,7 +52,7 @@ func TestEventEvaluator_NoMatchOnDifferentName(t *testing.T) {
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
 	}
-	assert.Equal(t, eval.EvalNoMatch, ev.Evaluate(meta, rules))
+	assert.False(t, ev.Evaluate(meta, rules))
 }
 
 func TestEventEvaluator_SkipWhenMetadataIncomplete(t *testing.T) {
@@ -64,7 +64,7 @@ func TestEventEvaluator_SkipWhenMetadataIncomplete(t *testing.T) {
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
 	}
-	assert.Equal(t, eval.EvalSkip, ev.Evaluate(meta, rules))
+	assert.False(t, ev.Evaluate(meta, rules))
 }
 
 func TestEventEvaluator_ApplyWhenFutureThresholdBreached(t *testing.T) {
@@ -76,7 +76,7 @@ func TestEventEvaluator_ApplyWhenFutureThresholdBreached(t *testing.T) {
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now().Add(10 * time.Minute),
 	}
-	assert.Equal(t, eval.EvalApply, ev.Evaluate(meta, rules))
+	assert.True(t, ev.Evaluate(meta, rules))
 }
 
 func TestEventEvaluator_Resource(t *testing.T) {

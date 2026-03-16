@@ -10,10 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/goto/raccoon/health"
-
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/health"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/policy"
