@@ -78,12 +78,16 @@ func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices
 				for _, event := range req.Events {
 					eventCountInChannel++
 
-					metrics.Increment("clickstream_data_loss", fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s",
+					tags := fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s,app_version=%s,platform=%s",
 						"INTERNAL_SERVER_ERROR",
 						event.EventName,
 						strings.ReplaceAll(strings.ToLower(event.Product), "_", ""),
 						req.ConnectionIdentifier,
-					))
+						event.AppVersion,
+						event.Platform,
+					)
+
+					metrics.Increment("clickstream_data_loss", tags)
 				}
 			}
 
