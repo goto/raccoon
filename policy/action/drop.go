@@ -6,6 +6,7 @@ import (
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/policy/action/eval/cache"
 )
@@ -28,7 +29,9 @@ func (d *Drop) Apply(events []*pb.Event, connGroup string) []*pb.Event {
 	filtered := make([]*pb.Event, 0, len(events))
 	for _, event := range events {
 		meta := ExtractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern)
+		logger.Debugf("[drop.Apply] meta: event_name=%s, product=%s, publisher=%s, topic=%s, conn_group=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.ConnGroup)
 		if d.evalChain.Run(meta, d.cache) {
+			logger.Infof("[drop.Apply] dropping event: event_name=%s, product=%s, publisher=%s, topic=%s, event_timestamp=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp)
 			metrics.Increment(metricEventLossCount, fmt.Sprintf("reason=DROP_POLICY,event_name=%s,product=%s,publisher=%s", meta.EventName, meta.Product, meta.Publisher))
 			continue
 		}

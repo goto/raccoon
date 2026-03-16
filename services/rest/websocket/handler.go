@@ -121,6 +121,9 @@ func (h *Handler) HandlerWSEvents(w http.ResponseWriter, r *http.Request) {
 		metrics.Increment("batches_read_total", fmt.Sprintf("status=success,conn_group=%s", conn.Identifier.Group))
 		h.sendEventCounters(payload.Events, conn.Identifier.Group)
 
+		for _, e := range payload.Events {
+			logger.Debugf("[websocket.Handler] event: event_name=%s, product=%s, type=%s, event_timestamp=%s, req_guid=%s, conn_group=%s", e.EventName, e.Product, e.Type, e.GetEventTimestamp().AsTime(), payload.ReqGuid, conn.Identifier.Group)
+		}
 		payload.Events = h.policy.Apply(payload.Events, conn.Identifier.Group)
 		h.collector.Collect(r.Context(), &collection.CollectRequest{
 			ConnectionIdentifier: conn.Identifier,

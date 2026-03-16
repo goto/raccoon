@@ -6,6 +6,7 @@ import (
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/policy/action/eval/cache"
 )
@@ -41,7 +42,9 @@ func (o *OverrideTimestamp) Apply(events []*pb.Event, connGroup string) []*pb.Ev
 	start := time.Now()
 	for _, event := range events {
 		meta := ExtractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern)
+		logger.Debugf("[override_timestamp.Apply] meta: event_name=%s, product=%s, publisher=%s, topic=%s, conn_group=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.ConnGroup)
 		if o.evalChain.Run(meta, o.cache) {
+			logger.Infof("[override_timestamp.Apply] overriding timestamp: event_name=%s, product=%s, publisher=%s, topic=%s, event_timestamp=%s, override_type=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp, o.overrideEventType)
 			event.Type = o.overrideEventType
 			metrics.Increment(metricEventOverrideCount, fmt.Sprintf("reason=OVERRIDE_TIMESTAMP,event_name=%s,product=%s,publisher=%s", meta.EventName, meta.Product, meta.Publisher))
 		}
