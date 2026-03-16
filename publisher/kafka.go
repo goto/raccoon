@@ -101,16 +101,11 @@ func (pr *Kafka) ProduceBulk(
 			fmt.Sprintf("%t", event.GetIsExclusive()),
 		)
 
-		metrics.Increment(
-			"clickstream_event_routed_total",
-			fmt.Sprintf(
-				"conn_group=%s,event_type=%s,topic=%s,is_exclusive=%t",
-				connGroup,
-				event.Type,
-				topic,
-				event.GetIsExclusive(),
-			),
+		tags := fmt.Sprintf(
+			"conn_group=%s,event_type=%s,topic=%s,is_exclusive=%t,app_version=%s,platform=%s",
+			connGroup, event.Type, topic, event.GetIsExclusive(), event.AppVersion, event.Platform,
 		)
+		metrics.Increment("clickstream_event_routed_total", tags)
 
 		startTimeEvents[order] = time.Now()
 
