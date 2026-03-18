@@ -14,6 +14,7 @@ import (
 	"github.com/goto/raccoon/identification"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
+	policypkg "github.com/goto/raccoon/policy"
 	"github.com/goto/raccoon/serialization"
 )
 
@@ -29,9 +30,10 @@ type serDe struct {
 type Handler struct {
 	serDeMap  map[string]*serDe
 	collector collection.Collector
+	policy    *policypkg.Service
 }
 
-func NewHandler(collector collection.Collector) *Handler {
+func NewHandler(collector collection.Collector, policy *policypkg.Service) *Handler {
 	serDeMap := make(map[string]*serDe)
 	serDeMap[ContentJSON] = &serDe{
 		serializer:   serialization.SerializeJSON,
@@ -45,6 +47,7 @@ func NewHandler(collector collection.Collector) *Handler {
 	return &Handler{
 		serDeMap:  serDeMap,
 		collector: collector,
+		policy:    policy,
 	}
 }
 
@@ -127,6 +130,10 @@ func (h *Handler) RESTAPIHandler(rw http.ResponseWriter, r *http.Request) {
 	metrics.Increment("batches_read_total", fmt.Sprintf("status=success,conn_group=%s", identifier.Group))
 	h.sendEventCounters(req.Events, identifier.Group)
 
+	for _, e := range req.Events {
+		logger.Debugf("[rest.RESTAPIHandler] event: event_name=%s, product=%s, type=%s, event_timestamp=%s, req_guid=%s, conn_group=%s", e.EventName, e.Product, e.Type, e.GetEventTimestamp().AsTime(), req.ReqGuid, identifier.Group)
+	}
+	req.Events = h.policy.Apply(req.Events, identifier.Group)
 	resChannel := make(chan struct{}, 1)
 	h.collector.Collect(r.Context(), &collection.CollectRequest{
 		ConnectionIdentifier: identifier,

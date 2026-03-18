@@ -9,10 +9,11 @@ import (
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 
 	"github.com/gojek/courier-go"
-	"github.com/goto/raccoon/clients/go/log"
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/identification"
+	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
+	policypkg "github.com/goto/raccoon/policy"
 	"github.com/goto/raccoon/serialization"
 	"google.golang.org/protobuf/proto"
 )
@@ -20,6 +21,7 @@ import (
 // Handler processes MQTT messages and passes them to the Collector.
 type Handler struct {
 	Collector collection.Collector
+	policy    *policypkg.Service
 }
 
 // MQTTHandler handles incoming MQTT messages, decodes them, records metrics,
@@ -29,31 +31,35 @@ func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *co
 	connGroup, err := h.extractConnGroup(message)
 	if err != nil {
 		h.recordMetrics("request", fmt.Sprintf("status=failed,conn_group=unknown,reason=%v", err), nil)
-		log.Errorf("mqtt message topic format is invalid: %s", message.Topic)
+		logger.Errorf("mqtt message topic format is invalid: %s", message.Topic)
 	}
 
 	var req pb.SendEventRequest
 	if err := message.DecodePayload(&req); err != nil {
 		h.recordMetrics("request", fmt.Sprintf("status=failed,conn_group=%s,reason=serde", connGroup), nil)
-		log.Errorf("mqtt message decoding failed: %v", err)
+		logger.Errorf("mqtt message decoding failed: %v", err)
 		return
 	}
 
 	if proto.Equal(&req, &pb.SendEventRequest{}) {
 		h.recordMetrics("request", fmt.Sprintf("status=failed,conn_group=%s,reason=empty", connGroup), nil)
-		log.Errorf("mqtt request message according proto format is empty")
+		logger.Errorf("mqtt request message according proto format is empty")
 		return
 	}
 
 	// Serialize to compute request size
 	reqBytes, err := serialization.SerializeProto(&req)
 	if err != nil {
-		log.Errorf("mqtt message serialization failed: %v", err)
+		logger.Errorf("mqtt message serialization failed: %v", err)
 	}
 
 	// Record all metrics via generic function
 	h.recordMetrics("request", fmt.Sprintf("status=success,conn_group=%s", connGroup), reqBytes)
 	h.recordMetrics("event", fmt.Sprintf("conn_group=%s", connGroup), req.Events)
+	for _, e := range req.Events {
+		logger.Debugf("[mqtt.MQTTHandler] event: event_name=%s, product=%s, type=%s, event_timestamp=%s, req_guid=%s, conn_group=%s", e.EventName, e.Product, e.Type, e.GetEventTimestamp().AsTime(), req.ReqGuid, connGroup)
+	}
+	req.Events = h.policy.Apply(req.Events, connGroup)
 
 	timing_event_received := start.Sub(req.GetSentTime().AsTime()).Milliseconds()
 	metrics.Timing("event_received_duration_milliseconds", timing_event_received, fmt.Sprintf("conn_group=%s", connGroup))
@@ -75,7 +81,7 @@ func (h *Handler) recordMetrics(metricName string, tags string, data any) {
 	case "event":
 		h.recordEventMetrics(tags, data)
 	default:
-		log.Errorf("unknown metricName=%s ignored", metricName)
+		logger.Errorf("unknown metricName=%s ignored", metricName)
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/goto/raccoon/health"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
+	"github.com/goto/raccoon/policy"
 	"github.com/goto/raccoon/publisher"
 	"github.com/goto/raccoon/services"
 	"github.com/goto/raccoon/worker"
@@ -23,7 +24,7 @@ import (
 // StartServer starts the server
 func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
-	httpServices := services.Create(bufferChannel, ctx)
+	httpServices := services.Create(bufferChannel, initPolicy(), ctx)
 	logger.Info("Start Server -->")
 	httpServices.Start(ctx, cancel)
 	logger.Info("Start publisher -->")
@@ -117,6 +118,21 @@ func reportProcMetrics() {
 		metrics.Gauge("server_mem_gc_count_current", m.NumGC, "")
 		metrics.Gauge("server_mem_gc_pauseTotalNs_current", m.PauseTotalNs, "")
 	}
+}
+
+// initPolicy builds a *policy.Service when POLICY_ENABLED=true.
+// Returns nil when policy is disabled; a nil *policy.Service is safe (Apply is a no-op).
+func initPolicy() *policy.Service {
+	if !config.PolicyCfg.Enabled {
+		logger.Info("Policy enforcement disabled")
+		return nil
+	}
+	svc := policy.NewService(
+		config.PolicyCfg.Rules,
+		config.PolicyCfg.OverrideEventType,
+	)
+	logger.Infof("Policy enforcement enabled: loaded %d rules, override event type=%s", len(config.PolicyCfg.Rules), config.PolicyCfg.OverrideEventType)
+	return svc
 }
 
 func registerHealthCheck(svcs services.Services, kafka *publisher.Kafka) {
