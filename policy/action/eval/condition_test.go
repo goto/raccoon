@@ -74,3 +74,22 @@ func TestTimestampCondition_NotBreachedWhenTimestampZero(t *testing.T) {
 	cond := eval.NewTimestampCondition(threshold(time.Hour, time.Hour))
 	assert.False(t, cond.Breached(eval.EventMetadata{}))
 }
+
+// --- NoCondition ---
+
+func TestNoCondition_AlwaysBreached(t *testing.T) {
+	cond := eval.NewNoCondition()
+	assert.True(t, cond.Breached(eval.EventMetadata{}))
+}
+
+func TestNoCondition_AlwaysBreachedWithAnyMetadata(t *testing.T) {
+	cond := eval.NewNoCondition()
+	meta := eval.EventMetadata{
+		EventName:      "click",
+		Product:        "app",
+		Publisher:      "gojek",
+		TopicName:      "clickstream-page-log",
+		EventTimestamp: time.Now(),
+	}
+	assert.True(t, cond.Breached(meta))
+}

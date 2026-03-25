@@ -63,3 +63,13 @@ func TestTopicEvaluator_Resource(t *testing.T) {
 	ev := &eval.TopicEvaluator{}
 	assert.Equal(t, config.PolicyResourceTopic, ev.Resource())
 }
+
+func TestTopicEvaluator_AlwaysMatchesWithNoCondition(t *testing.T) {
+	ev := &eval.TopicEvaluator{}
+	rules := map[string]eval.Condition{"clickstream-page-log": eval.NewNoCondition()}
+	meta := eval.EventMetadata{
+		TopicName: "clickstream-page-log",
+		// no timestamp — NoCondition must still return true
+	}
+	assert.True(t, ev.Evaluate(meta, rules))
+}

@@ -28,6 +28,7 @@ const (
 
 	PolicyActionDrop              PolicyActionType = "DROP"
 	PolicyActionOverrideTimestamp PolicyActionType = "OVERRIDE_TIMESTAMP"
+	PolicyActionDeactivate        PolicyActionType = "DEACTIVE"
 
 	// PolicyConditionTimestampThreshold triggers the action when the event timestamp
 	// falls outside the configured past/future window.

@@ -83,3 +83,16 @@ func TestEventEvaluator_Resource(t *testing.T) {
 	ev := &eval.EventEvaluator{}
 	assert.Equal(t, config.PolicyResourceEvent, ev.Resource())
 }
+
+func TestEventEvaluator_AlwaysMatchesWithNoCondition(t *testing.T) {
+	ev := &eval.EventEvaluator{}
+	key := "click" + "app" + "pub-a"
+	rules := map[string]eval.Condition{key: eval.NewNoCondition()}
+	meta := eval.EventMetadata{
+		EventName: "click",
+		Product:   "app",
+		Publisher: "pub-a",
+		// no timestamp — NoCondition must still return true
+	}
+	assert.True(t, ev.Evaluate(meta, rules))
+}

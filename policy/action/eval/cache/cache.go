@@ -33,6 +33,8 @@ func NewCache(rules []config.PolicyRule) *Cache {
 		switch r.Action.ConditionType {
 		case config.PolicyConditionTimestampThreshold:
 			c.m[r.Resource][key] = eval.NewTimestampCondition(r.Action.EventTimestampThreshold)
+		case "":
+			c.m[r.Resource][key] = eval.NewNoCondition()
 		}
 	}
 	return c

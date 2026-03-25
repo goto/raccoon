@@ -12,6 +12,16 @@ type Condition interface {
 	Breached(meta EventMetadata) bool
 }
 
+// NewNoCondition returns a Condition that is always breached.
+// Use this for unconditional actions (e.g. DEACTIVE) that have no condition_type.
+func NewNoCondition() Condition {
+	return noCondition{}
+}
+
+type noCondition struct{}
+
+func (noCondition) Breached(_ EventMetadata) bool { return true }
+
 // NewTimestampCondition returns a Condition that checks the event timestamp against the
 // configured past/future threshold. Returns true (breached) when the timestamp falls
 // outside the allowed window.
