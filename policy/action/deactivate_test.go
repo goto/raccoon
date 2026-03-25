@@ -75,6 +75,7 @@ func TestDeactivate_PassthroughWhenEmptyRules(t *testing.T) {
 }
 
 func TestDeactivate_DropsMatchingTopicRule(t *testing.T) {
+	config.EventDistribution.PublisherPattern = "clickstream-%s-log"
 	c := cache.NewCache([]config.PolicyRule{
 		{
 			Resource: config.PolicyResourceTopic,
@@ -82,10 +83,8 @@ func TestDeactivate_DropsMatchingTopicRule(t *testing.T) {
 			Action:   config.PolicyActionConfig{Type: config.PolicyActionDeactivate},
 		},
 	})
-	// event.Type drives the topic name via the publisher pattern format string;
-	// set Type = "page-log" so fmt.Sprintf("clickstream-%s-log", "page-log") = "clickstream-page-log".
 	events := []*pb.Event{{
-		Type:           "page-log",
+		Type:           "page",
 		EventName:      "click",
 		Product:        "app",
 		EventTimestamp: timestamppb.New(time.Now()),
