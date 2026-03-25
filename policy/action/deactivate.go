@@ -33,7 +33,7 @@ func (d *Deactivate) Apply(events []*pb.Event, connGroup string) []*pb.Event {
 		logger.Debugf("[deactivate.Apply] meta: event_name=%s, product=%s, publisher=%s, topic=%s, conn_group=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.ConnGroup)
 		if d.evalChain.Run(meta, d.cache) {
 			logger.Infof("[deactivate.Apply] deactivating event: event_name=%s, product=%s, publisher=%s, topic=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName)
-			metrics.Increment(metricEventDeactivateCount, fmt.Sprintf("event_name=%s,product=%s,publisher=%s", meta.EventName, meta.Product, meta.Publisher))
+			metrics.Increment(metricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_POLICY,event_name=%s,product=%s,publisher=%s", meta.EventName, meta.Product, meta.Publisher))
 			continue
 		}
 		filtered = append(filtered, event)
