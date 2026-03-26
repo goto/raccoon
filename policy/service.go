@@ -25,14 +25,16 @@ type Service struct {
 
 // NewService builds a fully wired Service from the given config rules.
 // It partitions the rules by action type, creates an eval.Cache per action,
-// and assembles the action chain in priority order: Drop → OverrideTimestamp.
+// and assembles the action chain in priority order: Deactivate → Drop → OverrideTimestamp.
 func NewService(rules []config.PolicyRule, overrideEventType string) *Service {
 	dropCache := cache.NewCache(rulesForAction(rules, config.PolicyActionDrop))
 	overrideCache := cache.NewCache(rulesForAction(rules, config.PolicyActionOverrideTimestamp))
+	deactivateCache := cache.NewCache(rulesForAction(rules, config.PolicyActionDeactivate))
 
 	known := map[config.PolicyActionType]bool{
 		config.PolicyActionDrop:              true,
 		config.PolicyActionOverrideTimestamp: true,
+		config.PolicyActionDeactivate:        true,
 	}
 	for _, r := range rules {
 		if !known[r.Action.Type] {
@@ -42,6 +44,7 @@ func NewService(rules []config.PolicyRule, overrideEventType string) *Service {
 
 	return &Service{
 		chain: Chain{
+			action.NewDeactivate(deactivateCache, action.DefaultChain()),
 			action.NewDrop(dropCache, action.DefaultChain()),
 			action.NewOverrideTimestamp(overrideCache, action.DefaultChain(), overrideEventType),
 		},

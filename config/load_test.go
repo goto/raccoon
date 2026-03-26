@@ -162,6 +162,30 @@ func TestPolicyConfig_Rules(t *testing.T) {
 	os.Unsetenv("POLICY_CONFIG")
 }
 
+func TestPolicyConfig_DeactivateRule(t *testing.T) {
+	os.Setenv("POLICY_CONFIG", `[{"resource":"event","details":{"name":"click","product":"app","publisher":"gojek"},"action":{"type":"DEACTIVE"}}]`)
+	policyConfigLoader()
+	assert.Len(t, PolicyCfg.Rules, 1)
+	r := PolicyCfg.Rules[0]
+	assert.Equal(t, PolicyResourceEvent, r.Resource)
+	assert.Equal(t, "click", r.Details.Name)
+	assert.Equal(t, PolicyActionDeactivate, r.Action.Type)
+	assert.Empty(t, r.Action.ConditionType)
+	os.Unsetenv("POLICY_CONFIG")
+}
+
+func TestPolicyConfig_DeactivateTopicRule(t *testing.T) {
+	os.Setenv("POLICY_CONFIG", `[{"resource":"topic","details":{"name":"clickstream-page-log"},"action":{"type":"DEACTIVE"}}]`)
+	policyConfigLoader()
+	assert.Len(t, PolicyCfg.Rules, 1)
+	r := PolicyCfg.Rules[0]
+	assert.Equal(t, PolicyResourceTopic, r.Resource)
+	assert.Equal(t, "clickstream-page-log", r.Details.Name)
+	assert.Equal(t, PolicyActionDeactivate, r.Action.Type)
+	assert.Empty(t, r.Action.ConditionType)
+	os.Unsetenv("POLICY_CONFIG")
+}
+
 func TestPolicyConfig_PublisherMapping(t *testing.T) {
 	os.Setenv("POLICY_PUBLISHER_MAPPING", `{"customer":"gojek","driver":"gopartner"}`)
 	policyConfigLoader()
