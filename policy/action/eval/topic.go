@@ -11,19 +11,16 @@ func (t *TopicEvaluator) Resource() config.PolicyResourceType {
 	return config.PolicyResourceTopic
 }
 
-// Evaluate returns false when the topic name is absent in the event metadata.
-// Otherwise it performs a single lookup using topicName as the key and delegates
-// to the Condition to decide whether the action should be applied.
-func (t *TopicEvaluator) Evaluate(meta EventMetadata, rules map[string]Condition) bool {
+// Evaluate returns (false, false) when the topic name is absent or no rule exists
+// for this topic key. Returns (condition.Breached(), true) when a rule is found —
+// the chain stops here regardless of whether the condition is breached.
+func (t *TopicEvaluator) Evaluate(meta EventMetadata, rules map[string]Condition) (bool, bool) {
 	if meta.TopicName == "" {
-		return false
+		return false, false
 	}
 	condition, ok := rules[meta.TopicName]
 	if !ok {
-		return false
+		return false, false
 	}
-	if condition.Breached(meta) {
-		return true
-	}
-	return false
+	return condition.Breached(meta), true
 }

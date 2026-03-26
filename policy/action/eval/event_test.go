@@ -28,7 +28,9 @@ func TestEventEvaluator_ApplyWhenPastThresholdBreached(t *testing.T) {
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
 	}
-	assert.True(t, ev.Evaluate(meta, rules))
+	result, found := ev.Evaluate(meta, rules)
+	assert.True(t, result)
+	assert.True(t, found)
 }
 
 func TestEventEvaluator_SkipWhenWithinThreshold(t *testing.T) {
@@ -40,7 +42,9 @@ func TestEventEvaluator_SkipWhenWithinThreshold(t *testing.T) {
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now(),
 	}
-	assert.False(t, ev.Evaluate(meta, rules))
+	result, found := ev.Evaluate(meta, rules)
+	assert.False(t, result)
+	assert.True(t, found) // rule was found, condition just not breached
 }
 
 func TestEventEvaluator_NoMatchOnDifferentName(t *testing.T) {
@@ -52,7 +56,9 @@ func TestEventEvaluator_NoMatchOnDifferentName(t *testing.T) {
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
 	}
-	assert.False(t, ev.Evaluate(meta, rules))
+	result, found := ev.Evaluate(meta, rules)
+	assert.False(t, result)
+	assert.False(t, found) // no rule for this key
 }
 
 func TestEventEvaluator_SkipWhenMetadataIncomplete(t *testing.T) {
@@ -64,7 +70,9 @@ func TestEventEvaluator_SkipWhenMetadataIncomplete(t *testing.T) {
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
 	}
-	assert.False(t, ev.Evaluate(meta, rules))
+	result, found := ev.Evaluate(meta, rules)
+	assert.False(t, result)
+	assert.False(t, found)
 }
 
 func TestEventEvaluator_ApplyWhenFutureThresholdBreached(t *testing.T) {
@@ -76,7 +84,9 @@ func TestEventEvaluator_ApplyWhenFutureThresholdBreached(t *testing.T) {
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now().Add(10 * time.Minute),
 	}
-	assert.True(t, ev.Evaluate(meta, rules))
+	result, found := ev.Evaluate(meta, rules)
+	assert.True(t, result)
+	assert.True(t, found)
 }
 
 func TestEventEvaluator_Resource(t *testing.T) {
@@ -94,5 +104,7 @@ func TestEventEvaluator_AlwaysMatchesWithNoCondition(t *testing.T) {
 		Publisher: "pub-a",
 		// no timestamp — NoCondition must still return true
 	}
-	assert.True(t, ev.Evaluate(meta, rules))
+	result, found := ev.Evaluate(meta, rules)
+	assert.True(t, result)
+	assert.True(t, found)
 }
