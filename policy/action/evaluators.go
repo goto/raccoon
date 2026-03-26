@@ -2,6 +2,7 @@ package action
 
 import (
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/policy/action/eval"
 	"github.com/goto/raccoon/policy/action/eval/cache"
 )
@@ -32,6 +33,7 @@ func (c Chain) Run(meta eval.EventMetadata, ruleCache *cache.Cache) bool {
 		rules := ruleCache.Get(ev.Resource())
 		result, found := ev.Evaluate(meta, rules)
 		if found {
+			logger.Infof("[chain.Run] rule matched: resource=%s, result=%v, event_name=%s, product=%s, publisher=%s, topic=%s, conn_group=%s", ev.Resource(), result, meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.ConnGroup)
 			return result
 		}
 	}
