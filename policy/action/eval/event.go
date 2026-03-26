@@ -11,19 +11,16 @@ func (e *EventEvaluator) Resource() config.PolicyResourceType {
 	return config.PolicyResourceEvent
 }
 
-// Evaluate returns false when the event metadata is incomplete (name, product, or publisher absent).
-// Otherwise it performs a single lookup using nameproductpublisher as the key and delegates
-// to the Condition to decide whether the action should be applied.
-func (e *EventEvaluator) Evaluate(meta EventMetadata, rules map[string]Condition) bool {
+// Evaluate returns (false, false) when metadata is incomplete or no rule exists
+// for this event key. Returns (condition.Breached(), true) when a rule is found —
+// the chain stops here regardless of whether the condition is breached.
+func (e *EventEvaluator) Evaluate(meta EventMetadata, rules map[string]Condition) (bool, bool) {
 	if meta.EventName == "" || meta.Product == "" || meta.Publisher == "" {
-		return false
+		return false, false
 	}
 	condition, ok := rules[meta.EventName+meta.Product+meta.Publisher]
 	if !ok {
-		return false
+		return false, false
 	}
-	if condition.Breached(meta) {
-		return true
-	}
-	return false
+	return condition.Breached(meta), true
 }
