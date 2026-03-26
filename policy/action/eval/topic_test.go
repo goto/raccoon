@@ -26,7 +26,9 @@ func TestTopicEvaluator_ApplyWhenPastThresholdBreached(t *testing.T) {
 		TopicName:      "clickstream-foo-log",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
 	}
-	assert.True(t, ev.Evaluate(meta, rules))
+	result, found := ev.Evaluate(meta, rules)
+	assert.True(t, result)
+	assert.True(t, found)
 }
 
 func TestTopicEvaluator_SkipWhenWithinThreshold(t *testing.T) {
@@ -36,7 +38,9 @@ func TestTopicEvaluator_SkipWhenWithinThreshold(t *testing.T) {
 		TopicName:      "clickstream-foo-log",
 		EventTimestamp: time.Now(),
 	}
-	assert.False(t, ev.Evaluate(meta, rules))
+	result, found := ev.Evaluate(meta, rules)
+	assert.False(t, result)
+	assert.True(t, found) // rule was found, condition just not breached
 }
 
 func TestTopicEvaluator_NoMatchOnDifferentTopic(t *testing.T) {
@@ -46,7 +50,9 @@ func TestTopicEvaluator_NoMatchOnDifferentTopic(t *testing.T) {
 		TopicName:      "clickstream-bar-log",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
 	}
-	assert.False(t, ev.Evaluate(meta, rules))
+	result, found := ev.Evaluate(meta, rules)
+	assert.False(t, result)
+	assert.False(t, found) // no rule for this topic key
 }
 
 func TestTopicEvaluator_SkipWhenMetadataIncomplete(t *testing.T) {
@@ -56,7 +62,9 @@ func TestTopicEvaluator_SkipWhenMetadataIncomplete(t *testing.T) {
 		// TopicName missing
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
 	}
-	assert.False(t, ev.Evaluate(meta, rules))
+	result, found := ev.Evaluate(meta, rules)
+	assert.False(t, result)
+	assert.False(t, found)
 }
 
 func TestTopicEvaluator_Resource(t *testing.T) {
@@ -71,5 +79,7 @@ func TestTopicEvaluator_AlwaysMatchesWithNoCondition(t *testing.T) {
 		TopicName: "clickstream-page-log",
 		// no timestamp — NoCondition must still return true
 	}
-	assert.True(t, ev.Evaluate(meta, rules))
+	result, found := ev.Evaluate(meta, rules)
+	assert.True(t, result)
+	assert.True(t, found)
 }
