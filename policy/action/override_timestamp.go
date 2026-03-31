@@ -46,7 +46,7 @@ func (o *OverrideTimestamp) Apply(events []*pb.Event, connGroup string) []*pb.Ev
 		if o.evalChain.Run(meta, o.cache) {
 			logger.Infof("[override_timestamp.Apply] overriding timestamp: event_name=%s, product=%s, publisher=%s, conn_group=%s, topic=%s, event_timestamp=%s, override_type=%s", meta.EventName, meta.Product, meta.Publisher, meta.ConnGroup, meta.TopicName, meta.EventTimestamp, o.overrideEventType)
 			event.Type = o.overrideEventType
-			metrics.Increment(metricEventOverrideCount, fmt.Sprintf("reason=OVERRIDE_TIMESTAMP,event_name=%s,product=%s,conn_group=%s", meta.EventName, meta.Product, meta.ConnGroup))
+			metrics.Increment(metricEventOverrideCount, fmt.Sprintf("reason=OVERRIDE_TIMESTAMP,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, meta.ConnGroup, meta.EventType))
 		}
 	}
 	metrics.Timing(MetricEvalLatency, time.Since(start).Milliseconds(), fmt.Sprintf("action=OVERRIDE_TIMESTAMP,conn_group=%s", connGroup))

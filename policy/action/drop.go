@@ -32,10 +32,10 @@ func (d *Drop) Apply(events []*pb.Event, connGroup string) []*pb.Event {
 		logger.Debugf("[drop.Apply] meta: event_name=%s, product=%s, publisher=%s, topic=%s, conn_group=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.ConnGroup)
 		if d.evalChain.Run(meta, d.cache) {
 			logger.Infof("[drop.Apply] dropping event: event_name=%s, product=%s, publisher=%s, conn_group=%s, topic=%s, event_timestamp=%s, event_timestamp_diff=%s", meta.EventName, meta.Product, meta.Publisher, meta.ConnGroup, meta.TopicName, meta.EventTimestamp, time.Since(meta.EventTimestamp))
-			metrics.Increment(metricEventLossCount, fmt.Sprintf("reason=DROP_POLICY,event_name=%s,product=%s,conn_group=%s", meta.EventName, meta.Product, meta.ConnGroup))
+			metrics.Increment(metricEventLossCount, fmt.Sprintf("reason=DROP_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, meta.ConnGroup, meta.EventType))
 			continue
 		} else {
-			logger.Infof("[drop.Skip] keeping event: event_name=%s, product=%s, publisher=%s, conn_group=%s, topic=%s, event_timestamp=%s, event_timestamp_diff=%s", meta.EventName, meta.Product, meta.Publisher, meta.ConnGroup, meta.TopicName, meta.EventTimestamp, time.Since(meta.EventTimestamp))
+			logger.Debugf("[drop.Skip] keeping event: event_name=%s, product=%s, publisher=%s, conn_group=%s, topic=%s, event_timestamp=%s, event_timestamp_diff=%s", meta.EventName, meta.Product, meta.Publisher, meta.ConnGroup, meta.TopicName, meta.EventTimestamp, time.Since(meta.EventTimestamp))
 		}
 		filtered = append(filtered, event)
 	}

@@ -33,7 +33,7 @@ func (c Chain) Run(meta eval.EventMetadata, ruleCache *cache.Cache) bool {
 		rules := ruleCache.Get(ev.Resource())
 		result, found := ev.Evaluate(meta, rules)
 		if found {
-			logger.Infof("[chain.Run] rule matched: resource=%s, result=%v, event_name=%s, product=%s, publisher=%s, topic=%s, conn_group=%s", ev.Resource(), result, meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.ConnGroup)
+			logger.Debugf("[chain.Run] rule matched: resource=%s, result=%v, event_name=%s, product=%s, publisher=%s, topic=%s, conn_group=%s", ev.Resource(), result, meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.ConnGroup)
 			return result
 		}
 	}
