@@ -73,17 +73,18 @@ type Kafka struct {
 	eventTypePrefixMapping map[string]string
 }
 
-func overrideEventType(prefixMapping map[string]string, eventType string) string {
-	if len(prefixMapping) == 0 || eventType == "" {
+func (pr *Kafka) overrideEventType(eventType string) string {
+	if len(pr.eventTypePrefixMapping) == 0 || eventType == "" {
 		return eventType
 	}
 
+	// Event types are expected in <prefix>-<rest> form for direct map lookup.
 	prefix, rest, found := strings.Cut(eventType, "-")
 	if !found {
 		return eventType
 	}
 
-	targetPrefix, ok := prefixMapping[prefix]
+	targetPrefix, ok := pr.eventTypePrefixMapping[prefix]
 	if !ok {
 		return eventType
 	}
@@ -106,7 +107,8 @@ func (pr *Kafka) ProduceBulk(
 	errors := make([]error, len(events))
 	totalProcessed := 0
 	for order, event := range events {
-		eventType := overrideEventType(pr.eventTypePrefixMapping, event.GetType())
+		eventType := pr.overrideEventType(event.GetType())
+		//override event type if prefix mapping exist and event type is in expected format, otherwise use the original event type
 		event.Type = eventType
 		topic := fmt.Sprintf(pr.topicFormat[event.GetIsExclusive()], event.Type)
 		message := &kafka.Message{
