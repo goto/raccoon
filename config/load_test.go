@@ -110,6 +110,22 @@ func TestKafkaConfig_ToKafkaConfigMap(t *testing.T) {
 	assert.Equal(t, 5000, PublisherKafka.HealthCheckConfig.TimeOut)
 }
 
+func TestPublisherKafkaConfig_EventTypePrefixMapping(t *testing.T) {
+	os.Setenv("PUBLISHER_KAFKA_EVENT_TYPE_PREFIX_MAPPING", `{"CS_APP_PREFIX":"gobiz"}`)
+	defer os.Unsetenv("PUBLISHER_KAFKA_EVENT_TYPE_PREFIX_MAPPING")
+
+	publisherKafkaConfigLoader()
+
+	assert.Equal(t, map[string]string{"CS_APP_PREFIX": "gobiz"}, PublisherKafka.EventTypePrefixMapping)
+}
+
+func TestPublisherKafkaConfig_InvalidEventTypePrefixMappingPanics(t *testing.T) {
+	os.Setenv("PUBLISHER_KAFKA_EVENT_TYPE_PREFIX_MAPPING", `not-valid-json`)
+	defer os.Unsetenv("PUBLISHER_KAFKA_EVENT_TYPE_PREFIX_MAPPING")
+
+	assert.Panics(t, publisherKafkaConfigLoader)
+}
+
 func TestWorkerConfig(t *testing.T) {
 	os.Setenv("WORKER_POOL_SIZE", "2")
 	os.Setenv("WORKER_BUFFER_CHANNEL_SIZE", "5")

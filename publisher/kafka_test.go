@@ -32,7 +32,7 @@ func TestProducer_Close(suite *testing.T) {
 		client := &mockClient{}
 		client.On("Flush", 10).Return(0)
 		client.On("Close").Return()
-		kp := NewKafkaFromClient(client, 10, map[bool]string{true: "%s", false: "%s"})
+		kp := NewKafkaFromClient(client, 10, map[bool]string{true: "%s", false: "%s"}, nil)
 		kp.Close()
 		client.AssertExpectations(t)
 	})
@@ -61,10 +61,140 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 					}
 				}()
 			})
-			kp := NewKafkaFromClient(client, 10, testFormat)
+			kp := NewKafkaFromClient(client, 10, testFormat, nil)
 
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, group1, make(chan kafka.Event, 2), now, now, now)
 			assert.NoError(t, err)
+		})
+
+		t.Run("Should rewrite event type prefix based on config mapping", func(t *testing.T) {
+			client := &mockClient{}
+			events := []*pb.Event{{EventBytes: []byte{}, Type: "CS_APP_PREFIX-apihealth"}}
+			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+				message := args.Get(0).(*kafka.Message)
+				assert.Equal(t, "gobiz-apihealth", *message.TopicPartition.Topic)
+				go func() {
+					args.Get(1).(chan kafka.Event) <- &kafka.Message{
+						TopicPartition: kafka.TopicPartition{
+							Topic:     message.TopicPartition.Topic,
+							Partition: 0,
+							Offset:    0,
+							Error:     nil,
+						},
+						Opaque: 0,
+					}
+				}()
+			}).Once()
+
+			kp := NewKafkaFromClient(client, 10, testFormat, map[string]string{"CS_APP_PREFIX": "gobiz"})
+			err := kp.ProduceBulk(events, group1, make(chan kafka.Event, 1), now, now, now)
+
+			assert.NoError(t, err)
+			assert.Equal(t, "gobiz-apihealth", events[0].GetType())
+		})
+
+		t.Run("Should leave event type unchanged when mapping key does not match extracted prefix", func(t *testing.T) {
+			client := &mockClient{}
+			events := []*pb.Event{{EventBytes: []byte{}, Type: "CS_APP_PREFIX-apihealth"}}
+			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+				message := args.Get(0).(*kafka.Message)
+				assert.Equal(t, "CS_APP_PREFIX-apihealth", *message.TopicPartition.Topic)
+				go func() {
+					args.Get(1).(chan kafka.Event) <- &kafka.Message{
+						TopicPartition: kafka.TopicPartition{
+							Topic:     message.TopicPartition.Topic,
+							Partition: 0,
+							Offset:    0,
+							Error:     nil,
+						},
+						Opaque: 0,
+					}
+				}()
+			}).Once()
+
+			kp := NewKafkaFromClient(client, 10, testFormat, map[string]string{"CS_APP": "gobiz"})
+			err := kp.ProduceBulk(events, group1, make(chan kafka.Event, 1), now, now, now)
+
+			assert.NoError(t, err)
+			assert.Equal(t, "CS_APP_PREFIX-apihealth", events[0].GetType())
+		})
+
+		t.Run("Should leave plain event type unchanged when incoming type is page", func(t *testing.T) {
+			client := &mockClient{}
+			events := []*pb.Event{{EventBytes: []byte{}, Type: "page"}}
+			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+				message := args.Get(0).(*kafka.Message)
+				assert.Equal(t, "page", *message.TopicPartition.Topic)
+				go func() {
+					args.Get(1).(chan kafka.Event) <- &kafka.Message{
+						TopicPartition: kafka.TopicPartition{
+							Topic:     message.TopicPartition.Topic,
+							Partition: 0,
+							Offset:    0,
+							Error:     nil,
+						},
+						Opaque: 0,
+					}
+				}()
+			}).Once()
+
+			kp := NewKafkaFromClient(client, 10, testFormat, map[string]string{"CS_APP_PREFIX": "gobiz"})
+			err := kp.ProduceBulk(events, group1, make(chan kafka.Event, 1), now, now, now)
+
+			assert.NoError(t, err)
+			assert.Equal(t, "page", events[0].GetType())
+		})
+
+		t.Run("Should leave event type unchanged when incoming type is CS_APP without delimiter", func(t *testing.T) {
+			client := &mockClient{}
+			events := []*pb.Event{{EventBytes: []byte{}, Type: "CS_APP"}}
+			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+				message := args.Get(0).(*kafka.Message)
+				assert.Equal(t, "CS_APP", *message.TopicPartition.Topic)
+				go func() {
+					args.Get(1).(chan kafka.Event) <- &kafka.Message{
+						TopicPartition: kafka.TopicPartition{
+							Topic:     message.TopicPartition.Topic,
+							Partition: 0,
+							Offset:    0,
+							Error:     nil,
+						},
+						Opaque: 0,
+					}
+				}()
+			}).Once()
+
+			kp := NewKafkaFromClient(client, 10, testFormat, map[string]string{"CS_APP_PREFIX": "gobiz"})
+			err := kp.ProduceBulk(events, group1, make(chan kafka.Event, 1), now, now, now)
+
+			assert.NoError(t, err)
+			assert.Equal(t, "CS_APP", events[0].GetType())
+		})
+
+		t.Run("Should leave event type unchanged when prefix mapping is nil", func(t *testing.T) {
+			client := &mockClient{}
+			events := []*pb.Event{{EventBytes: []byte{}, Type: "CS_APP_PREFIX-apihealth"}}
+			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+				message := args.Get(0).(*kafka.Message)
+				assert.Equal(t, "CS_APP_PREFIX-apihealth", *message.TopicPartition.Topic)
+				go func() {
+					args.Get(1).(chan kafka.Event) <- &kafka.Message{
+						TopicPartition: kafka.TopicPartition{
+							Topic:     message.TopicPartition.Topic,
+							Partition: 0,
+							Offset:    0,
+							Error:     nil,
+						},
+						Opaque: 0,
+					}
+				}()
+			}).Once()
+
+			kp := NewKafkaFromClient(client, 10, testFormat, nil)
+			err := kp.ProduceBulk(events, group1, make(chan kafka.Event, 1), now, now, now)
+
+			assert.NoError(t, err)
+			assert.Equal(t, "CS_APP_PREFIX-apihealth", events[0].GetType())
 		})
 	})
 
@@ -86,7 +216,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 				}()
 			}).Once()
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf("buffer full")).Once()
-			kp := NewKafkaFromClient(client, 10, testFormat)
+			kp := NewKafkaFromClient(client, 10, testFormat, nil)
 
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, group1, make(chan kafka.Event, 2), now, now, now)
 			assert.Len(t, err.(BulkError).Errors, 3)
@@ -98,7 +228,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 		t.Run("Should return topic name when unknown topic is returned", func(t *testing.T) {
 			client := &mockClient{}
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errUnknownTopic)).Once()
-			kp := NewKafkaFromClient(client, 10, testFormat)
+			kp := NewKafkaFromClient(client, 10, testFormat, nil)
 
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2), now, now, now)
 			assert.EqualError(t, err.(BulkError).Errors[0], errUnknownTopic+" "+topic)
@@ -107,7 +237,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 		t.Run("Should return topic name when message size is too large", func(t *testing.T) {
 			client := &mockClient{}
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errLargeMessageSize)).Once()
-			kp := NewKafkaFromClient(client, 10, testFormat)
+			kp := NewKafkaFromClient(client, 10, testFormat, nil)
 
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2), now, now, now)
 			assert.EqualError(t, err.(BulkError).Errors[0], errLargeMessageSize+" "+topic)
@@ -131,7 +261,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 					}
 				}()
 			}).Once()
-			kp := NewKafkaFromClient(client, 10, testFormat)
+			kp := NewKafkaFromClient(client, 10, testFormat, nil)
 
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2), now, now, now)
 			assert.NotEmpty(t, err)
