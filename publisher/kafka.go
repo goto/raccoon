@@ -48,26 +48,48 @@ func NewKafka() (*Kafka, error) {
 	}
 
 	k := &Kafka{
-		kp:            kp,
-		flushInterval: config.PublisherKafka.FlushInterval,
-		topicFormat:   topicFormat,
+		kp:                     kp,
+		flushInterval:          config.PublisherKafka.FlushInterval,
+		topicFormat:            topicFormat,
+		eventTypePrefixMapping: config.PublisherKafka.EventTypePrefixMapping,
 	}
 
 	return k, nil
 }
 
-func NewKafkaFromClient(client Client, flushInterval int, topicFormat map[bool]string) *Kafka {
+func NewKafkaFromClient(client Client, flushInterval int, topicFormat map[bool]string, eventTypePrefixMapping map[string]string) *Kafka {
 	return &Kafka{
-		kp:            client,
-		flushInterval: flushInterval,
-		topicFormat:   topicFormat,
+		kp:                     client,
+		flushInterval:          flushInterval,
+		topicFormat:            topicFormat,
+		eventTypePrefixMapping: eventTypePrefixMapping,
 	}
 }
 
 type Kafka struct {
-	kp            Client
-	flushInterval int
-	topicFormat   map[bool]string
+	kp                     Client
+	flushInterval          int
+	topicFormat            map[bool]string
+	eventTypePrefixMapping map[string]string
+}
+
+func (pr *Kafka) overrideEventType(eventType string) string {
+	if len(pr.eventTypePrefixMapping) == 0 || eventType == "" {
+		return eventType
+	}
+
+	// Event types are expected in <prefix>-<rest> form for direct map lookup.
+	prefix, rest, found := strings.Cut(eventType, "-")
+	if !found {
+		return eventType
+	}
+
+	targetPrefix, ok := pr.eventTypePrefixMapping[prefix]
+	if !ok {
+		return eventType
+	}
+
+	return targetPrefix + "-" + rest
 }
 
 // ProduceBulk messages to kafka. Block until all messages are sent. Return array of error. Order of Errors is guaranteed.
@@ -85,6 +107,9 @@ func (pr *Kafka) ProduceBulk(
 	errors := make([]error, len(events))
 	totalProcessed := 0
 	for order, event := range events {
+		eventType := pr.overrideEventType(event.GetType())
+		//override event type if prefix mapping exist and event type is in expected format, otherwise use the original event type
+		event.Type = eventType
 		topic := fmt.Sprintf(pr.topicFormat[event.GetIsExclusive()], event.Type)
 		message := &kafka.Message{
 			Value:          event.EventBytes,
