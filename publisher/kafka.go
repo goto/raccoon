@@ -178,7 +178,7 @@ func (pr *Kafka) ProduceBulk(
 				dlqErr := pr.queueToDLQ(event, order, deliveryChannel)
 				if dlqErr != nil {
 					logger.Errorf("dlq publish failed on topic=%s: %v", pr.dlqTopicName, dlqErr)
-					metrics.Increment("dlq_publish_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, event.Type))
+					metrics.Increment("dlq_publish_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s,reason=%s", connGroup, event.Type, "produce_failed"))
 				} else {
 					totalProcessed++
 				}
@@ -225,7 +225,7 @@ func (pr *Kafka) ProduceBulk(
 		if meta.isDLQ {
 			if m.TopicPartition.Error != nil {
 				logger.Errorf("dlq delivery report failed on topic=%s: %v", *m.TopicPartition.Topic, m.TopicPartition.Error)
-				metrics.Increment("dlq_publish_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, event.Type))
+				metrics.Increment("dlq_publish_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s,reason=%s", connGroup, event.Type, "delivery_failed"))
 			} else {
 				metrics.Increment("dlq_publish_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, event.Type))
 			}
