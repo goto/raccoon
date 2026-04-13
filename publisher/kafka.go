@@ -15,6 +15,7 @@ import (
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/serialization"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -104,6 +105,10 @@ func (pr *Kafka) overrideEventType(eventType string) string {
 func (pr *Kafka) queueToDLQ(event *pb.Event, order int, deliveryChannel chan kafka.Event) error {
 	if pr.dlqTopicName == "" {
 		return fmt.Errorf("dlq topic is not configured")
+	}
+
+	if event.GetEventTimestamp() == nil || event.GetEventTimestamp().AsTime().IsZero() {
+		event.EventTimestamp = timestamppb.Now()
 	}
 
 	payload, err := serialization.SerializeProto(event)

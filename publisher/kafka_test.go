@@ -231,12 +231,17 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errUnknownTopic)).Once()
 			dlqTopic := "test-dlq"
 			event := &pb.Event{EventBytes: []byte("payload"), Type: topic, EventName: "page-view"}
-			expectedPayload, marshalErr := proto.Marshal(event)
-			assert.NoError(t, marshalErr)
 			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 				message := args.Get(0).(*kafka.Message)
+				actualEvent := &pb.Event{}
+				unmarshalErr := proto.Unmarshal(message.Value, actualEvent)
+				assert.NoError(t, unmarshalErr)
 				assert.Equal(t, dlqTopic, *message.TopicPartition.Topic)
-				assert.Equal(t, expectedPayload, message.Value)
+				assert.Equal(t, event.GetEventBytes(), actualEvent.GetEventBytes())
+				assert.Equal(t, event.GetType(), actualEvent.GetType())
+				assert.Equal(t, event.GetEventName(), actualEvent.GetEventName())
+				assert.NotNil(t, actualEvent.GetEventTimestamp())
+				assert.False(t, actualEvent.GetEventTimestamp().AsTime().IsZero())
 				assert.NotNil(t, args.Get(1))
 				go func() {
 					args.Get(1).(chan kafka.Event) <- &kafka.Message{
