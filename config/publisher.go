@@ -19,6 +19,7 @@ var dynamicKafkaClientConfigPrefix = "PUBLISHER_KAFKA_CLIENT_"
 type publisherKafka struct {
 	FlushInterval          int               // Interval (in seconds) to flush the events during shutdown
 	HealthCheckConfig      healthcheck       // Configuration for Kafka broker health check
+	DLQTopicName           string            // Kafka topic name used for dead-letter routing on publish failures
 	EventTypePrefixMapping map[string]string // Mapping of incoming event type prefixes to replacement prefixes
 }
 
@@ -56,6 +57,7 @@ func publisherKafkaConfigLoader() {
 	viper.SetDefault("PUBLISHER_KAFKA_FLUSH_INTERVAL_MS", "1000")
 	viper.SetDefault("PUBLISHER_KAFKA_HEALTHCHECK_TOPIC_NAME", "clickstream-test-log")
 	viper.SetDefault("PUBLISHER_KAFKA_HEALTHCHECK_TIMEOUT_MS", "5000")
+	viper.SetDefault("PUBLISHER_KAFKA_DLQ_TOPIC_NAME", "clickstream-raccoon-log")
 	viper.SetDefault("PUBLISHER_KAFKA_EVENT_TYPE_PREFIX_MAPPING", "{}")
 	viper.MergeConfig(bytes.NewBuffer(dynamicKafkaClientConfigLoad()))
 
@@ -71,6 +73,7 @@ func publisherKafkaConfigLoader() {
 			TopicName: util.MustGetString("PUBLISHER_KAFKA_HEALTHCHECK_TOPIC_NAME"),
 			TimeOut:   util.MustGetInt("PUBLISHER_KAFKA_HEALTHCHECK_TIMEOUT_MS"),
 		},
+		DLQTopicName:           util.MustGetString("PUBLISHER_KAFKA_DLQ_TOPIC_NAME"),
 		EventTypePrefixMapping: eventTypePrefixMapping,
 	}
 }

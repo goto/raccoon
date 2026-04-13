@@ -23,7 +23,7 @@ func TestShutDownServer(t *testing.T) {
 	kp := publisher.NewKafkaFromClient(mockKafka, 50, map[bool]string{
 		true:  "test",
 		false: "test",
-	}, nil)
+	}, "test-dlq", nil)
 
 	shutdownCh := make(chan bool, 1)
 	bufferCh := make(chan collection.CollectRequest, 1)

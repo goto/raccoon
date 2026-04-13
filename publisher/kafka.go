@@ -51,17 +51,19 @@ func NewKafka() (*Kafka, error) {
 		kp:                     kp,
 		flushInterval:          config.PublisherKafka.FlushInterval,
 		topicFormat:            topicFormat,
+		dlqTopicName:           config.PublisherKafka.DLQTopicName,
 		eventTypePrefixMapping: config.PublisherKafka.EventTypePrefixMapping,
 	}
 
 	return k, nil
 }
 
-func NewKafkaFromClient(client Client, flushInterval int, topicFormat map[bool]string, eventTypePrefixMapping map[string]string) *Kafka {
+func NewKafkaFromClient(client Client, flushInterval int, topicFormat map[bool]string, dlqTopicName string, eventTypePrefixMapping map[string]string) *Kafka {
 	return &Kafka{
 		kp:                     client,
 		flushInterval:          flushInterval,
 		topicFormat:            topicFormat,
+		dlqTopicName:           dlqTopicName,
 		eventTypePrefixMapping: eventTypePrefixMapping,
 	}
 }
@@ -70,6 +72,7 @@ type Kafka struct {
 	kp                     Client
 	flushInterval          int
 	topicFormat            map[bool]string
+	dlqTopicName           string
 	eventTypePrefixMapping map[string]string
 }
 
@@ -90,6 +93,24 @@ func (pr *Kafka) overrideEventType(eventType string) string {
 	}
 
 	return targetPrefix + "-" + rest
+}
+
+func (pr *Kafka) queueToDLQ(event *pb.Event) error {
+	if pr.dlqTopicName == "" {
+		return fmt.Errorf("dlq topic is not configured")
+	}
+
+	dlqTopic := pr.dlqTopicName
+	message := &kafka.Message{
+		Value:          event.EventBytes,
+		TopicPartition: kafka.TopicPartition{Topic: &dlqTopic, Partition: kafka.PartitionAny},
+	}
+
+	if err := pr.kp.Produce(message, nil); err != nil {
+		return fmt.Errorf("%v %s", err, dlqTopic)
+	}
+
+	return nil
 }
 
 // ProduceBulk messages to kafka. Block until all messages are sent. Return array of error. Order of Errors is guaranteed.
@@ -142,6 +163,13 @@ func (pr *Kafka) ProduceBulk(
 			case errUnknownTopic:
 				errors[order] = fmt.Errorf("%v %s", err, topic)
 				errorTag = "TOPIC_NOT_FOUND"
+				dlqErr := pr.queueToDLQ(event)
+				if dlqErr != nil {
+					logger.Errorf("dlq publish failed on topic=%s: %v", pr.dlqTopicName, dlqErr)
+					metrics.Increment("dlq_publish_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, event.Type))
+				} else {
+					metrics.Increment("dlq_publish_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, event.Type))
+				}
 			case errLargeMessageSize:
 				errors[order] = fmt.Errorf("%v %s", err, topic)
 				errorTag = "MESSAGE_TOO_LARGE"

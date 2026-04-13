@@ -32,7 +32,7 @@ func TestProducer_Close(suite *testing.T) {
 		client := &mockClient{}
 		client.On("Flush", 10).Return(0)
 		client.On("Close").Return()
-		kp := NewKafkaFromClient(client, 10, map[bool]string{true: "%s", false: "%s"}, nil)
+		kp := NewKafkaFromClient(client, 10, map[bool]string{true: "%s", false: "%s"}, "", nil)
 		kp.Close()
 		client.AssertExpectations(t)
 	})
@@ -61,7 +61,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 					}
 				}()
 			})
-			kp := NewKafkaFromClient(client, 10, testFormat, nil)
+			kp := NewKafkaFromClient(client, 10, testFormat, "", nil)
 
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, group1, make(chan kafka.Event, 2), now, now, now)
 			assert.NoError(t, err)
@@ -86,7 +86,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 				}()
 			}).Once()
 
-			kp := NewKafkaFromClient(client, 10, testFormat, map[string]string{"CS_APP_PREFIX": "gobiz"})
+			kp := NewKafkaFromClient(client, 10, testFormat, "", map[string]string{"CS_APP_PREFIX": "gobiz"})
 			err := kp.ProduceBulk(events, group1, make(chan kafka.Event, 1), now, now, now)
 
 			assert.NoError(t, err)
@@ -112,7 +112,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 				}()
 			}).Once()
 
-			kp := NewKafkaFromClient(client, 10, testFormat, map[string]string{"CS_APP": "gobiz"})
+			kp := NewKafkaFromClient(client, 10, testFormat, "", map[string]string{"CS_APP": "gobiz"})
 			err := kp.ProduceBulk(events, group1, make(chan kafka.Event, 1), now, now, now)
 
 			assert.NoError(t, err)
@@ -138,7 +138,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 				}()
 			}).Once()
 
-			kp := NewKafkaFromClient(client, 10, testFormat, map[string]string{"CS_APP_PREFIX": "gobiz"})
+			kp := NewKafkaFromClient(client, 10, testFormat, "", map[string]string{"CS_APP_PREFIX": "gobiz"})
 			err := kp.ProduceBulk(events, group1, make(chan kafka.Event, 1), now, now, now)
 
 			assert.NoError(t, err)
@@ -164,7 +164,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 				}()
 			}).Once()
 
-			kp := NewKafkaFromClient(client, 10, testFormat, map[string]string{"CS_APP_PREFIX": "gobiz"})
+			kp := NewKafkaFromClient(client, 10, testFormat, "", map[string]string{"CS_APP_PREFIX": "gobiz"})
 			err := kp.ProduceBulk(events, group1, make(chan kafka.Event, 1), now, now, now)
 
 			assert.NoError(t, err)
@@ -190,7 +190,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 				}()
 			}).Once()
 
-			kp := NewKafkaFromClient(client, 10, testFormat, nil)
+			kp := NewKafkaFromClient(client, 10, testFormat, "", nil)
 			err := kp.ProduceBulk(events, group1, make(chan kafka.Event, 1), now, now, now)
 
 			assert.NoError(t, err)
@@ -216,7 +216,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 				}()
 			}).Once()
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf("buffer full")).Once()
-			kp := NewKafkaFromClient(client, 10, testFormat, nil)
+			kp := NewKafkaFromClient(client, 10, testFormat, "", nil)
 
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, group1, make(chan kafka.Event, 2), now, now, now)
 			assert.Len(t, err.(BulkError).Errors, 3)
@@ -225,10 +225,16 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 			assert.Error(t, err.(BulkError).Errors[2])
 		})
 
-		t.Run("Should return topic name when unknown topic is returned", func(t *testing.T) {
+		t.Run("Should enqueue to dlq and still return topic name when unknown topic is returned", func(t *testing.T) {
 			client := &mockClient{}
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errUnknownTopic)).Once()
-			kp := NewKafkaFromClient(client, 10, testFormat, nil)
+			dlqTopic := "test-dlq"
+			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+				message := args.Get(0).(*kafka.Message)
+				assert.Equal(t, dlqTopic, *message.TopicPartition.Topic)
+				assert.Nil(t, args.Get(1))
+			}).Once()
+			kp := NewKafkaFromClient(client, 10, testFormat, dlqTopic, nil)
 
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2), now, now, now)
 			assert.EqualError(t, err.(BulkError).Errors[0], errUnknownTopic+" "+topic)
@@ -237,7 +243,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 		t.Run("Should return topic name when message size is too large", func(t *testing.T) {
 			client := &mockClient{}
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errLargeMessageSize)).Once()
-			kp := NewKafkaFromClient(client, 10, testFormat, nil)
+			kp := NewKafkaFromClient(client, 10, testFormat, "", nil)
 
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2), now, now, now)
 			assert.EqualError(t, err.(BulkError).Errors[0], errLargeMessageSize+" "+topic)
@@ -261,7 +267,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 					}
 				}()
 			}).Once()
-			kp := NewKafkaFromClient(client, 10, testFormat, nil)
+			kp := NewKafkaFromClient(client, 10, testFormat, "", nil)
 
 			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2), now, now, now)
 			assert.NotEmpty(t, err)
