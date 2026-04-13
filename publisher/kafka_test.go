@@ -10,6 +10,7 @@ import (
 	"github.com/goto/raccoon/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"google.golang.org/protobuf/proto"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
@@ -57,7 +58,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 							Offset:    0,
 							Error:     nil,
 						},
-						Opaque: 0,
+						Opaque: deliveryMetadata{order: 0},
 					}
 				}()
 			})
@@ -81,7 +82,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 							Offset:    0,
 							Error:     nil,
 						},
-						Opaque: 0,
+						Opaque: deliveryMetadata{order: 0},
 					}
 				}()
 			}).Once()
@@ -107,7 +108,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 							Offset:    0,
 							Error:     nil,
 						},
-						Opaque: 0,
+						Opaque: deliveryMetadata{order: 0},
 					}
 				}()
 			}).Once()
@@ -133,7 +134,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 							Offset:    0,
 							Error:     nil,
 						},
-						Opaque: 0,
+						Opaque: deliveryMetadata{order: 0},
 					}
 				}()
 			}).Once()
@@ -159,7 +160,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 							Offset:    0,
 							Error:     nil,
 						},
-						Opaque: 0,
+						Opaque: deliveryMetadata{order: 0},
 					}
 				}()
 			}).Once()
@@ -185,7 +186,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 							Offset:    0,
 							Error:     nil,
 						},
-						Opaque: 0,
+						Opaque: deliveryMetadata{order: 0},
 					}
 				}()
 			}).Once()
@@ -211,7 +212,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 							Offset:    0,
 							Error:     nil,
 						},
-						Opaque: 1,
+						Opaque: deliveryMetadata{order: 1},
 					}
 				}()
 			}).Once()
@@ -229,14 +230,29 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 			client := &mockClient{}
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errUnknownTopic)).Once()
 			dlqTopic := "test-dlq"
+			event := &pb.Event{EventBytes: []byte("payload"), Type: topic, EventName: "page-view"}
+			expectedPayload, marshalErr := proto.Marshal(event)
+			assert.NoError(t, marshalErr)
 			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 				message := args.Get(0).(*kafka.Message)
 				assert.Equal(t, dlqTopic, *message.TopicPartition.Topic)
-				assert.Nil(t, args.Get(1))
+				assert.Equal(t, expectedPayload, message.Value)
+				assert.NotNil(t, args.Get(1))
+				go func() {
+					args.Get(1).(chan kafka.Event) <- &kafka.Message{
+						TopicPartition: kafka.TopicPartition{
+							Topic:     message.TopicPartition.Topic,
+							Partition: 0,
+							Offset:    0,
+							Error:     nil,
+						},
+						Opaque: deliveryMetadata{order: 0, isDLQ: true},
+					}
+				}()
 			}).Once()
 			kp := NewKafkaFromClient(client, 10, testFormat, dlqTopic, nil)
 
-			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2), now, now, now)
+			err := kp.ProduceBulk([]*pb.Event{event}, "group1", make(chan kafka.Event, 2), now, now, now)
 			assert.EqualError(t, err.(BulkError).Errors[0], errUnknownTopic+" "+topic)
 		})
 
@@ -263,7 +279,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 							Offset:    0,
 							Error:     fmt.Errorf("timeout"),
 						},
-						Opaque: 1,
+						Opaque: deliveryMetadata{order: 1},
 					}
 				}()
 			}).Once()
