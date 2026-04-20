@@ -14,6 +14,8 @@ import (
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
+	"github.com/goto/raccoon/serialization"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -51,17 +53,19 @@ func NewKafka() (*Kafka, error) {
 		kp:                     kp,
 		flushInterval:          config.PublisherKafka.FlushInterval,
 		topicFormat:            topicFormat,
+		dlqTopicName:           config.PublisherKafka.DLQTopicName,
 		eventTypePrefixMapping: config.PublisherKafka.EventTypePrefixMapping,
 	}
 
 	return k, nil
 }
 
-func NewKafkaFromClient(client Client, flushInterval int, topicFormat map[bool]string, eventTypePrefixMapping map[string]string) *Kafka {
+func NewKafkaFromClient(client Client, flushInterval int, topicFormat map[bool]string, dlqTopicName string, eventTypePrefixMapping map[string]string) *Kafka {
 	return &Kafka{
 		kp:                     client,
 		flushInterval:          flushInterval,
 		topicFormat:            topicFormat,
+		dlqTopicName:           dlqTopicName,
 		eventTypePrefixMapping: eventTypePrefixMapping,
 	}
 }
@@ -70,7 +74,13 @@ type Kafka struct {
 	kp                     Client
 	flushInterval          int
 	topicFormat            map[bool]string
+	dlqTopicName           string
 	eventTypePrefixMapping map[string]string
+}
+
+type deliveryMetadata struct {
+	order int
+	isDLQ bool
 }
 
 func (pr *Kafka) overrideEventType(eventType string) string {
@@ -90,6 +100,34 @@ func (pr *Kafka) overrideEventType(eventType string) string {
 	}
 
 	return targetPrefix + "-" + rest
+}
+
+func (pr *Kafka) queueToDLQ(event *pb.Event, order int, deliveryChannel chan kafka.Event) error {
+	if pr.dlqTopicName == "" {
+		return fmt.Errorf("dlq topic is not configured")
+	}
+
+	if event.GetEventTimestamp() == nil || event.GetEventTimestamp().AsTime().IsZero() {
+		event.EventTimestamp = timestamppb.Now()
+	}
+
+	payload, err := serialization.SerializeProto(event)
+	if err != nil {
+		return fmt.Errorf("serialize dlq event: %w", err)
+	}
+
+	dlqTopic := pr.dlqTopicName
+	message := &kafka.Message{
+		Value:          payload,
+		TopicPartition: kafka.TopicPartition{Topic: &dlqTopic, Partition: kafka.PartitionAny},
+		Opaque:         deliveryMetadata{order: order, isDLQ: true},
+	}
+
+	if err := pr.kp.Produce(message, deliveryChannel); err != nil {
+		return fmt.Errorf("%v %s", err, dlqTopic)
+	}
+
+	return nil
 }
 
 // ProduceBulk messages to kafka. Block until all messages are sent. Return array of error. Order of Errors is guaranteed.
@@ -114,7 +152,7 @@ func (pr *Kafka) ProduceBulk(
 		message := &kafka.Message{
 			Value:          event.EventBytes,
 			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-			Opaque:         order,
+			Opaque:         deliveryMetadata{order: order},
 		}
 
 		logger.Debugf("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s, is_exclusive=%s",
@@ -142,6 +180,13 @@ func (pr *Kafka) ProduceBulk(
 			case errUnknownTopic:
 				errors[order] = fmt.Errorf("%v %s", err, topic)
 				errorTag = "TOPIC_NOT_FOUND"
+				dlqErr := pr.queueToDLQ(event, order, deliveryChannel)
+				if dlqErr != nil {
+					logger.Errorf("dlq publish failed on topic=%s: %v", pr.dlqTopicName, dlqErr)
+					metrics.Increment("dlq_publish_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s,reason=%s", connGroup, event.Type, "produce_failed"))
+				} else {
+					totalProcessed++
+				}
 			case errLargeMessageSize:
 				errors[order] = fmt.Errorf("%v %s", err, topic)
 				errorTag = "MESSAGE_TOO_LARGE"
@@ -175,15 +220,25 @@ func (pr *Kafka) ProduceBulk(
 		d := <-deliveryChannel
 		m := d.(*kafka.Message)
 
-		order, ok := m.Opaque.(int)
+		meta, ok := m.Opaque.(deliveryMetadata)
 		if !ok {
-			logger.Errorf("failed to cast kafka event opaque to int for conn_group=%s, skipping processing the delivery report for this message", connGroup)
+			logger.Errorf("failed to cast kafka event opaque to delivery metadata for conn_group=%s, skipping processing the delivery report for this message", connGroup)
 			continue
 		}
 
-		event := events[order]
+		event := events[meta.order]
+		if meta.isDLQ {
+			if m.TopicPartition.Error != nil {
+				logger.Errorf("dlq delivery report failed on topic=%s: %v", *m.TopicPartition.Topic, m.TopicPartition.Error)
+				metrics.Increment("dlq_publish_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s,reason=%s", connGroup, event.Type, "delivery_failed"))
+			} else {
+				metrics.Increment("dlq_publish_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, event.Type))
+			}
+			continue
+		}
+
 		if m.TopicPartition.Error != nil {
-			eventType := events[i].Type
+			eventType := event.Type
 			metrics.Decrement("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s", "delivery_failed", eventType, connGroup))
@@ -192,9 +247,9 @@ func (pr *Kafka) ProduceBulk(
 				"KAFKA_ERROR", event.EventName, strings.ReplaceAll(strings.ToLower(event.Product), "_", ""), connGroup, event.AppVersion, event.Platform,
 			)
 			metrics.Increment("clickstream_data_loss", tags)
-			errors[order] = m.TopicPartition.Error
+			errors[meta.order] = m.TopicPartition.Error
 		} else {
-			startTimeEvent := startTimeEvents[order]
+			startTimeEvent := startTimeEvents[meta.order]
 
 			// granular metric, el: event level
 			metrics.Timing("el_kafka_processing_duration_milliseconds", time.Since(startTimeEvent).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))

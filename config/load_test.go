@@ -97,6 +97,7 @@ func TestKafkaConfig_ToKafkaConfigMap(t *testing.T) {
 	os.Setenv("SOMETHING_PUBLISHER_KAFKA_CLIENT_SOMETHING", "anything")
 	os.Setenv("PUBLISHER_KAFKA_HEALTHCHECK_TOPIC_NAME", "test-log")
 	os.Setenv("PUBLISHER_KAFKA_HEALTHCHECK_TIMEOUT_MS", "5000")
+	os.Setenv("PUBLISHER_KAFKA_DLQ_TOPIC_NAME", "test-dlq")
 	publisherKafkaConfigLoader()
 	kafkaConfig := PublisherKafka.ToKafkaConfigMap()
 	bootstrapServer, _ := kafkaConfig.Get("bootstrap.servers", "")
@@ -108,6 +109,7 @@ func TestKafkaConfig_ToKafkaConfigMap(t *testing.T) {
 	assert.Equal(t, 4, len(*kafkaConfig))
 	assert.Equal(t, "test-log", PublisherKafka.HealthCheckConfig.TopicName)
 	assert.Equal(t, 5000, PublisherKafka.HealthCheckConfig.TimeOut)
+	assert.Equal(t, "test-dlq", PublisherKafka.DLQTopicName)
 }
 
 func TestPublisherKafkaConfig_EventTypePrefixMapping(t *testing.T) {
