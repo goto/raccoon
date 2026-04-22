@@ -277,6 +277,8 @@ func (pr *Kafka) ReportStats() {
 				continue
 			}
 			pr.reportBatchMetrics(stats)
+			metrics.Gauge("kafka_local_queue_messages", stats["msg_cnt"], "")
+			metrics.Gauge("kafka_local_queue_bytes", stats["msg_size"], "")
 			brokersRawJson, ok := stats["brokers"]
 			if !ok || brokersRawJson == nil {
 				logger.Errorf("kafka broker stats missing or null brokers field")
