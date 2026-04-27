@@ -103,6 +103,7 @@ func (pr *Kafka) ProduceBulk(
 	startTimeClient, startTimeServer, startTimeWorker time.Time,
 ) error {
 	startTimeEvents := make([]time.Time, len(events))
+	maxDeliveryChannelDepth := len(deliveryChannel)
 
 	errors := make([]error, len(events))
 	totalProcessed := 0
@@ -135,6 +136,9 @@ func (pr *Kafka) ProduceBulk(
 		startTimeEvents[order] = time.Now()
 
 		err := pr.kp.Produce(message, deliveryChannel)
+		if currentDepth := len(deliveryChannel); currentDepth > maxDeliveryChannelDepth {
+			maxDeliveryChannelDepth = currentDepth
+		}
 		if err != nil {
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, event.Type))
 			var errorTag string
@@ -169,6 +173,7 @@ func (pr *Kafka) ProduceBulk(
 		metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, event.Type))
 		totalProcessed++
 	}
+	metrics.Gauge("kafka_delivery_report_channel_depth", maxDeliveryChannelDepth, fmt.Sprintf("conn_group=%s", connGroup))
 
 	// Wait for deliveryChannel as many as processed
 	for i := 0; i < totalProcessed; i++ {
@@ -224,6 +229,7 @@ func (pr *Kafka) ReportStats() {
 			pr.reportBatchMetrics(stats)
 			metrics.Gauge("kafka_local_queue_messages", stats["msg_cnt"], "")
 			metrics.Gauge("kafka_local_queue_bytes", stats["msg_size"], "")
+			metrics.Gauge("kafka_replyq", stats["replyq"], "")
 			brokersRawJson, ok := stats["brokers"]
 			if !ok || brokersRawJson == nil {
 				logger.Errorf("kafka broker stats missing or null brokers field")
@@ -239,6 +245,8 @@ func (pr *Kafka) ReportStats() {
 
 				metrics.Gauge("kafka_brokers_tx_total", brokerStats["tx"], fmt.Sprintf("broker=%s", nodeName))
 				metrics.Gauge("kafka_brokers_tx_bytes_total", brokerStats["txbytes"], fmt.Sprintf("broker=%s", nodeName))
+				metrics.Gauge("kafka_brokers_outbuf_messages", brokerStats["outbuf_msg_cnt"], fmt.Sprintf("broker=%s", nodeName))
+				metrics.Gauge("kafka_brokers_waitresp_messages", brokerStats["waitresp_msg_cnt"], fmt.Sprintf("broker=%s", nodeName))
 				metrics.Gauge("kafka_brokers_rtt_average_milliseconds", rttValue["avg"], fmt.Sprintf("broker=%s", nodeName))
 			}
 
