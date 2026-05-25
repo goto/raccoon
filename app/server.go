@@ -12,6 +12,7 @@ import (
 
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/dedup"
 	"github.com/goto/raccoon/health"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
@@ -24,7 +25,14 @@ import (
 // StartServer starts the server
 func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
-	httpServices := services.Create(bufferChannel, initPolicy(), ctx)
+
+	dedupSvc, err := dedup.NewService(ctx)
+	if err != nil {
+		panic("error creating dedup service: " + err.Error())
+	}
+
+	httpServices := services.Create(ctx, bufferChannel, initPolicy(), dedupSvc)
+
 	logger.Info("Start Server -->")
 	httpServices.Start(ctx, cancel)
 	logger.Info("Start publisher -->")
@@ -44,10 +52,10 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	go shutDownServer(ctx, cancel, httpServices, bufferChannel, workerPool, kPublisher, shutdown, signalChan)
+	go shutDownServer(ctx, cancel, httpServices, dedupSvc, bufferChannel, workerPool, kPublisher, shutdown, signalChan)
 }
 
-func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices services.Services, bufferChannel chan collection.CollectRequest,
+func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices services.Services, dedupSvc *dedup.Service, bufferChannel chan collection.CollectRequest,
 	workerPool *worker.Pool, kp *publisher.Kafka, shutdown chan bool, signalChan chan os.Signal) {
 	for {
 		sig := <-signalChan
@@ -73,6 +81,10 @@ func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices
 
 			eventsInProducer := kp.Close()
 			eventCountInChannel := 0
+
+			if dedupSvc != nil {
+				dedupSvc.Close()
+			}
 
 			for req := range bufferChannel {
 				for _, event := range req.Events {

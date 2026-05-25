@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/dedup"
 	"github.com/goto/raccoon/services/mqtt"
 
 	"github.com/goto/raccoon/collection"
@@ -48,17 +49,17 @@ func (s *Services) Shutdown(ctx context.Context) {
 	}
 }
 
-func Create(b chan collection.CollectRequest, policy *policypkg.Service, ctx context.Context) Services {
+func Create(ctx context.Context, b chan collection.CollectRequest, policy *policypkg.Service, dedup *dedup.Service) Services {
 	c := collection.NewChannelCollector(b)
 	services := []bootstrapper{
-		grpc.NewGRPCService(c, policy),
+		grpc.NewGRPCService(c, policy, dedup),
 		pprof.NewPprofService(),
-		rest.NewRestService(c, policy, ctx),
+		rest.NewRestService(ctx, c, policy, dedup),
 	}
 
 	if config.ServerMQTT.Enable {
 		logger.Info("MQTT Service is enabled via config, initializing...")
-		services = append(services, mqtt.NewMQTTService(c, policy, ctx))
+		services = append(services, mqtt.NewMQTTService(ctx, c, policy, dedup))
 	} else {
 		logger.Info("MQTT Service is disabled via config")
 	}

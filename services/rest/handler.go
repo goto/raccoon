@@ -10,6 +10,7 @@ import (
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/dedup"
 	"github.com/goto/raccoon/deserialization"
 	"github.com/goto/raccoon/identification"
 	"github.com/goto/raccoon/logger"
@@ -31,9 +32,10 @@ type Handler struct {
 	serDeMap  map[string]*serDe
 	collector collection.Collector
 	policy    *policypkg.Service
+	dedup     *dedup.Service
 }
 
-func NewHandler(collector collection.Collector, policy *policypkg.Service) *Handler {
+func NewHandler(collector collection.Collector, policy *policypkg.Service, dedup *dedup.Service) *Handler {
 	serDeMap := make(map[string]*serDe)
 	serDeMap[ContentJSON] = &serDe{
 		serializer:   serialization.SerializeJSON,
@@ -48,6 +50,7 @@ func NewHandler(collector collection.Collector, policy *policypkg.Service) *Hand
 		serDeMap:  serDeMap,
 		collector: collector,
 		policy:    policy,
+		dedup:     dedup,
 	}
 }
 
@@ -133,7 +136,11 @@ func (h *Handler) RESTAPIHandler(rw http.ResponseWriter, r *http.Request) {
 	for _, e := range req.Events {
 		logger.Debugf("[rest.RESTAPIHandler] event: event_name=%s, product=%s, type=%s, event_timestamp=%s, req_guid=%s, conn_group=%s", e.EventName, e.Product, e.Type, e.GetEventTimestamp().AsTime(), req.ReqGuid, identifier.Group)
 	}
+
 	req.Events = h.policy.Apply(req.Events, identifier.Group)
+
+	req.Events = h.dedup.Apply(req.Events, identifier.Group)
+
 	resChannel := make(chan struct{}, 1)
 	h.collector.Collect(r.Context(), &collection.CollectRequest{
 		ConnectionIdentifier: identifier,

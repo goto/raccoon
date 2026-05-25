@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/goto/raccoon/constant"
+	"github.com/goto/raccoon/dedup"
 	"github.com/goto/raccoon/health"
 
 	"github.com/gorilla/mux"
@@ -23,16 +24,16 @@ type Service struct {
 	s         *http.Server
 }
 
-func NewRestService(c collection.Collector, policy *policypkg.Service, ctx context.Context) *Service {
+func NewRestService(ctx context.Context, c collection.Collector, policy *policypkg.Service, dedup *dedup.Service) *Service {
 	pingChannel := make(chan connection.Conn, config.ServerWs.ServerMaxConn)
-	wh := websocket.NewHandler(pingChannel, c, policy)
+	wh := websocket.NewHandler(pingChannel, c, policy, dedup)
 	go websocket.Pinger(ctx, pingChannel, config.ServerWs.PingerSize, config.ServerWs.PingInterval, config.ServerWs.WriteWaitInterval)
 
 	go reportConnectionMetrics(*wh.Table())
 
 	go websocket.AckHandler(websocket.AckChan)
 
-	restHandler := NewHandler(c, policy)
+	restHandler := NewHandler(c, policy, dedup)
 	router := mux.NewRouter()
 	router.Path("/ping").HandlerFunc(pingHandler).Methods(http.MethodGet)
 	subRouter := router.PathPrefix("/api/v1").Subrouter()

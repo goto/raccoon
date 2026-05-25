@@ -31,4 +31,7 @@ func Load() {
 	eventConfigLoader()
 	serverMQTTConfigLoader()
 	policyConfigLoader()
+	redisConfigLoader()
+	dedupConfigLoader()
+	stencilConfigLoader()
 }

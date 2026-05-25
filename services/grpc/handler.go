@@ -10,6 +10,7 @@ import (
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/dedup"
 	"github.com/goto/raccoon/identification"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
@@ -20,6 +21,7 @@ import (
 type Handler struct {
 	C      collection.Collector
 	policy *policypkg.Service
+	dedup  *dedup.Service
 	pbgrpc.UnimplementedEventServiceServer
 }
 
@@ -60,7 +62,10 @@ func (h *Handler) SendEvent(ctx context.Context, req *pb.SendEventRequest) (*pb.
 	for _, e := range req.Events {
 		logger.Debugf("[grpc.SendEvent] event: event_name=%s, product=%s, type=%s, event_timestamp=%s, req_guid=%s, conn_group=%s", e.EventName, e.Product, e.Type, e.GetEventTimestamp().AsTime(), req.ReqGuid, identifier.Group)
 	}
+
 	req.Events = h.policy.Apply(req.Events, identifier.Group)
+
+	req.Events = h.dedup.Apply(req.Events, identifier.Group)
 
 	responseChannel := make(chan *pb.SendEventResponse, 1)
 	h.C.Collect(ctx, &collection.CollectRequest{

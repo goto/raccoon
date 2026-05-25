@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/dedup"
 	"github.com/goto/raccoon/deserialization"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
@@ -24,9 +25,10 @@ type serDe struct {
 type Handler struct {
 	upgrader    *connection.Upgrader
 	serdeMap    map[int]*serDe
+	PingChannel chan connection.Conn
 	collector   collection.Collector
 	policy      *policypkg.Service
-	PingChannel chan connection.Conn
+	dedup       *dedup.Service
 }
 
 func getSerDeMap() map[int]*serDe {
@@ -43,7 +45,7 @@ func getSerDeMap() map[int]*serDe {
 	return serDeMap
 }
 
-func NewHandler(pingC chan connection.Conn, collector collection.Collector, policy *policypkg.Service) *Handler {
+func NewHandler(pingC chan connection.Conn, collector collection.Collector, policy *policypkg.Service, dedup *dedup.Service) *Handler {
 	ugConfig := connection.UpgraderConfig{
 		ReadBufferSize:    config.ServerWs.ReadBufferSize,
 		WriteBufferSize:   config.ServerWs.WriteBufferSize,
@@ -63,6 +65,7 @@ func NewHandler(pingC chan connection.Conn, collector collection.Collector, poli
 		PingChannel: pingC,
 		collector:   collector,
 		policy:      policy,
+		dedup:       dedup,
 	}
 }
 
@@ -124,7 +127,11 @@ func (h *Handler) HandlerWSEvents(w http.ResponseWriter, r *http.Request) {
 		for _, e := range payload.Events {
 			logger.Debugf("[websocket.Handler] event: event_name=%s, product=%s, type=%s, event_timestamp=%s, req_guid=%s, conn_group=%s", e.EventName, e.Product, e.Type, e.GetEventTimestamp().AsTime(), payload.ReqGuid, conn.Identifier.Group)
 		}
+
 		payload.Events = h.policy.Apply(payload.Events, conn.Identifier.Group)
+
+		payload.Events = h.dedup.Apply(payload.Events, conn.Identifier.Group)
+
 		h.collector.Collect(r.Context(), &collection.CollectRequest{
 			ConnectionIdentifier: conn.Identifier,
 			TimeConsumed:         timeConsumed,

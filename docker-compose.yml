@@ -49,6 +49,7 @@ services:
     depends_on:
       - kafka
       - telegraf
+      - redis
     environment:
       SERVER_WEBSOCKET_PORT: "8080"
       SERVER_WEBSOCKET_CHECK_ORIGIN: "true"
@@ -77,6 +78,26 @@ services:
       METRIC_STATSD_ADDRESS: "telegraf:8125"
       METRIC_STATSD_FLUSH_PERIOD_MS: 100
       LOG_LEVEL: "info"
+      DEDUP_ENABLED: "true"
+      DEDUP_WHITELIST_CONN_GROUP: "group-whitelisted"
+      DEDUP_IDENTIFIER_MAPPING: '{"click-publisher":{"user_id":"user.id","session_id":"session.id"}}'
+      DEDUP_PROTO_CLASS_NAME_MAPPING: '{"click-event-type":"ClickEventProto"}'
+      REDIS_TYPE: "standalone"
+      REDIS_ADDRESS: "redis:6379"
+      REDIS_USERNAME: ""
+      REDIS_PASSWORD: ""
+      REDIS_POOL_SIZE: 1000
+      REDIS_RETRY_MAX: 3
+      REDIS_RETRY_MIN_BACKOFF: "1s"
+      REDIS_RETRY_MAX_BACKOFF: "30s"
+      REDIS_SENTINEL_MASTER_NAME: ""
+      STENCIL_URL: ""
+      STENCIL_AUTO_REFRESH: "true"
+      STENCIL_REFRESH_INTERVAL: "12h"
+      STENCIL_HTTP_TIMEOUT: "15s"
+      STENCIL_MAX_RETRY_ATTEMPTS: 3
+      STENCIL_MIN_JITTER_INTERVAL: "1s"
+      STENCIL_EXPONENT_FACTOR: 1.5
     ports:
       - "8080:8080"
       - "8081:8081"
@@ -88,5 +109,14 @@ services:
     - ./.telegraf.sample.conf:/etc/telegraf/telegraf.conf:ro
     ports:
       - "8125:8125"
+    networks:
+      - cs-network
+
+  redis:
+    image: redis:7-alpine
+    hostname: redis
+    container_name: redis
+    ports:
+      - "6379:6379"
     networks:
       - cs-network

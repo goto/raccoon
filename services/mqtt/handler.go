@@ -10,6 +10,7 @@ import (
 
 	"github.com/gojek/courier-go"
 	"github.com/goto/raccoon/collection"
+	"github.com/goto/raccoon/dedup"
 	"github.com/goto/raccoon/identification"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
@@ -22,6 +23,7 @@ import (
 type Handler struct {
 	Collector collection.Collector
 	policy    *policypkg.Service
+	dedup     *dedup.Service
 }
 
 // MQTTHandler handles incoming MQTT messages, decodes them, records metrics,
@@ -59,7 +61,10 @@ func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *co
 	for _, e := range req.Events {
 		logger.Debugf("[mqtt.MQTTHandler] event: event_name=%s, product=%s, type=%s, event_timestamp=%s, req_guid=%s, conn_group=%s", e.EventName, e.Product, e.Type, e.GetEventTimestamp().AsTime(), req.ReqGuid, connGroup)
 	}
+
 	req.Events = h.policy.Apply(req.Events, connGroup)
+
+	req.Events = h.dedup.Apply(req.Events, connGroup)
 
 	timing_event_received := start.Sub(req.GetSentTime().AsTime()).Milliseconds()
 	metrics.Timing("event_received_duration_milliseconds", timing_event_received, fmt.Sprintf("conn_group=%s", connGroup))

@@ -28,6 +28,11 @@ func MustGetBool(key string) bool {
 	return viper.GetBool(key)
 }
 
+func MustGetStringSlice(key string) []string {
+	mustHave(key)
+	return viper.GetStringSlice(key)
+}
+
 func MustGetDuration(key string, d time.Duration) time.Duration {
 	return d * time.Duration(MustGetInt(key))
 }
