@@ -28,7 +28,9 @@ func NewStencilClient() (StencilClient, error) {
 	var err error
 
 	for attempt := range config.StencilCfg.MaxRetry {
-		stencilClient, err := stencil.NewClient([]string{config.StencilCfg.URL}, opts)
+		var stencilClient stencil.Client
+
+		stencilClient, err = stencil.NewClient([]string{config.StencilCfg.URL}, opts)
 		if err == nil {
 			return StencilClient{
 				Client: stencilClient,

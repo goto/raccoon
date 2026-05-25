@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/goto/raccoon/cache"
 	"github.com/goto/raccoon/clients"
@@ -17,14 +19,21 @@ import (
 
 const (
 	metricNameEventDeserializationError = "event_deserialization_error"
+	metricNameDedupDuration             = "dedup_duration"
 )
 
 const (
 	reasonStencilParseError = "stencil parse error"
 	reasonPublisherNotFound = "publisher not found"
+
 	reasonUserIDNotFound    = "userID not found"
-	reasonSessionIDNotFound = "sessionID not found"
-	reasonEventGUIDNotFound = "eventGUID not found"
+	reasonUserIDTypeInvalid = "userID type invalid"
+
+	reasonSessionIDNotFound    = "sessionID not found"
+	reasonSessionIDTypeInvalid = "sessionID type invalid"
+
+	reasonEventGUIDNotFound    = "eventGUID not found"
+	reasonEventGUIDTypeInvalid = "eventGUID type invalid"
 )
 
 // DuplicateChecker defines the capability to verify event uniqueness.
@@ -63,6 +72,8 @@ func (s *Service) Apply(events []*pb.Event, connGroup string) []*pb.Event {
 		return events
 	}
 
+	startTime := time.Now()
+
 	if _, isWhitelisted := config.DedupCfg.WhitelistConnGroup[connGroup]; !isWhitelisted {
 		return events
 	}
@@ -76,11 +87,8 @@ func (s *Service) Apply(events []*pb.Event, connGroup string) []*pb.Event {
 			continue
 		}
 
-		// Perform the atomic cache lookup & set transaction
 		isDuplicate, cacheErr := s.checker.IsDuplicate(context.Background(), meta)
 		if cacheErr != nil {
-			// Fail-open strategy: If Redis fails, log the error but let the event pass
-			// to guarantee ingestion availability under cache infrastructure pressure.
 			logger.Errorf("dedup: cache verification failed, bypassing filter: %v", cacheErr)
 			uniqueEvents = append(uniqueEvents, event)
 			continue
@@ -93,7 +101,18 @@ func (s *Service) Apply(events []*pb.Event, connGroup string) []*pb.Event {
 		uniqueEvents = append(uniqueEvents, event)
 	}
 
+	metrics.Timing(metricNameDedupDuration, time.Since(startTime).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
+
 	return uniqueEvents
+}
+
+// Close closes the duplicate checker.
+func (s *Service) Close() {
+	if s.checker != nil {
+		if err := s.checker.Close(); err != nil {
+			logger.Errorf("failed to close duplicate checker: %v", err)
+		}
+	}
 }
 
 // extractMetadata deserializes dynamic protobuf payloads using Stencil and handles identity field extractions.
@@ -116,32 +135,21 @@ func (s *Service) extractMetadata(event *pb.Event, connGroup string) (cache.Even
 	userIdentifier := config.DedupCfg.PublisherIdentifierMapping[publisher]
 	ref := parsedMsg.ProtoReflect()
 
-	rawUserID, ok := protoutil.GetFieldValue(ref, strings.Split(userIdentifier.UserID, "."))
-	if !ok {
-		metrics.Increment(metricNameEventDeserializationError,
-			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,event_name=%s,product=%s", connGroup, reasonUserIDNotFound, event.Type, event.EventName, event.Product))
-		return cache.EventMetadata{}, fmt.Errorf("failed to find userID for %q conn_group", connGroup)
+	userID, err := s.getStringField(ref, userIdentifier.UserID, connGroup, event, "userID", reasonUserIDNotFound, reasonUserIDTypeInvalid)
+	if err != nil {
+		return cache.EventMetadata{}, err
 	}
 
-	rawSessionID, ok := protoutil.GetFieldValue(ref, strings.Split(userIdentifier.SessionID, "."))
-	if !ok {
-		metrics.Increment(metricNameEventDeserializationError,
-			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,event_name=%s,product=%s", connGroup, reasonSessionIDNotFound, event.Type, event.EventName, event.Product))
-		return cache.EventMetadata{}, fmt.Errorf("failed to find sessionID for %q conn_group", connGroup)
+	sessionID, err := s.getStringField(ref, userIdentifier.SessionID, connGroup, event, "sessionID", reasonSessionIDNotFound, reasonSessionIDTypeInvalid)
+	if err != nil {
+		return cache.EventMetadata{}, err
 	}
 
 	const eventGUIDProtoField = "meta.event_guid"
-
-	rawEventGUID, ok := protoutil.GetFieldValue(ref, strings.Split(eventGUIDProtoField, "."))
-	if !ok {
-		metrics.Increment(metricNameEventDeserializationError,
-			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,event_name=%s,product=%s", connGroup, reasonEventGUIDNotFound, event.Type, event.EventName, event.Product))
-		return cache.EventMetadata{}, fmt.Errorf("failed to find eventGUID for %q conn_group", connGroup)
+	eventGuid, err := s.getStringField(ref, eventGUIDProtoField, connGroup, event, "eventGUID", reasonEventGUIDNotFound, reasonEventGUIDTypeInvalid)
+	if err != nil {
+		return cache.EventMetadata{}, err
 	}
-
-	userID, _ := rawUserID.(string)
-	sessionID, _ := rawSessionID.(string)
-	eventGuid, _ := rawEventGUID.(string)
 
 	return cache.EventMetadata{
 		EventGUID: eventGuid,
@@ -150,10 +158,29 @@ func (s *Service) extractMetadata(event *pb.Event, connGroup string) (cache.Even
 	}, nil
 }
 
-func (s *Service) Close() {
-	if s.checker != nil {
-		if err := s.checker.Close(); err != nil {
-			logger.Errorf("failed to close duplicate checker: %v", err)
-		}
+// getStringField is a helper function to safely extract, type-assert, and handle error telemetry for string fields.
+func (s *Service) getStringField(
+	ref protoreflect.Message,
+	path string,
+	connGroup string,
+	event *pb.Event,
+	fieldName string,
+	reasonNotFound string,
+	reasonTypeInvalid string,
+) (string, error) {
+	rawVal, ok := protoutil.GetFieldValue(ref, strings.Split(path, "."))
+	if !ok {
+		metrics.Increment(metricNameEventDeserializationError,
+			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,event_name=%s,product=%s", connGroup, reasonNotFound, event.Type, event.EventName, event.Product))
+		return "", fmt.Errorf("failed to find %s for %q conn_group", fieldName, connGroup)
 	}
+
+	val, ok := rawVal.(string)
+	if !ok {
+		metrics.Increment(metricNameEventDeserializationError,
+			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,event_name=%s,product=%s", connGroup, reasonTypeInvalid, event.Type, event.EventName, event.Product))
+		return "", fmt.Errorf("%s field is not a string for %q conn_group", fieldName, connGroup)
+	}
+
+	return val, nil
 }
