@@ -19,7 +19,7 @@ const (
 )
 
 // initRedisMetricPublisher initializes a goroutine to report the redis pool stats to statsD at regular intervals.
-func initRedisMetricPublisher(ctx context.Context, redisClient *redis.Client, metricPushInterval time.Duration,
+func initRedisMetricPublisher(ctx context.Context, redisClient redis.UniversalClient, metricPushInterval time.Duration,
 ) {
 	reportStats(redisClient)
 
@@ -37,7 +37,7 @@ func initRedisMetricPublisher(ctx context.Context, redisClient *redis.Client, me
 }
 
 // reportStats reports the redis pool stats to statsD.
-func reportStats(redisClient *redis.Client) {
+func reportStats(redisClient redis.UniversalClient) {
 	poolStats := redisClient.PoolStats()
 	metrics.Gauge(redisPoolHitsMetric, uint64(poolStats.Hits), "")
 	metrics.Gauge(redisPoolMissesMetric, uint64(poolStats.Misses), "")
