@@ -32,7 +32,7 @@ func stencilConfigLoader() {
 	viper.SetDefault("STENCIL_REFRESH_INTERVAL", "12h")
 	viper.SetDefault("STENCIL_HTTP_TIMEOUT", "15s")
 	viper.SetDefault("STENCIL_MAX_RETRY", 3)
-	viper.SetDefault("STENCIL_MIN_JITTER_INTERVAL", "1s")
+	viper.SetDefault("STENCIL_MAX_JITTER_INTERVAL", "1s")
 	viper.SetDefault("STENCIL_EXPONENT_FACTOR", 1.5)
 
 	StencilCfg = stencilConfig{
