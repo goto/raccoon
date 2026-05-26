@@ -6,15 +6,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/goto/raccoon/constant"
-	"github.com/goto/raccoon/dedup"
-	"github.com/goto/raccoon/health"
-
 	"github.com/gorilla/mux"
+
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/constant"
+	"github.com/goto/raccoon/health"
+	"github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/metrics"
-	policypkg "github.com/goto/raccoon/policy"
 	"github.com/goto/raccoon/services/rest/websocket"
 	"github.com/goto/raccoon/services/rest/websocket/connection"
 )
@@ -24,16 +23,16 @@ type Service struct {
 	s         *http.Server
 }
 
-func NewRestService(ctx context.Context, c collection.Collector, policy *policypkg.Service, dedup *dedup.Service) *Service {
+func NewRestService(ctx context.Context, c collection.Collector, ingestionRule *ingestionrule.Service) *Service {
 	pingChannel := make(chan connection.Conn, config.ServerWs.ServerMaxConn)
-	wh := websocket.NewHandler(pingChannel, c, policy, dedup)
+	wh := websocket.NewHandler(pingChannel, c, ingestionRule)
 	go websocket.Pinger(ctx, pingChannel, config.ServerWs.PingerSize, config.ServerWs.PingInterval, config.ServerWs.WriteWaitInterval)
 
 	go reportConnectionMetrics(*wh.Table())
 
 	go websocket.AckHandler(websocket.AckChan)
 
-	restHandler := NewHandler(c, policy, dedup)
+	restHandler := NewHandler(c, ingestionRule)
 	router := mux.NewRouter()
 	router.Path("/ping").HandlerFunc(pingHandler).Methods(http.MethodGet)
 	subRouter := router.PathPrefix("/api/v1").Subrouter()

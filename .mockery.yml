@@ -10,11 +10,7 @@ recursive: true
 require-template-schema-exists: true
 template-schema: '{{.Template}}.schema.json'
 packages:
-  github.com/goto/raccoon/cache:
-    config:
-      all: true
-      structname: '{{.InterfaceName}}'
-  github.com/goto/raccoon/dedup:
+  github.com/goto/raccoon/ingestionrule:
     config:
       all: true
       structname: '{{.InterfaceName}}'

@@ -10,11 +10,10 @@ import (
 
 	"github.com/gojek/courier-go"
 	"github.com/goto/raccoon/collection"
-	"github.com/goto/raccoon/dedup"
 	"github.com/goto/raccoon/identification"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
-	policypkg "github.com/goto/raccoon/policy"
+	policypkg "github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/serialization"
 	"google.golang.org/protobuf/proto"
 )
@@ -23,7 +22,6 @@ import (
 type Handler struct {
 	Collector collection.Collector
 	policy    *policypkg.Service
-	dedup     *dedup.Service
 }
 
 // MQTTHandler handles incoming MQTT messages, decodes them, records metrics,
@@ -63,8 +61,6 @@ func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *co
 	}
 
 	req.Events = h.policy.Apply(req.Events, connGroup)
-
-	req.Events = h.dedup.Apply(req.Events, connGroup)
 
 	timing_event_received := start.Sub(req.GetSentTime().AsTime()).Milliseconds()
 	metrics.Timing("event_received_duration_milliseconds", timing_event_received, fmt.Sprintf("conn_group=%s", connGroup))

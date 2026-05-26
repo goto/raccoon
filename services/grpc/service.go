@@ -6,16 +6,15 @@ import (
 	"fmt"
 	"net"
 
+	pbgrpc "buf.build/gen/go/gotocompany/proton/grpc/go/gotocompany/raccoon/v1beta1/raccoonv1beta1grpc"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 
-	pbgrpc "buf.build/gen/go/gotocompany/proton/grpc/go/gotocompany/raccoon/v1beta1/raccoonv1beta1grpc"
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
-	"github.com/goto/raccoon/dedup"
-	policypkg "github.com/goto/raccoon/policy"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/health/grpc_health_v1"
+	"github.com/goto/raccoon/ingestionrule"
 )
 
 type Service struct {
@@ -23,9 +22,9 @@ type Service struct {
 	s         *grpc.Server
 }
 
-func NewGRPCService(c collection.Collector, policy *policypkg.Service, dedup *dedup.Service) *Service {
+func NewGRPCService(c collection.Collector, ingestionrule *ingestionrule.Service) *Service {
 	server := newGRPCServer()
-	pbgrpc.RegisterEventServiceServer(server, &Handler{C: c, policy: policy, dedup: dedup})
+	pbgrpc.RegisterEventServiceServer(server, &Handler{C: c, ingestionrule: ingestionrule})
 	grpc_health_v1.RegisterHealthServer(server, health.NewServer())
 	return &Service{
 		s:         server,

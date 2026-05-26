@@ -12,11 +12,11 @@ import (
 
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
-	"github.com/goto/raccoon/dedup"
 	"github.com/goto/raccoon/health"
+	"github.com/goto/raccoon/ingestionrule"
+	"github.com/goto/raccoon/ingestionrule/action/dedup"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
-	"github.com/goto/raccoon/policy"
 	"github.com/goto/raccoon/publisher"
 	"github.com/goto/raccoon/services"
 	"github.com/goto/raccoon/worker"
@@ -26,12 +26,9 @@ import (
 func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
 
-	dedupSvc, err := dedup.NewService(ctx)
-	if err != nil {
-		panic("error creating dedup service: " + err.Error())
-	}
+	ingestionRuleSvc := initIngestionRule(ctx)
 
-	httpServices := services.Create(ctx, bufferChannel, initPolicy(), dedupSvc)
+	httpServices := services.Create(ctx, bufferChannel, ingestionRuleSvc)
 
 	logger.Info("Start Server -->")
 	httpServices.Start(ctx, cancel)
@@ -52,10 +49,10 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	go shutDownServer(ctx, cancel, httpServices, dedupSvc, bufferChannel, workerPool, kPublisher, shutdown, signalChan)
+	go shutDownServer(ctx, cancel, httpServices, ingestionRuleSvc, bufferChannel, workerPool, kPublisher, shutdown, signalChan)
 }
 
-func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices services.Services, dedupSvc *dedup.Service, bufferChannel chan collection.CollectRequest,
+func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices services.Services, ingestionRuleSvc *ingestionrule.Service, bufferChannel chan collection.CollectRequest,
 	workerPool *worker.Pool, kp *publisher.Kafka, shutdown chan bool, signalChan chan os.Signal) {
 	for {
 		sig := <-signalChan
@@ -82,8 +79,8 @@ func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices
 			eventsInProducer := kp.Close()
 			eventCountInChannel := 0
 
-			if dedupSvc != nil {
-				dedupSvc.Close()
+			if ingestionRuleSvc != nil {
+				ingestionRuleSvc.Close()
 			}
 
 			for req := range bufferChannel {
@@ -132,18 +129,27 @@ func reportProcMetrics() {
 	}
 }
 
-// initPolicy builds a *policy.Service when POLICY_ENABLED=true.
-// Returns nil when policy is disabled; a nil *policy.Service is safe (Apply is a no-op).
-func initPolicy() *policy.Service {
+// initIngestionRule builds a *ingestionrule.Service when POLICY_ENABLED=true.
+// Returns nil when policy is disabled; a nil *ingestionrule.Service is safe (Apply is a no-op).
+func initIngestionRule(ctx context.Context) *ingestionrule.Service {
 	if !config.PolicyCfg.Enabled {
-		logger.Info("Policy enforcement disabled")
+		logger.Info("ingestionRule enforcement disabled")
 		return nil
 	}
-	svc := policy.NewService(
+
+	dedupSvc, err := dedup.NewService(ctx)
+	if err != nil {
+		panic("error creating dedup service: " + err.Error())
+	}
+
+	svc := ingestionrule.NewService(
 		config.PolicyCfg.Rules,
 		config.PolicyCfg.OverrideEventType,
+		dedupSvc,
 	)
-	logger.Infof("Policy enforcement enabled: loaded %d rules, override event type=%s", len(config.PolicyCfg.Rules), config.PolicyCfg.OverrideEventType)
+
+	logger.Infof("ingestionRule enforcement enabled: loaded %d rules, override event type=%s", len(config.PolicyCfg.Rules), config.PolicyCfg.OverrideEventType)
+
 	return svc
 }
 

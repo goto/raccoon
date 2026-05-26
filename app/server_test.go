@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/goto/raccoon/publisher"
-	"github.com/goto/raccoon/services"
-	"github.com/goto/raccoon/worker"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 
 	"github.com/goto/raccoon/collection"
+	"github.com/goto/raccoon/publisher"
+	"github.com/goto/raccoon/services"
+	"github.com/goto/raccoon/worker"
 )
 
 func TestShutDownServer(t *testing.T) {
@@ -28,7 +28,7 @@ func TestShutDownServer(t *testing.T) {
 	shutdownCh := make(chan bool, 1)
 	bufferCh := make(chan collection.CollectRequest, 1)
 
-	httpServices := services.Create(ctx, bufferCh, nil, nil)
+	httpServices := services.Create(ctx, bufferCh, nil)
 
 	wp := worker.CreateWorkerPool(1, bufferCh, 1, kp)
 
