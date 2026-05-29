@@ -6,16 +6,19 @@ import (
 	"github.com/spf13/viper"
 )
 
-const (
-	RedisSentinel   = "sentinel"
-	RedisStandalone = "standalone"
-)
-
 // RedisCfg holds runtime configuration for the Redis clients.
 var RedisCfg redisConfig
 
+// RedisType represents the type of Redis deployment.
+type RedisType = string
+
+const (
+	RedisTypeSentinel   RedisType = "sentinel"
+	RedisTypeStandalone RedisType = "standalone"
+)
+
 type redisConfig struct {
-	Type               string
+	Type               RedisType
 	Address            string
 	Username           string
 	Password           string
@@ -31,7 +34,7 @@ type retryConfig struct {
 }
 
 func redisConfigLoader() {
-	viper.SetDefault("REDIS_TYPE", RedisStandalone)
+	viper.SetDefault("REDIS_TYPE", RedisTypeStandalone)
 	viper.SetDefault("REDIS_ADDRESS", "localhost:6379")
 	viper.SetDefault("REDIS_USERNAME", "")
 	viper.SetDefault("REDIS_PASSWORD", "")

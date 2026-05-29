@@ -83,6 +83,59 @@ func (_c *Client_Close_Call) RunAndReturn(run func() error) *Client_Close_Call {
 	return _c
 }
 
+// Ping provides a mock function for the type Client
+func (_mock *Client) Ping(ctx context.Context) *redis.StatusCmd {
+	ret := _mock.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Ping")
+	}
+
+	var r0 *redis.StatusCmd
+	if returnFunc, ok := ret.Get(0).(func(context.Context) *redis.StatusCmd); ok {
+		r0 = returnFunc(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*redis.StatusCmd)
+		}
+	}
+	return r0
+}
+
+// Client_Ping_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Ping'
+type Client_Ping_Call struct {
+	*mock.Call
+}
+
+// Ping is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *Client_Expecter) Ping(ctx interface{}) *Client_Ping_Call {
+	return &Client_Ping_Call{Call: _e.mock.On("Ping", ctx)}
+}
+
+func (_c *Client_Ping_Call) Run(run func(ctx context.Context)) *Client_Ping_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *Client_Ping_Call) Return(statusCmd *redis.StatusCmd) *Client_Ping_Call {
+	_c.Call.Return(statusCmd)
+	return _c
+}
+
+func (_c *Client_Ping_Call) RunAndReturn(run func(ctx context.Context) *redis.StatusCmd) *Client_Ping_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SetNX provides a mock function for the type Client
 func (_mock *Client) SetNX(ctx context.Context, key string, value any, expiration time.Duration) *redis.BoolCmd {
 	ret := _mock.Called(ctx, key, value, expiration)

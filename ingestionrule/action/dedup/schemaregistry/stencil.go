@@ -25,9 +25,14 @@ func NewStencilClient() (StencilClient, error) {
 		},
 	}
 
+	maxRetry := config.StencilCfg.MaxRetry
+	if maxRetry <= 0 {
+		return StencilClient{}, fmt.Errorf("invalid configuration: max retry must be greater than 0 (got %d)", maxRetry)
+	}
+
 	var err error
 
-	for attempt := range config.StencilCfg.MaxRetry {
+	for attempt := range maxRetry {
 		var stencilClient stencil.Client
 
 		stencilClient, err = stencil.NewClient([]string{config.StencilCfg.URL}, opts)
@@ -38,7 +43,7 @@ func NewStencilClient() (StencilClient, error) {
 		}
 
 		// Don't sleep after the final attempt has failed
-		if attempt == config.StencilCfg.MaxRetry-1 {
+		if attempt == maxRetry-1 {
 			break
 		}
 
@@ -57,8 +62,6 @@ func NewStencilClient() (StencilClient, error) {
 		time.Sleep(sleepDuration)
 	}
 
-	return StencilClient{
-			Client: nil,
-		},
-		fmt.Errorf("failed to create stencil client after %d attempts: %w", config.StencilCfg.MaxRetry, err)
+	return StencilClient{},
+		fmt.Errorf("failed to create stencil client after %d attempts: %w", maxRetry, err)
 }

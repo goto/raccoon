@@ -66,3 +66,16 @@ func TestStore_Close(t *testing.T) {
 	assert.NoError(t, err)
 	mockClient.AssertExpectations(t)
 }
+
+func TestStore_HealthCheck(t *testing.T) {
+	ctx := context.Background()
+	mockClient := mocks.NewClient(t)
+	statusCmd := redis.NewStatusResult("PONG", nil)
+	mockClient.On("Ping", ctx).Return(statusCmd)
+
+	s := &Store{client: mockClient, ctx: ctx}
+	err := s.HealthCheck()
+
+	assert.NoError(t, err)
+	mockClient.AssertExpectations(t)
+}

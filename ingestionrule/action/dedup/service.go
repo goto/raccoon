@@ -21,8 +21,9 @@ const (
 )
 
 const (
-	reasonStencilParseError = "stencil parse error"
-	reasonPublisherNotFound = "publisher not found"
+	reasonProtoClassNotFound = "proto class not found"
+	reasonStencilParseError  = "stencil parse error"
+	reasonPublisherNotFound  = "publisher not found"
 
 	reasonUserIDNotFound    = "userID not found"
 	reasonUserIDTypeInvalid = "userID type invalid"
@@ -39,6 +40,7 @@ const (
 //go:generate  mockery --name=DuplicateChecker --with-expecter --output=./mocks
 type DuplicateChecker interface {
 	IsDuplicate(ctx context.Context, event cache.EventMetadata) (bool, error)
+	HealthCheck() error
 	Close() error
 }
 
@@ -58,11 +60,23 @@ func NewService(ctx context.Context) (*Service, error) {
 		return nil, err
 	}
 
-	return &Service{
+	cacheClient, err := cache.NewRedisCache(ctx, config.MetricStatsd.FlushPeriodMs)
+	if err != nil {
+		return nil, err
+	}
+
+	store, err := cache.NewStore(ctx, cacheClient)
+	if err != nil {
+		return nil, err
+	}
+
+	s := &Service{
 		stencil:          stencil,
 		publisherMapping: config.PolicyCfg.PublisherMapping,
-		checker:          cache.NewStore(ctx),
-	}, nil
+		checker:          store,
+	}
+
+	return s, nil
 }
 
 func (s *Service) Apply(events []*pb.Event, connGroup string) []*pb.Event {
@@ -109,9 +123,24 @@ func (s *Service) Close() {
 	}
 }
 
+// HealthCheck checks the health of the duplicate checker.
+func (s *Service) HealthCheck() error {
+	if s == nil || s.checker == nil {
+		return nil
+	}
+
+	return s.checker.HealthCheck()
+}
+
 // extractMetadata deserializes dynamic protobuf payloads using Stencil and handles identity field extractions.
 func (s *Service) extractMetadata(event *pb.Event, connGroup string) (cache.EventMetadata, error) {
-	protoClass := config.DedupCfg.ProtoClassNameMapping[event.Type]
+	protoClass, ok := config.DedupCfg.ProtoClassNameMapping[event.Type]
+	if !ok {
+		metrics.Increment(metricNameEventDeserializationError,
+			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,event_name=%s,product=%s", connGroup, reasonProtoClassNotFound, event.Type, event.EventName, event.Product))
+		return cache.EventMetadata{}, fmt.Errorf("failed to find proto class for %q event type", event.Type)
+	}
+
 	parsedMsg, err := s.stencil.Client.Parse(protoClass, event.EventBytes)
 	if err != nil {
 		metrics.Increment(metricNameEventDeserializationError,

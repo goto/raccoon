@@ -39,10 +39,10 @@ func initRedisMetricPublisher(ctx context.Context, redisClient redis.UniversalCl
 // reportStats reports the redis pool stats to statsD.
 func reportStats(redisClient redis.UniversalClient) {
 	poolStats := redisClient.PoolStats()
-	metrics.Gauge(redisPoolHitsMetric, uint64(poolStats.Hits), "")
-	metrics.Gauge(redisPoolMissesMetric, uint64(poolStats.Misses), "")
-	metrics.Gauge(redisPoolTimeoutsMetric, uint64(poolStats.Timeouts), "")
-	metrics.Gauge(redisPoolTotalConnectionMetric, uint64(poolStats.TotalConns), "")
-	metrics.Gauge(redisPoolIdleConnectionMetric, uint64(poolStats.IdleConns), "")
-	metrics.Gauge(redisPoolStaleConnectionMetric, uint64(poolStats.StaleConns), "")
+	metrics.Gauge(redisPoolHitsMetric, poolStats.Hits, "")
+	metrics.Gauge(redisPoolMissesMetric, poolStats.Misses, "")
+	metrics.Gauge(redisPoolTimeoutsMetric, poolStats.Timeouts, "")
+	metrics.Gauge(redisPoolTotalConnectionMetric, poolStats.TotalConns, "")
+	metrics.Gauge(redisPoolIdleConnectionMetric, poolStats.IdleConns, "")
+	metrics.Gauge(redisPoolStaleConnectionMetric, poolStats.StaleConns, "")
 }

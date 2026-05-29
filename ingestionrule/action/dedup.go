@@ -10,6 +10,8 @@ import (
 )
 
 // DedupService defines the contract for event deduplication.
+//
+//go:generate  mockery --name=DedupService --with-expecter --output=./mocks
 type DedupService interface {
 	Apply(events []*pb.Event, connGroup string) []*pb.Event
 }

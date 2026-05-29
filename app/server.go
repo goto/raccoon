@@ -26,7 +26,12 @@ import (
 func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
 
-	ingestionRuleSvc := initIngestionRule(ctx)
+	dedupSvc, err := dedup.NewService(ctx)
+	if err != nil {
+		panic("error creating dedup service: " + err.Error())
+	}
+
+	ingestionRuleSvc := initIngestionRule(dedupSvc)
 
 	httpServices := services.Create(ctx, bufferChannel, ingestionRuleSvc)
 
@@ -39,7 +44,9 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 		logger.Info("Exiting server")
 		os.Exit(0)
 	}
-	registerHealthCheck(httpServices, kPublisher)
+
+	registerHealthCheck(httpServices, kPublisher, dedupSvc)
+
 	logger.Info("Start worker -->")
 	workerPool := worker.CreateWorkerPool(config.Worker.WorkersPoolSize, bufferChannel, config.Worker.DeliveryChannelSize, kPublisher)
 	workerPool.StartWorkers()
@@ -131,15 +138,10 @@ func reportProcMetrics() {
 
 // initIngestionRule builds a *ingestionrule.Service when POLICY_ENABLED=true.
 // Returns nil when policy is disabled; a nil *ingestionrule.Service is safe (Apply is a no-op).
-func initIngestionRule(ctx context.Context) *ingestionrule.Service {
+func initIngestionRule(dedupSvc *dedup.Service) *ingestionrule.Service {
 	if !config.PolicyCfg.Enabled {
 		logger.Info("ingestionRule enforcement disabled")
 		return nil
-	}
-
-	dedupSvc, err := dedup.NewService(ctx)
-	if err != nil {
-		panic("error creating dedup service: " + err.Error())
 	}
 
 	svc := ingestionrule.NewService(
@@ -153,8 +155,10 @@ func initIngestionRule(ctx context.Context) *ingestionrule.Service {
 	return svc
 }
 
-func registerHealthCheck(svcs services.Services, kafka *publisher.Kafka) {
+func registerHealthCheck(svcs services.Services, kafka *publisher.Kafka, dedupSvc *dedup.Service) {
 	health.Register("kafka-broker", kafka.HealthCheck)
+	health.Register("redis", dedupSvc.HealthCheck)
+
 	for _, svc := range svcs.B {
 		if svc.Name() == "MQTT" {
 			health.Register("mqtt-broker", svc.HealthCheck)

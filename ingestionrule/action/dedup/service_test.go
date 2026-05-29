@@ -244,12 +244,12 @@ func (m *mockMessage) ProtoReflect() protoreflect.Message {
 func (m *mockMessage) Descriptor() protoreflect.MessageDescriptor {
 	return &mockMessageDescriptor{msg: m}
 }
-func (m *mockMessage) Type() protoreflect.MessageType { return nil }
-func (m *mockMessage) New() protoreflect.Message { return nil }
-func (m *mockMessage) Interface() protoreflect.ProtoMessage { return m }
+func (m *mockMessage) Type() protoreflect.MessageType                                    { return nil }
+func (m *mockMessage) New() protoreflect.Message                                         { return nil }
+func (m *mockMessage) Interface() protoreflect.ProtoMessage                              { return m }
 func (m *mockMessage) Range(func(protoreflect.FieldDescriptor, protoreflect.Value) bool) {}
-func (m *mockMessage) Has(protoreflect.FieldDescriptor) bool { return true }
-func (m *mockMessage) Clear(protoreflect.FieldDescriptor) {}
+func (m *mockMessage) Has(protoreflect.FieldDescriptor) bool                             { return true }
+func (m *mockMessage) Clear(protoreflect.FieldDescriptor)                                {}
 func (m *mockMessage) Get(fd protoreflect.FieldDescriptor) protoreflect.Value {
 	name := string(fd.Name())
 	val := m.fields[name]
@@ -259,13 +259,19 @@ func (m *mockMessage) Get(fd protoreflect.FieldDescriptor) protoreflect.Value {
 	return protoreflect.ValueOf(val)
 }
 func (m *mockMessage) Set(protoreflect.FieldDescriptor, protoreflect.Value) {}
-func (m *mockMessage) Mutable(protoreflect.FieldDescriptor) protoreflect.Value { return protoreflect.Value{} }
-func (m *mockMessage) NewField(protoreflect.FieldDescriptor) protoreflect.Value { return protoreflect.Value{} }
-func (m *mockMessage) WhichOneof(protoreflect.OneofDescriptor) protoreflect.FieldDescriptor { return nil }
+func (m *mockMessage) Mutable(protoreflect.FieldDescriptor) protoreflect.Value {
+	return protoreflect.Value{}
+}
+func (m *mockMessage) NewField(protoreflect.FieldDescriptor) protoreflect.Value {
+	return protoreflect.Value{}
+}
+func (m *mockMessage) WhichOneof(protoreflect.OneofDescriptor) protoreflect.FieldDescriptor {
+	return nil
+}
 func (m *mockMessage) GetUnknown() protoreflect.RawFields { return nil }
-func (m *mockMessage) SetUnknown(protoreflect.RawFields) {}
-func (m *mockMessage) IsValid() bool { return true }
-func (m *mockMessage) ProtoMethods() *protoiface.Methods { return nil }
+func (m *mockMessage) SetUnknown(protoreflect.RawFields)  {}
+func (m *mockMessage) IsValid() bool                      { return true }
+func (m *mockMessage) ProtoMethods() *protoiface.Methods  { return nil }
 
 type mockMessageDescriptor struct {
 	protoreflect.MessageDescriptor
