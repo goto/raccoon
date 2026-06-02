@@ -16,18 +16,5 @@ jobs:
         run: cp .env.test .env
       - name: Run Raccoon
         run: make docker-run
-      - name: Wait for Raccoon to be ready
-        run: |
-          for i in $(seq 1 30); do
-            if curl -s http://localhost:8080/ping > /dev/null 2>&1; then
-              echo "Raccoon is ready"
-              exit 0
-            fi
-            echo "Waiting for Raccoon to start... ($i/30)"
-            sleep 2
-          done
-          echo "Raccoon failed to start"
-          docker compose logs
-          exit 1
       - name: Invoking go test
         run: INTEGTEST_BOOTSTRAP_SERVER=localhost:9094 INTEGTEST_HOST=localhost:8080 INTEGTEST_TOPIC_FORMAT="clickstream-%s-log" GRPC_SERVER_ADDR="localhost:8081" go test ./integration -v
