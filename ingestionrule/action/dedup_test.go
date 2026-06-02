@@ -17,8 +17,13 @@ import (
 )
 
 func TestDedup_Apply_NilChecker(t *testing.T) {
+	// Case 1: d is nil
 	var d *action.Dedup
 	events := []*pb.Event{{Type: "click"}}
+	assert.Equal(t, events, d.Apply(events, "group-1"))
+
+	// Case 2: d is not nil, but checker is nil
+	d = action.NewDedup(schemaregistry.StencilClient{}, nil)
 	assert.Equal(t, events, d.Apply(events, "group-1"))
 }
 
@@ -28,7 +33,8 @@ func TestDedup_Apply_BypassDeduplicationWhenNotWhitelisted(t *testing.T) {
 		"group-whitelisted": {},
 	}
 
-	d := action.NewDedup(schemaregistry.StencilClient{}, nil)
+	mc := mocks.NewDuplicateChecker(t)
+	d := action.NewDedup(schemaregistry.StencilClient{}, mc)
 	events := []*pb.Event{{Type: "click"}}
 	assert.Equal(t, events, d.Apply(events, "group-1"))
 }
@@ -91,12 +97,12 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 
 		events := []*pb.Event{
 			{
-				Type:       "click-event-type",
+				Type:       "component",
 				EventBytes: []byte("event-payload"),
 			},
 		}
 
-		res := d.Apply(events, "group-whitelisted")
+		res := d.Apply(events, "customer")
 		assert.Len(t, res, 1)
 	})
 
@@ -142,12 +148,12 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 
 		events := []*pb.Event{
 			{
-				Type:       "click-event-type",
+				Type:       "component",
 				EventBytes: []byte("event-payload"),
 			},
 		}
 
-		res := d.Apply(events, "group-whitelisted")
+		res := d.Apply(events, "customer")
 		assert.Empty(t, res) // Dropped
 	})
 
@@ -193,14 +199,269 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 
 		events := []*pb.Event{
 			{
-				Type:       "click-event-type",
+				Type:       "component",
 				EventBytes: []byte("event-payload"),
 			},
 		}
 
-		res := d.Apply(events, "group-whitelisted")
+		res := d.Apply(events, "customer")
 		assert.Len(t, res, 1) // Bypassed and allowed through
 	})
+
+	// 4. Conversion case: identifier fields are not strings but can be converted.
+	t.Run("EventWithNonStringIdentifiers", func(t *testing.T) {
+		mc := mocks.NewDuplicateChecker(t)
+		mc.EXPECT().IsDuplicate(mock.Anything, cache.EventMetadata{
+			UserID:    "123",
+			SessionID: "456",
+			EventGUID: "789",
+		}).Return(false, nil)
+
+		parsedMsg := &mockMessage{
+			fields: map[string]any{
+				"user": &mockMessage{
+					fields: map[string]any{
+						"id": int64(123),
+					},
+				},
+				"session": &mockMessage{
+					fields: map[string]any{
+						"id": int32(456),
+					},
+				},
+				"meta": &mockMessage{
+					fields: map[string]any{
+						"event_guid": []byte("789"),
+					},
+				},
+			},
+		}
+
+		ms := &mockStencilClient{
+			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
+				return parsedMsg, nil
+			},
+		}
+
+		d := action.NewDedup(
+			schemaregistry.StencilClient{Client: ms},
+			mc,
+		)
+
+		events := []*pb.Event{
+			{
+				Type:       "component",
+				EventBytes: []byte("event-payload"),
+			},
+		}
+
+		res := d.Apply(events, "customer")
+		assert.Len(t, res, 1)
+	})
+}
+
+func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
+	config.DedupCfg.WhitelistConnGroup = map[string]struct{}{
+		"customer": {},
+	}
+	config.DedupCfg.ProtoClassNameMapping = map[string]string{
+		"component": "ClickEventProto",
+	}
+	config.DedupCfg.IdentifierMapping = map[string]config.Identifier{
+		"customer": {
+			UserID:    "user.id",
+			SessionID: "session.id",
+		},
+	}
+
+	// 1. Proto class not found
+	t.Run("ProtoClassNotFound", func(t *testing.T) {
+		mc := mocks.NewDuplicateChecker(t)
+		d := action.NewDedup(
+			schemaregistry.StencilClient{},
+			mc,
+		)
+		events := []*pb.Event{
+			{
+				Type: "unknown-component",
+			},
+		}
+		res := d.Apply(events, "customer")
+		assert.Equal(t, events, res) // Fails open
+	})
+
+	// 2. Stencil parse error
+	t.Run("StencilParseError", func(t *testing.T) {
+		mc := mocks.NewDuplicateChecker(t)
+		ms := &mockStencilClient{
+			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
+				return nil, errors.New("parse error")
+			},
+		}
+		d := action.NewDedup(
+			schemaregistry.StencilClient{Client: ms},
+			mc,
+		)
+		events := []*pb.Event{
+			{
+				Type: "component",
+			},
+		}
+		res := d.Apply(events, "customer")
+		assert.Equal(t, events, res) // Fails open
+	})
+
+	// 3. UserID field not found
+	t.Run("UserIDNotFound", func(t *testing.T) {
+		mc := mocks.NewDuplicateChecker(t)
+		parsedMsg := &mockMessage{
+			fields: map[string]any{
+				"session": &mockMessage{
+					fields: map[string]any{
+						"id": "session-456",
+					},
+				},
+				"meta": &mockMessage{
+					fields: map[string]any{
+						"event_guid": "guid-789",
+					},
+				},
+			},
+		}
+		ms := &mockStencilClient{
+			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
+				return parsedMsg, nil
+			},
+		}
+		d := action.NewDedup(
+			schemaregistry.StencilClient{Client: ms},
+			mc,
+		)
+		events := []*pb.Event{
+			{
+				Type: "component",
+			},
+		}
+		res := d.Apply(events, "customer")
+		assert.Equal(t, events, res) // Fails open
+	})
+
+	// 4. SessionID field not found
+	t.Run("SessionIDNotFound", func(t *testing.T) {
+		mc := mocks.NewDuplicateChecker(t)
+		parsedMsg := &mockMessage{
+			fields: map[string]any{
+				"user": &mockMessage{
+					fields: map[string]any{
+						"id": "user-123",
+					},
+				},
+				"meta": &mockMessage{
+					fields: map[string]any{
+						"event_guid": "guid-789",
+					},
+				},
+			},
+		}
+		ms := &mockStencilClient{
+			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
+				return parsedMsg, nil
+			},
+		}
+		d := action.NewDedup(
+			schemaregistry.StencilClient{Client: ms},
+			mc,
+		)
+		events := []*pb.Event{
+			{
+				Type: "component",
+			},
+		}
+		res := d.Apply(events, "customer")
+		assert.Equal(t, events, res) // Fails open
+	})
+
+	// 5. EventGUID field not found
+	t.Run("EventGUIDNotFound", func(t *testing.T) {
+		mc := mocks.NewDuplicateChecker(t)
+		parsedMsg := &mockMessage{
+			fields: map[string]any{
+				"user": &mockMessage{
+					fields: map[string]any{
+						"id": "user-123",
+					},
+				},
+				"session": &mockMessage{
+					fields: map[string]any{
+						"id": "session-456",
+					},
+				},
+				"meta": &mockMessage{
+					fields: map[string]any{},
+				},
+			},
+		}
+		ms := &mockStencilClient{
+			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
+				return parsedMsg, nil
+			},
+		}
+		d := action.NewDedup(
+			schemaregistry.StencilClient{Client: ms},
+			mc,
+		)
+		events := []*pb.Event{
+			{
+				Type: "component",
+			},
+		}
+		res := d.Apply(events, "customer")
+		assert.Equal(t, events, res) // Fails open
+	})
+
+	// 6. UserID field not convertible
+	t.Run("UserIDNotConvertible", func(t *testing.T) {
+		mc := mocks.NewDuplicateChecker(t)
+		parsedMsg := &mockMessage{
+			fields: map[string]any{
+				"user": &mockMessage{
+					fields: map[string]any{
+						"id": dummyList{}, // dummyList implements protoreflect.List which is not convertible to string
+					},
+				},
+				"session": &mockMessage{
+					fields: map[string]any{
+						"id": "session-456",
+					},
+				},
+				"meta": &mockMessage{
+					fields: map[string]any{
+						"event_guid": "guid-789",
+					},
+				},
+			},
+		}
+		ms := &mockStencilClient{
+			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
+				return parsedMsg, nil
+			},
+		}
+		d := action.NewDedup(
+			schemaregistry.StencilClient{Client: ms},
+			mc,
+		)
+		events := []*pb.Event{
+			{
+				Type: "component",
+			},
+		}
+		res := d.Apply(events, "customer")
+		assert.Equal(t, events, res) // Fails open
+	})
+}
+
+type dummyList struct {
+	protoreflect.List
 }
 
 type mockStencilClient struct {

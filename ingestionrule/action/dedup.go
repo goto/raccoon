@@ -7,6 +7,7 @@ import (
 	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+	"github.com/spf13/cast"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/goto/raccoon/config"
@@ -141,7 +142,7 @@ func (d *Dedup) extractMetadata(event *pb.Event, connGroup string) (cache.EventM
 	}, nil
 }
 
-// getStringField is a helper function to safely extract, type-assert, and handle error telemetry for string fields.
+// getStringField is a helper function to safely extract, convert to string, and handle error telemetry for identifier fields.
 func (d *Dedup) getStringField(
 	ref protoreflect.Message,
 	path string,
@@ -158,11 +159,11 @@ func (d *Dedup) getStringField(
 		return "", fmt.Errorf("failed to find %s for conn_group=%s,event_type=%s,product=%s,event_name=%s", fieldName, connGroup, event.Type, event.Product, event.EventName)
 	}
 
-	val, ok := rawVal.(string)
-	if !ok {
+	val, err := cast.ToStringE(rawVal)
+	if err != nil {
 		metrics.Increment(metricNameEventDeserializationError,
 			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, reasonTypeInvalid, event.Type, event.Product, event.EventName))
-		return "", fmt.Errorf("%s field is not a string for conn_group=%s,event_type=%s,product=%s,event_name=%s", fieldName, connGroup, event.Type, event.Product, event.EventName)
+		return "", fmt.Errorf("%s field type is not convertible to string for conn_group=%s,event_type=%s,product=%s,event_name=%s: %w", fieldName, connGroup, event.Type, event.Product, event.EventName, err)
 	}
 
 	return val, nil
