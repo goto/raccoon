@@ -1,6 +1,7 @@
 package action_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -39,7 +40,7 @@ func TestDrop_DropsBreachedEvents(t *testing.T) {
 		Product:        "app",
 		EventTimestamp: timestamppb.New(time.Now().Add(-2 * time.Hour)),
 	}}
-	assert.Empty(t, newDrop(c).Apply(events, "pub-a"))
+	assert.Empty(t, newDrop(c).Apply(context.Background(), events, "pub-a"))
 }
 
 func TestDrop_PassthroughWhenWithinThreshold(t *testing.T) {
@@ -49,7 +50,7 @@ func TestDrop_PassthroughWhenWithinThreshold(t *testing.T) {
 		Product:        "app",
 		EventTimestamp: timestamppb.New(time.Now()),
 	}}
-	assert.Equal(t, events, newDrop(c).Apply(events, "pub-a"))
+	assert.Equal(t, events, newDrop(c).Apply(context.Background(), events, "pub-a"))
 }
 
 func TestDrop_PassthroughWhenNoIngestionRuleMatch(t *testing.T) {
@@ -59,7 +60,7 @@ func TestDrop_PassthroughWhenNoIngestionRuleMatch(t *testing.T) {
 		Product:        "app",
 		EventTimestamp: timestamppb.New(time.Now().Add(-2 * time.Hour)),
 	}}
-	assert.Equal(t, events, newDrop(c).Apply(events, "pub-a"))
+	assert.Equal(t, events, newDrop(c).Apply(context.Background(), events, "pub-a"))
 }
 
 func TestDrop_PassthroughWhenMetadataIncomplete(t *testing.T) {
@@ -69,7 +70,7 @@ func TestDrop_PassthroughWhenMetadataIncomplete(t *testing.T) {
 		EventName:      "click",
 		EventTimestamp: timestamppb.New(time.Now().Add(-2 * time.Hour)),
 	}}
-	assert.Equal(t, events, newDrop(c).Apply(events, "pub-a"))
+	assert.Equal(t, events, newDrop(c).Apply(context.Background(), events, "pub-a"))
 }
 
 func TestDrop_FiltersMixedBatch(t *testing.T) {
@@ -80,7 +81,7 @@ func TestDrop_FiltersMixedBatch(t *testing.T) {
 		{EventName: "scroll", Product: "app", EventTimestamp: staleTs},
 		{EventName: "click", Product: "app", EventTimestamp: staleTs},
 	}
-	result := newDrop(c).Apply(events, "pub-a")
+	result := newDrop(c).Apply(context.Background(), events, "pub-a")
 	assert.Len(t, result, 1)
 	assert.Equal(t, "scroll", result[0].GetEventName())
 }

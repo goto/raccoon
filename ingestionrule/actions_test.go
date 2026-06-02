@@ -1,6 +1,7 @@
 package ingestionrule_test
 
 import (
+	"context"
 	"testing"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
@@ -14,7 +15,7 @@ type stubAction struct {
 	dropNames map[string]bool
 }
 
-func (s *stubAction) Apply(events []*pb.Event, _ string) []*pb.Event {
+func (s *stubAction) Apply(_ context.Context, events []*pb.Event, _ string) []*pb.Event {
 	var out []*pb.Event
 	for _, e := range events {
 		if !s.dropNames[e.GetEventName()] {
@@ -34,7 +35,7 @@ func TestPolicyChain_Apply_FiltersAcrossActions(t *testing.T) {
 		{EventName: "scroll"},
 		{EventName: "view"},
 	}
-	result := chain.Apply(events, "grp")
+	result := chain.Apply(context.Background(), events, "grp")
 	assert.Len(t, result, 1)
 	assert.Equal(t, "view", result[0].GetEventName())
 }
@@ -45,13 +46,13 @@ func TestPolicyChain_Apply_PassthroughWhenNoActionFilters(t *testing.T) {
 		&stubAction{dropNames: map[string]bool{}},
 	}
 	events := []*pb.Event{{EventName: "click"}, {EventName: "scroll"}}
-	result := chain.Apply(events, "grp")
+	result := chain.Apply(context.Background(), events, "grp")
 	assert.Equal(t, events, result)
 }
 
 func TestPolicyChain_Apply_PassthroughWhenEmpty(t *testing.T) {
 	events := []*pb.Event{{EventName: "click"}}
-	assert.Equal(t, events, ingestionrule.Chain{}.Apply(events, "grp"))
+	assert.Equal(t, events, ingestionrule.Chain{}.Apply(context.Background(), events, "grp"))
 }
 
 func TestPolicyChain_Apply_FirstActionRemovesEvents(t *testing.T) {
@@ -60,7 +61,7 @@ func TestPolicyChain_Apply_FirstActionRemovesEvents(t *testing.T) {
 		&stubAction{dropNames: map[string]bool{}},
 	}
 	events := []*pb.Event{{EventName: "click"}, {EventName: "view"}}
-	result := chain.Apply(events, "grp")
+	result := chain.Apply(context.Background(), events, "grp")
 	assert.Len(t, result, 1)
 	assert.Equal(t, "view", result[0].GetEventName())
 }

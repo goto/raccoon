@@ -1,6 +1,7 @@
 package action_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -21,11 +22,11 @@ func TestDedup_Apply_NilChecker(t *testing.T) {
 	// Case 1: d is nil
 	var d *action.Dedup
 	events := []*pb.Event{{Type: "click"}}
-	assert.Equal(t, events, d.Apply(events, "group-1"))
+	assert.Equal(t, events, d.Apply(context.Background(), events, "group-1"))
 
 	// Case 2: d is not nil, but checker is nil
 	d = action.NewDedup(schemaregistry.StencilClient{}, nil)
-	assert.Equal(t, events, d.Apply(events, "group-1"))
+	assert.Equal(t, events, d.Apply(context.Background(), events, "group-1"))
 }
 
 func TestDedup_Apply_BypassDeduplicationWhenNotWhitelisted(t *testing.T) {
@@ -37,7 +38,7 @@ func TestDedup_Apply_BypassDeduplicationWhenNotWhitelisted(t *testing.T) {
 	mc := mocks.NewDuplicateChecker(t)
 	d := action.NewDedup(schemaregistry.StencilClient{}, mc)
 	events := []*pb.Event{{Type: "click"}}
-	assert.Equal(t, events, d.Apply(events, "group-1"))
+	assert.Equal(t, events, d.Apply(context.Background(), events, "group-1"))
 }
 
 func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
@@ -103,7 +104,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 			},
 		}
 
-		res := d.Apply(events, "customer")
+		res := d.Apply(context.Background(), events, "customer")
 		assert.Len(t, res, 1)
 	})
 
@@ -154,7 +155,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 			},
 		}
 
-		res := d.Apply(events, "customer")
+		res := d.Apply(context.Background(), events, "customer")
 		assert.Empty(t, res) // Dropped
 	})
 
@@ -205,7 +206,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 			},
 		}
 
-		res := d.Apply(events, "customer")
+		res := d.Apply(context.Background(), events, "customer")
 		assert.Len(t, res, 1) // Bypassed and allowed through
 	})
 
@@ -256,7 +257,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 			},
 		}
 
-		res := d.Apply(events, "customer")
+		res := d.Apply(context.Background(), events, "customer")
 		assert.Len(t, res, 1)
 	})
 }
@@ -287,7 +288,7 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 				Type: "unknown-component",
 			},
 		}
-		res := d.Apply(events, "customer")
+		res := d.Apply(context.Background(), events, "customer")
 		assert.Equal(t, events, res) // Fails open
 	})
 
@@ -308,7 +309,7 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 				Type: "component",
 			},
 		}
-		res := d.Apply(events, "customer")
+		res := d.Apply(context.Background(), events, "customer")
 		assert.Equal(t, events, res) // Fails open
 	})
 
@@ -343,7 +344,7 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 				Type: "component",
 			},
 		}
-		res := d.Apply(events, "customer")
+		res := d.Apply(context.Background(), events, "customer")
 		assert.Equal(t, events, res) // Fails open
 	})
 
@@ -378,7 +379,7 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 				Type: "component",
 			},
 		}
-		res := d.Apply(events, "customer")
+		res := d.Apply(context.Background(), events, "customer")
 		assert.Equal(t, events, res) // Fails open
 	})
 
@@ -416,7 +417,7 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 				Type: "component",
 			},
 		}
-		res := d.Apply(events, "customer")
+		res := d.Apply(context.Background(), events, "customer")
 		assert.Equal(t, events, res) // Fails open
 	})
 
@@ -456,7 +457,7 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 				Type: "component",
 			},
 		}
-		res := d.Apply(events, "customer")
+		res := d.Apply(context.Background(), events, "customer")
 		assert.Equal(t, events, res) // Fails open
 	})
 
@@ -496,7 +497,7 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 				Type: "component",
 			},
 		}
-		res := d.Apply(events, "customer")
+		res := d.Apply(context.Background(), events, "customer")
 		assert.Equal(t, events, res) // Should fail open and return the event
 	})
 }

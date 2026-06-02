@@ -126,7 +126,7 @@ func (h *Handler) HandlerWSEvents(w http.ResponseWriter, r *http.Request) {
 			logger.Debugf("[websocket.Handler] event: event_name=%s, product=%s, type=%s, event_timestamp=%s, req_guid=%s, conn_group=%s", e.EventName, e.Product, e.Type, e.GetEventTimestamp().AsTime(), payload.ReqGuid, conn.Identifier.Group)
 		}
 
-		payload.Events = h.ingestionrule.Apply(payload.Events, conn.Identifier.Group)
+		payload.Events = h.ingestionrule.Apply(r.Context(), payload.Events, conn.Identifier.Group)
 
 		h.collector.Collect(r.Context(), &collection.CollectRequest{
 			ConnectionIdentifier: conn.Identifier,

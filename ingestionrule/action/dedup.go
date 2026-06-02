@@ -59,7 +59,7 @@ func NewDedup(stencil schemaregistry.StencilClient, checker DuplicateChecker) *D
 }
 
 // Apply performs event deduplication.
-func (d *Dedup) Apply(events []*pb.Event, connGroup string) []*pb.Event {
+func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string) []*pb.Event {
 	start := time.Now()
 	defer func() {
 		metrics.Timing(MetricEvalLatency, time.Since(start).Milliseconds(), fmt.Sprintf("action=DEDUP,conn_group=%s", connGroup))
@@ -89,7 +89,7 @@ func (d *Dedup) Apply(events []*pb.Event, connGroup string) []*pb.Event {
 			continue
 		}
 
-		isDuplicate, cacheErr := d.checker.IsDuplicate(context.Background(), meta)
+		isDuplicate, cacheErr := d.checker.IsDuplicate(ctx, meta)
 		if cacheErr != nil {
 			logger.Errorf("dedup: cache verification failed, bypassing filter: %v", cacheErr)
 			uniqueEvents = append(uniqueEvents, event)

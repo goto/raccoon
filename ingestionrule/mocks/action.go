@@ -5,6 +5,8 @@
 package mocks
 
 import (
+	"context"
+
 	"buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -37,16 +39,16 @@ func (_m *Action) EXPECT() *Action_Expecter {
 }
 
 // Apply provides a mock function for the type Action
-func (_mock *Action) Apply(events []*raccoonv1beta1.Event, connGroup string) []*raccoonv1beta1.Event {
-	ret := _mock.Called(events, connGroup)
+func (_mock *Action) Apply(ctx context.Context, events []*raccoonv1beta1.Event, connGroup string) []*raccoonv1beta1.Event {
+	ret := _mock.Called(ctx, events, connGroup)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Apply")
 	}
 
 	var r0 []*raccoonv1beta1.Event
-	if returnFunc, ok := ret.Get(0).(func([]*raccoonv1beta1.Event, string) []*raccoonv1beta1.Event); ok {
-		r0 = returnFunc(events, connGroup)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []*raccoonv1beta1.Event, string) []*raccoonv1beta1.Event); ok {
+		r0 = returnFunc(ctx, events, connGroup)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*raccoonv1beta1.Event)
@@ -61,25 +63,31 @@ type Action_Apply_Call struct {
 }
 
 // Apply is a helper method to define mock.On call
+//   - ctx context.Context
 //   - events []*raccoonv1beta1.Event
 //   - connGroup string
-func (_e *Action_Expecter) Apply(events interface{}, connGroup interface{}) *Action_Apply_Call {
-	return &Action_Apply_Call{Call: _e.mock.On("Apply", events, connGroup)}
+func (_e *Action_Expecter) Apply(ctx interface{}, events interface{}, connGroup interface{}) *Action_Apply_Call {
+	return &Action_Apply_Call{Call: _e.mock.On("Apply", ctx, events, connGroup)}
 }
 
-func (_c *Action_Apply_Call) Run(run func(events []*raccoonv1beta1.Event, connGroup string)) *Action_Apply_Call {
+func (_c *Action_Apply_Call) Run(run func(ctx context.Context, events []*raccoonv1beta1.Event, connGroup string)) *Action_Apply_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 []*raccoonv1beta1.Event
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].([]*raccoonv1beta1.Event)
+			arg0 = args[0].(context.Context)
 		}
-		var arg1 string
+		var arg1 []*raccoonv1beta1.Event
 		if args[1] != nil {
-			arg1 = args[1].(string)
+			arg1 = args[1].([]*raccoonv1beta1.Event)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
 		}
 		run(
 			arg0,
 			arg1,
+			arg2,
 		)
 	})
 	return _c
@@ -90,7 +98,7 @@ func (_c *Action_Apply_Call) Return(events1 []*raccoonv1beta1.Event) *Action_App
 	return _c
 }
 
-func (_c *Action_Apply_Call) RunAndReturn(run func(events []*raccoonv1beta1.Event, connGroup string) []*raccoonv1beta1.Event) *Action_Apply_Call {
+func (_c *Action_Apply_Call) RunAndReturn(run func(ctx context.Context, events []*raccoonv1beta1.Event, connGroup string) []*raccoonv1beta1.Event) *Action_Apply_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -1,6 +1,7 @@
 package action
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -24,12 +25,14 @@ func NewDrop(c *cache.Cache, evalChain Chain) *Drop {
 
 // Apply evaluates every event in the batch against the drop policy rules.
 // Events whose condition is breached are dropped (removed from the returned slice).
-func (d *Drop) Apply(events []*pb.Event, connGroup string) []*pb.Event {
+func (d *Drop) Apply(_ context.Context, events []*pb.Event, connGroup string) []*pb.Event {
 	start := time.Now()
 	filtered := make([]*pb.Event, 0, len(events))
+
 	for _, event := range events {
 		meta := ExtractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern)
 		logger.Debugf("[drop.Apply] meta: event_name=%s, product=%s, publisher=%s, topic=%s, conn_group=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.ConnGroup)
+
 		if d.evalChain.Run(meta, d.cache) {
 			logger.Infof("[drop.Apply] dropping event: event_name=%s, product=%s, publisher=%s, conn_group=%s, topic=%s, event_timestamp=%s, event_timestamp_diff=%s", meta.EventName, meta.Product, meta.Publisher, meta.ConnGroup, meta.TopicName, meta.EventTimestamp, time.Since(meta.EventTimestamp))
 			metrics.Increment(metricEventLossCount, fmt.Sprintf("reason=DROP_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, meta.ConnGroup, meta.EventType))
@@ -37,8 +40,11 @@ func (d *Drop) Apply(events []*pb.Event, connGroup string) []*pb.Event {
 		} else {
 			logger.Debugf("[drop.Skip] keeping event: event_name=%s, product=%s, publisher=%s, conn_group=%s, topic=%s, event_timestamp=%s, event_timestamp_diff=%s", meta.EventName, meta.Product, meta.Publisher, meta.ConnGroup, meta.TopicName, meta.EventTimestamp, time.Since(meta.EventTimestamp))
 		}
+
 		filtered = append(filtered, event)
 	}
+
 	metrics.Timing(MetricEvalLatency, time.Since(start).Milliseconds(), fmt.Sprintf("action=DROP,conn_group=%s", connGroup))
+
 	return filtered
 }

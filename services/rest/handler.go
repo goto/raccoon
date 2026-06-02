@@ -135,7 +135,7 @@ func (h *Handler) RESTAPIHandler(rw http.ResponseWriter, r *http.Request) {
 		logger.Debugf("[rest.RESTAPIHandler] event: event_name=%s, product=%s, type=%s, event_timestamp=%s, req_guid=%s, conn_group=%s", e.EventName, e.Product, e.Type, e.GetEventTimestamp().AsTime(), req.ReqGuid, identifier.Group)
 	}
 
-	req.Events = h.ingestionRule.Apply(req.Events, identifier.Group)
+	req.Events = h.ingestionRule.Apply(r.Context(), req.Events, identifier.Group)
 
 	resChannel := make(chan struct{}, 1)
 	h.collector.Collect(r.Context(), &collection.CollectRequest{

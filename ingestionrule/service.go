@@ -103,13 +103,15 @@ func (s *Service) HealthCheck() error {
 
 // Apply runs the event batch through the action pipeline and returns only events
 // that no action consumed (passthrough)
-func (s *Service) Apply(events []*pb.Event, connGroup string) []*pb.Event {
+func (s *Service) Apply(ctx context.Context, events []*pb.Event, connGroup string) []*pb.Event {
 	if s == nil {
 		return events
 	}
+
 	start := time.Now()
-	result := s.chain.Apply(events, connGroup)
+	result := s.chain.Apply(ctx, events, connGroup)
 	metrics.Timing(MetricEvalDuration, time.Since(start).Milliseconds(), fmt.Sprintf("action=total,conn_group=%s", connGroup))
+
 	return result
 }
 

@@ -1,6 +1,7 @@
 package action_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -43,7 +44,7 @@ func staleEvent(name string) *pb.Event {
 }
 
 func TestOverrideTimestamp_OverridesTypeOnBreachedEvent(t *testing.T) {
-	result := newOverrideAct(t).Apply([]*pb.Event{staleEvent("click")}, "pub-a")
+	result := newOverrideAct(t).Apply(context.Background(), []*pb.Event{staleEvent("click")}, "pub-a")
 
 	assert.Len(t, result, 1)
 	assert.Equal(t, overrideEventType, result[0].GetType())
@@ -52,7 +53,7 @@ func TestOverrideTimestamp_OverridesTypeOnBreachedEvent(t *testing.T) {
 
 func TestOverrideTimestamp_PassthroughWhenWithinThreshold(t *testing.T) {
 	events := []*pb.Event{{EventName: "click", Product: "app", EventTimestamp: timestamppb.New(time.Now())}}
-	result := newOverrideAct(t).Apply(events, "pub-a")
+	result := newOverrideAct(t).Apply(context.Background(), events, "pub-a")
 
 	assert.Equal(t, events, result)
 	assert.Empty(t, result[0].GetType()) // Type not overridden
@@ -60,7 +61,7 @@ func TestOverrideTimestamp_PassthroughWhenWithinThreshold(t *testing.T) {
 
 func TestOverrideTimestamp_PassthroughWhenNoIngestionRuleMatch(t *testing.T) {
 	events := []*pb.Event{staleEvent("scroll")}
-	result := newOverrideAct(t).Apply(events, "pub-a")
+	result := newOverrideAct(t).Apply(context.Background(), events, "pub-a")
 
 	assert.Equal(t, events, result)
 	assert.Empty(t, result[0].GetType())
@@ -68,7 +69,7 @@ func TestOverrideTimestamp_PassthroughWhenNoIngestionRuleMatch(t *testing.T) {
 
 func TestOverrideTimestamp_MixedBatch(t *testing.T) {
 	events := []*pb.Event{staleEvent("click"), staleEvent("scroll"), staleEvent("click")}
-	result := newOverrideAct(t).Apply(events, "pub-a")
+	result := newOverrideAct(t).Apply(context.Background(), events, "pub-a")
 
 	assert.Len(t, result, 3)
 	assert.Equal(t, overrideEventType, result[0].GetType())

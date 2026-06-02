@@ -1,6 +1,7 @@
 package action
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -25,19 +26,24 @@ func NewDeactivate(c *cache.Cache, evalChain Chain) *Deactivate {
 
 // Apply evaluates every event in the batch against the deactivate policy rules.
 // Matching events are dropped unconditionally (removed from the returned slice).
-func (d *Deactivate) Apply(events []*pb.Event, connGroup string) []*pb.Event {
+func (d *Deactivate) Apply(_ context.Context, events []*pb.Event, connGroup string) []*pb.Event {
 	start := time.Now()
 	filtered := make([]*pb.Event, 0, len(events))
+
 	for _, event := range events {
 		meta := ExtractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern)
 		logger.Debugf("[deactivate.Apply] meta: event_name=%s, product=%s, publisher=%s, topic=%s, conn_group=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.ConnGroup)
+
 		if d.evalChain.Run(meta, d.cache) {
 			logger.Infof("[deactivate.Apply] deactivating event: event_name=%s, product=%s, publisher=%s, conn_group=%s, topic=%s, event_timestamp=%s", meta.EventName, meta.Product, meta.Publisher, meta.ConnGroup, meta.TopicName, meta.EventTimestamp)
 			metrics.Increment(metricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, meta.ConnGroup, meta.EventType))
 			continue
 		}
+
 		filtered = append(filtered, event)
 	}
+
 	metrics.Timing(MetricEvalLatency, time.Since(start).Milliseconds(), fmt.Sprintf("action=DEACTIVATE,conn_group=%s", connGroup))
+
 	return filtered
 }

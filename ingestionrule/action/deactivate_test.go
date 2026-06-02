@@ -1,6 +1,7 @@
 package action_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -33,7 +34,7 @@ func TestDeactivate_DropsMatchingEvent(t *testing.T) {
 		Product:        "app",
 		EventTimestamp: timestamppb.New(time.Now()),
 	}}
-	assert.Empty(t, newDeactivate(c).Apply(events, "pub-a"))
+	assert.Empty(t, newDeactivate(c).Apply(context.Background(), events, "pub-a"))
 }
 
 func TestDeactivate_PassthroughWhenNoIngestionRuleMatch(t *testing.T) {
@@ -43,7 +44,7 @@ func TestDeactivate_PassthroughWhenNoIngestionRuleMatch(t *testing.T) {
 		Product:        "app",
 		EventTimestamp: timestamppb.New(time.Now()),
 	}}
-	assert.Equal(t, events, newDeactivate(c).Apply(events, "pub-a"))
+	assert.Equal(t, events, newDeactivate(c).Apply(context.Background(), events, "pub-a"))
 }
 
 func TestDeactivate_DropsAlwaysRegardlessOfTimestamp(t *testing.T) {
@@ -53,7 +54,7 @@ func TestDeactivate_DropsAlwaysRegardlessOfTimestamp(t *testing.T) {
 		{EventName: "click", Product: "app", EventTimestamp: timestamppb.New(time.Now())},
 		{EventName: "click", Product: "app", EventTimestamp: timestamppb.New(time.Now().Add(-365 * 24 * time.Hour))},
 	}
-	assert.Empty(t, newDeactivate(c).Apply(events, "pub-a"))
+	assert.Empty(t, newDeactivate(c).Apply(context.Background(), events, "pub-a"))
 }
 
 func TestDeactivate_FiltersMixedBatch(t *testing.T) {
@@ -63,7 +64,7 @@ func TestDeactivate_FiltersMixedBatch(t *testing.T) {
 		{EventName: "scroll", Product: "app", EventTimestamp: timestamppb.New(time.Now())},
 		{EventName: "click", Product: "app", EventTimestamp: timestamppb.New(time.Now())},
 	}
-	result := newDeactivate(c).Apply(events, "pub-a")
+	result := newDeactivate(c).Apply(context.Background(), events, "pub-a")
 	assert.Len(t, result, 1)
 	assert.Equal(t, "scroll", result[0].GetEventName())
 }
@@ -71,7 +72,7 @@ func TestDeactivate_FiltersMixedBatch(t *testing.T) {
 func TestDeactivate_PassthroughWhenEmptyRules(t *testing.T) {
 	c := cache.NewCache(nil)
 	events := []*pb.Event{{EventName: "click", Product: "app", EventTimestamp: timestamppb.New(time.Now())}}
-	assert.Equal(t, events, newDeactivate(c).Apply(events, "pub-a"))
+	assert.Equal(t, events, newDeactivate(c).Apply(context.Background(), events, "pub-a"))
 }
 
 func TestDeactivate_DropsMatchingTopicRule(t *testing.T) {
@@ -89,5 +90,5 @@ func TestDeactivate_DropsMatchingTopicRule(t *testing.T) {
 		Product:        "app",
 		EventTimestamp: timestamppb.New(time.Now()),
 	}}
-	assert.Empty(t, newDeactivate(c).Apply(events, "pub-a"))
+	assert.Empty(t, newDeactivate(c).Apply(context.Background(), events, "pub-a"))
 }
