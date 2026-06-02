@@ -10,6 +10,7 @@ import (
 // DedupCfg holds runtime configuration for the deduplication feature.
 var DedupCfg dedupConfig
 
+// Identifier holds the mapping of connection groups to user/session IDs.
 type Identifier struct {
 	SessionID string `json:"session_id"`
 	UserID    string `json:"user_id"`
@@ -19,26 +20,32 @@ type dedupConfig struct {
 	// Enabled controls whether deduplication is active.
 	// Set DEDUP_ENABLED=true to enable.
 	Enabled bool
-	// IdentifierMapping maps publisher to user/session IDs.
-	PublisherIdentifierMapping map[string]Identifier
+	// IdentifierMapping maps connection groups to user/session IDs.
+	IdentifierMapping map[string]Identifier
 	// ProtoClassNameMapping maps event_type to proto class name.
 	ProtoClassNameMapping map[string]string
-	// WhitelistConnGroup is a list of connection groups that are exempt from deduplication.
+	// WhitelistConnGroup is a list of connection groups that are processed with dedup.
 	WhitelistConnGroup map[string]struct{}
 }
 
 func dedupConfigLoader() {
 	viper.SetDefault("DEDUP_ENABLED", "false")
 
-	pubIdentifierMap := make(map[string]Identifier)
+	connGroupIdentifierMap := make(map[string]Identifier)
 	rawMapping := util.MustGetString("DEDUP_IDENTIFIER_MAPPING")
 	if rawMapping != "" {
-		if err := json.Unmarshal([]byte(rawMapping), &pubIdentifierMap); err != nil {
+		if err := json.Unmarshal([]byte(rawMapping), &connGroupIdentifierMap); err != nil {
 			panic("config: invalid DEDUP_IDENTIFIER_MAPPING: " + err.Error())
 		}
 	}
 
-	rawWhitelist := util.MustGetStringSlice("DEDUP_WHITELIST_CONN_GROUP")
+	var rawWhitelist []string
+
+	rawWhitelistStr := util.MustGetString("DEDUP_WHITELIST_CONN_GROUP")
+	if err := json.Unmarshal([]byte(rawWhitelistStr), &rawWhitelist); err != nil {
+		panic("config: invalid DEDUP_WHITELIST_CONN_GROUP: " + err.Error())
+	}
+
 	whitelistMap := make(map[string]struct{}, len(rawWhitelist))
 	for _, cg := range rawWhitelist {
 		whitelistMap[cg] = struct{}{}
@@ -53,9 +60,9 @@ func dedupConfigLoader() {
 	}
 
 	DedupCfg = dedupConfig{
-		Enabled:                    util.MustGetBool("DEDUP_ENABLED"),
-		WhitelistConnGroup:         whitelistMap,
-		PublisherIdentifierMapping: pubIdentifierMap,
-		ProtoClassNameMapping:      protoClassNameMap,
+		Enabled:               util.MustGetBool("DEDUP_ENABLED"),
+		WhitelistConnGroup:    whitelistMap,
+		IdentifierMapping:     connGroupIdentifierMap,
+		ProtoClassNameMapping: protoClassNameMap,
 	}
 }

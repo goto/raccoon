@@ -157,7 +157,7 @@ func initIngestionRule(ctx context.Context) (*ingestionrule.Service, error) {
 
 func registerHealthCheck(svcs services.Services, kafka *publisher.Kafka, ingestionRuleSvc *ingestionrule.Service) {
 	health.Register("kafka-broker", kafka.HealthCheck)
-	if ingestionRuleSvc != nil {
+	if config.DedupCfg.Enabled && ingestionRuleSvc != nil {
 		health.Register("redis", ingestionRuleSvc.HealthCheck)
 	}
 

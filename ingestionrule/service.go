@@ -73,7 +73,7 @@ func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventTyp
 			action.NewDeactivate(deactivateCache, action.DefaultChain()),
 			action.NewDrop(dropCache, action.DefaultChain()),
 			action.NewOverrideTimestamp(overrideCache, action.DefaultChain(), overrideEventType),
-			action.NewDedup(stencil, config.PolicyCfg.PublisherMapping, checker),
+			action.NewDedup(stencil, checker),
 		},
 		checker: checker,
 	}, nil

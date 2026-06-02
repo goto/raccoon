@@ -45,17 +45,15 @@ type DuplicateChecker interface {
 
 // Dedup is a policy action that deduplicates events using duplicate checker and schema registry.
 type Dedup struct {
-	stencil          schemaregistry.StencilClient
-	publisherMapping map[string]string
-	checker          DuplicateChecker
+	stencil schemaregistry.StencilClient
+	checker DuplicateChecker
 }
 
 // NewDedup creates a new Dedup action with the given dependencies.
-func NewDedup(stencil schemaregistry.StencilClient, publisherMapping map[string]string, checker DuplicateChecker) *Dedup {
+func NewDedup(stencil schemaregistry.StencilClient, checker DuplicateChecker) *Dedup {
 	return &Dedup{
-		stencil:          stencil,
-		publisherMapping: publisherMapping,
-		checker:          checker,
+		stencil: stencil,
+		checker: checker,
 	}
 }
 
@@ -79,7 +77,8 @@ func (d *Dedup) Apply(events []*pb.Event, connGroup string) []*pb.Event {
 	for _, event := range events {
 		meta, err := d.extractMetadata(event, connGroup)
 		if err != nil {
-			logger.Errorf("failed to deserialize event: %s", err)
+			logger.Errorf("dedup: failed to extract metadata: %v", err)
+			uniqueEvents = append(uniqueEvents, event)
 			continue
 		}
 
@@ -105,25 +104,18 @@ func (d *Dedup) extractMetadata(event *pb.Event, connGroup string) (cache.EventM
 	protoClass, ok := config.DedupCfg.ProtoClassNameMapping[event.Type]
 	if !ok {
 		metrics.Increment(metricNameEventDeserializationError,
-			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,event_name=%s,product=%s", connGroup, reasonProtoClassNotFound, event.Type, event.EventName, event.Product))
-		return cache.EventMetadata{}, fmt.Errorf("failed to find proto class for %q event type", event.Type)
+			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, reasonProtoClassNotFound, event.Type, event.Product, event.EventName))
+		return cache.EventMetadata{}, fmt.Errorf("failed to find proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
 	}
 
 	parsedMsg, err := d.stencil.Client.Parse(protoClass, event.EventBytes)
 	if err != nil {
 		metrics.Increment(metricNameEventDeserializationError,
-			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,event_name=%s,product=%s", connGroup, reasonStencilParseError, event.Type, event.EventName, event.Product))
-		return cache.EventMetadata{}, err
+			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, reasonStencilParseError, event.Type, event.Product, event.EventName))
+		return cache.EventMetadata{}, fmt.Errorf("failed to parse proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
 	}
 
-	publisher, ok := d.publisherMapping[connGroup]
-	if !ok {
-		metrics.Increment(metricNameEventDeserializationError,
-			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,event_name=%s,product=%s", connGroup, reasonPublisherNotFound, event.Type, event.EventName, event.Product))
-		return cache.EventMetadata{}, fmt.Errorf("failed to find publisher for %q conn_group=", connGroup)
-	}
-
-	userIdentifier := config.DedupCfg.PublisherIdentifierMapping[publisher]
+	userIdentifier := config.DedupCfg.IdentifierMapping[connGroup]
 	ref := parsedMsg.ProtoReflect()
 
 	userID, err := d.getStringField(ref, userIdentifier.UserID, connGroup, event, "userID", reasonUserIDNotFound, reasonUserIDTypeInvalid)
@@ -137,13 +129,13 @@ func (d *Dedup) extractMetadata(event *pb.Event, connGroup string) (cache.EventM
 	}
 
 	const eventGUIDProtoField = "meta.event_guid"
-	eventGuid, err := d.getStringField(ref, eventGUIDProtoField, connGroup, event, "eventGUID", reasonEventGUIDNotFound, reasonEventGUIDTypeInvalid)
+	eventGUID, err := d.getStringField(ref, eventGUIDProtoField, connGroup, event, "eventGUID", reasonEventGUIDNotFound, reasonEventGUIDTypeInvalid)
 	if err != nil {
 		return cache.EventMetadata{}, err
 	}
 
 	return cache.EventMetadata{
-		EventGUID: eventGuid,
+		EventGUID: eventGUID,
 		SessionID: sessionID,
 		UserID:    userID,
 	}, nil
@@ -162,15 +154,15 @@ func (d *Dedup) getStringField(
 	rawVal, ok := protoutil.GetFieldValue(ref, strings.Split(path, "."))
 	if !ok {
 		metrics.Increment(metricNameEventDeserializationError,
-			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,event_name=%s,product=%s", connGroup, reasonNotFound, event.Type, event.EventName, event.Product))
-		return "", fmt.Errorf("failed to find %s for %q conn_group", fieldName, connGroup)
+			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, reasonNotFound, event.Type, event.Product, event.EventName))
+		return "", fmt.Errorf("failed to find %s for conn_group=%s,event_type=%s,product=%s,event_name=%s", fieldName, connGroup, event.Type, event.Product, event.EventName)
 	}
 
 	val, ok := rawVal.(string)
 	if !ok {
 		metrics.Increment(metricNameEventDeserializationError,
-			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,event_name=%s,product=%s", connGroup, reasonTypeInvalid, event.Type, event.EventName, event.Product))
-		return "", fmt.Errorf("%s field is not a string for %q conn_group", fieldName, connGroup)
+			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, reasonTypeInvalid, event.Type, event.Product, event.EventName))
+		return "", fmt.Errorf("%s field is not a string for conn_group=%s,event_type=%s,product=%s,event_name=%s", fieldName, connGroup, event.Type, event.Product, event.EventName)
 	}
 
 	return val, nil

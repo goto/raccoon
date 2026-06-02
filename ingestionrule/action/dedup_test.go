@@ -28,7 +28,7 @@ func TestDedup_Apply_BypassDeduplicationWhenNotWhitelisted(t *testing.T) {
 		"group-whitelisted": {},
 	}
 
-	d := action.NewDedup(schemaregistry.StencilClient{}, nil, nil)
+	d := action.NewDedup(schemaregistry.StencilClient{}, nil)
 	events := []*pb.Event{{Type: "click"}}
 	assert.Equal(t, events, d.Apply(events, "group-1"))
 }
@@ -41,15 +41,11 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 	config.DedupCfg.ProtoClassNameMapping = map[string]string{
 		"click-event-type": "ClickEventProto",
 	}
-	config.DedupCfg.PublisherIdentifierMapping = map[string]config.Identifier{
+	config.DedupCfg.IdentifierMapping = map[string]config.Identifier{
 		"click-publisher": {
 			UserID:    "user.id",
 			SessionID: "session.id",
 		},
-	}
-
-	publisherMapping := map[string]string{
-		"group-whitelisted": "click-publisher",
 	}
 
 	// 1. Success case: event is not a duplicate.
@@ -91,7 +87,6 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 
 		d := action.NewDedup(
 			schemaregistry.StencilClient{Client: ms},
-			publisherMapping,
 			mc,
 		)
 
@@ -143,7 +138,6 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 
 		d := action.NewDedup(
 			schemaregistry.StencilClient{Client: ms},
-			publisherMapping,
 			mc,
 		)
 
@@ -195,7 +189,6 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 
 		d := action.NewDedup(
 			schemaregistry.StencilClient{Client: ms},
-			publisherMapping,
 			mc,
 		)
 
