@@ -10,7 +10,7 @@ import (
 // DedupCfg holds runtime configuration for the deduplication feature.
 var DedupCfg dedupConfig
 
-// Identifier holds the mapping of connection groups to user/session IDs.
+// Identifier holds the user and session ID field mappings for a connection group.
 type Identifier struct {
 	SessionID string `json:"session_id"`
 	UserID    string `json:"user_id"`
@@ -20,7 +20,7 @@ type dedupConfig struct {
 	// Enabled controls whether deduplication is active.
 	// Set DEDUP_ENABLED=true to enable.
 	Enabled bool
-	// IdentifierMapping maps connection groups to user/session IDs.
+	// IdentifierMapping holds the user and session ID field mappings for a connection group.
 	IdentifierMapping map[string]Identifier
 	// ProtoClassNameMapping maps event_type to proto class name.
 	ProtoClassNameMapping map[string]string

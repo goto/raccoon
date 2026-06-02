@@ -83,6 +83,12 @@ func (d *Dedup) Apply(events []*pb.Event, connGroup string) []*pb.Event {
 			continue
 		}
 
+		if meta.EventGUID == "" || meta.SessionID == "" || meta.UserID == "" {
+			logger.Errorf("dedup: missing metadata fields: %+v for conn_group=%s,product=%s,event_name=%s", meta, connGroup, event.Product, event.EventName)
+			uniqueEvents = append(uniqueEvents, event)
+			continue
+		}
+
 		isDuplicate, cacheErr := d.checker.IsDuplicate(context.Background(), meta)
 		if cacheErr != nil {
 			logger.Errorf("dedup: cache verification failed, bypassing filter: %v", cacheErr)

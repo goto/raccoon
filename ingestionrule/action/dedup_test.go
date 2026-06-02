@@ -5,15 +5,16 @@ import (
 	"testing"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/runtime/protoiface"
+
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/schemaregistry"
 	"github.com/goto/raccoon/ingestionrule/action/mocks"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"google.golang.org/protobuf/reflect/protoreflect"
-	"google.golang.org/protobuf/runtime/protoiface"
 )
 
 func TestDedup_Apply_NilChecker(t *testing.T) {
@@ -457,6 +458,46 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 		}
 		res := d.Apply(events, "customer")
 		assert.Equal(t, events, res) // Fails open
+	})
+
+	// 7. Empty metadata fields
+	t.Run("EmptyMetadataFields", func(t *testing.T) {
+		mc := mocks.NewDuplicateChecker(t)
+		parsedMsg := &mockMessage{
+			fields: map[string]any{
+				"user": &mockMessage{
+					fields: map[string]any{
+						"id": "", // Empty UserID
+					},
+				},
+				"session": &mockMessage{
+					fields: map[string]any{
+						"id": "session-456",
+					},
+				},
+				"meta": &mockMessage{
+					fields: map[string]any{
+						"event_guid": "guid-789",
+					},
+				},
+			},
+		}
+		ms := &mockStencilClient{
+			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
+				return parsedMsg, nil
+			},
+		}
+		d := action.NewDedup(
+			schemaregistry.StencilClient{Client: ms},
+			mc,
+		)
+		events := []*pb.Event{
+			{
+				Type: "component",
+			},
+		}
+		res := d.Apply(events, "customer")
+		assert.Equal(t, events, res) // Should fail open and return the event
 	})
 }
 
