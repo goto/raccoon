@@ -97,7 +97,7 @@ func Decrement(bucket string, tags string) {
 	}
 }
 
-func Gauge(bucket string, val interface{}, tags string) {
+func Gauge(bucket string, val any, tags string) {
 	err := Setup()
 	if err == nil {
 		instance.gauge(bucket, val, tags)

@@ -13,9 +13,9 @@ import (
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/health"
+	"github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
-	"github.com/goto/raccoon/policy"
 	"github.com/goto/raccoon/publisher"
 	"github.com/goto/raccoon/services"
 	"github.com/goto/raccoon/worker"
@@ -24,7 +24,14 @@ import (
 // StartServer starts the server
 func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
-	httpServices := services.Create(bufferChannel, initPolicy(), ctx)
+
+	ingestionRuleSvc, err := initIngestionRule(ctx)
+	if err != nil {
+		panic("error creating ingestion rule service: " + err.Error())
+	}
+
+	httpServices := services.Create(ctx, bufferChannel, ingestionRuleSvc)
+
 	logger.Info("Start Server -->")
 	httpServices.Start(ctx, cancel)
 	logger.Info("Start publisher -->")
@@ -34,7 +41,9 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 		logger.Info("Exiting server")
 		os.Exit(0)
 	}
-	registerHealthCheck(httpServices, kPublisher)
+
+	registerHealthCheck(httpServices, kPublisher, ingestionRuleSvc)
+
 	logger.Info("Start worker -->")
 	workerPool := worker.CreateWorkerPool(config.Worker.WorkersPoolSize, bufferChannel, config.Worker.DeliveryChannelSize, kPublisher)
 	workerPool.StartWorkers()
@@ -44,10 +53,10 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	go shutDownServer(ctx, cancel, httpServices, bufferChannel, workerPool, kPublisher, shutdown, signalChan)
+	go shutDownServer(ctx, cancel, httpServices, ingestionRuleSvc, bufferChannel, workerPool, kPublisher, shutdown, signalChan)
 }
 
-func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices services.Services, bufferChannel chan collection.CollectRequest,
+func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices services.Services, ingestionRuleSvc *ingestionrule.Service, bufferChannel chan collection.CollectRequest,
 	workerPool *worker.Pool, kp *publisher.Kafka, shutdown chan bool, signalChan chan os.Signal) {
 	for {
 		sig := <-signalChan
@@ -73,6 +82,10 @@ func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices
 
 			eventsInProducer := kp.Close()
 			eventCountInChannel := 0
+
+			if ingestionRuleSvc != nil {
+				ingestionRuleSvc.Close()
+			}
 
 			for req := range bufferChannel {
 				for _, event := range req.Events {
@@ -120,23 +133,34 @@ func reportProcMetrics() {
 	}
 }
 
-// initPolicy builds a *policy.Service when POLICY_ENABLED=true.
-// Returns nil when policy is disabled; a nil *policy.Service is safe (Apply is a no-op).
-func initPolicy() *policy.Service {
+// initIngestionRule builds a *ingestionrule.Service when POLICY_ENABLED=true.
+// Returns nil when policy is disabled; a nil *ingestionrule.Service is safe (Apply is a no-op).
+func initIngestionRule(ctx context.Context) (*ingestionrule.Service, error) {
 	if !config.PolicyCfg.Enabled {
-		logger.Info("Policy enforcement disabled")
-		return nil
+		logger.Info("ingestionRule enforcement disabled")
+		return nil, nil
 	}
-	svc := policy.NewService(
+
+	svc, err := ingestionrule.NewService(
+		ctx,
 		config.PolicyCfg.Rules,
 		config.PolicyCfg.OverrideEventType,
 	)
-	logger.Infof("Policy enforcement enabled: loaded %d rules, override event type=%s", len(config.PolicyCfg.Rules), config.PolicyCfg.OverrideEventType)
-	return svc
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Infof("ingestionRule enforcement enabled: loaded %d rules, override event type=%s", len(config.PolicyCfg.Rules), config.PolicyCfg.OverrideEventType)
+
+	return svc, nil
 }
 
-func registerHealthCheck(svcs services.Services, kafka *publisher.Kafka) {
+func registerHealthCheck(svcs services.Services, kafka *publisher.Kafka, ingestionRuleSvc *ingestionrule.Service) {
 	health.Register("kafka-broker", kafka.HealthCheck)
+	if config.DedupCfg.Enabled && ingestionRuleSvc != nil {
+		health.Register("redis", ingestionRuleSvc.HealthCheck)
+	}
+
 	for _, svc := range svcs.B {
 		if svc.Name() == "MQTT" {
 			health.Register("mqtt-broker", svc.HealthCheck)

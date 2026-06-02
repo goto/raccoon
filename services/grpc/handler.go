@@ -8,18 +8,19 @@ import (
 
 	pbgrpc "buf.build/gen/go/gotocompany/proton/grpc/go/gotocompany/raccoon/v1beta1/raccoonv1beta1grpc"
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+	"google.golang.org/grpc/metadata"
+
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/identification"
+	"github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
-	policypkg "github.com/goto/raccoon/policy"
-	"google.golang.org/grpc/metadata"
 )
 
 type Handler struct {
-	C      collection.Collector
-	policy *policypkg.Service
+	C             collection.Collector
+	ingestionrule *ingestionrule.Service
 	pbgrpc.UnimplementedEventServiceServer
 }
 
@@ -60,7 +61,8 @@ func (h *Handler) SendEvent(ctx context.Context, req *pb.SendEventRequest) (*pb.
 	for _, e := range req.Events {
 		logger.Debugf("[grpc.SendEvent] event: event_name=%s, product=%s, type=%s, event_timestamp=%s, req_guid=%s, conn_group=%s", e.EventName, e.Product, e.Type, e.GetEventTimestamp().AsTime(), req.ReqGuid, identifier.Group)
 	}
-	req.Events = h.policy.Apply(req.Events, identifier.Group)
+
+	req.Events = h.ingestionrule.Apply(ctx, req.Events, identifier.Group)
 
 	responseChannel := make(chan *pb.SendEventResponse, 1)
 	h.C.Collect(ctx, &collection.CollectRequest{

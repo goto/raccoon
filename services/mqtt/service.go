@@ -9,7 +9,7 @@ import (
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/logger"
-	policypkg "github.com/goto/raccoon/policy"
+	policypkg "github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/services/mqtt/client"
 )
 
@@ -21,7 +21,7 @@ type Service struct {
 }
 
 // NewMQTTService initializes the MQTT service and its consumer pool.
-func NewMQTTService(collector collection.Collector, policy *policypkg.Service, ctx context.Context) *Service {
+func NewMQTTService(ctx context.Context, collector collection.Collector, policy *policypkg.Service) *Service {
 	hostName, err := os.Hostname()
 	if err != nil {
 		return &Service{Collector: collector, startupErr: fmt.Errorf("failed to get hostname: %w", err)}

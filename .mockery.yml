@@ -1,0 +1,16 @@
+filename: '{{.InterfaceName | snakecase}}.go'
+force-file-write: true
+formatter: goimports
+include-auto-generated: false
+log-level: warn
+pkgname: 'mocks'
+dir: "{{.InterfaceDir}}/mocks"
+template: testify
+recursive: true
+require-template-schema-exists: true
+template-schema: '{{.Template}}.schema.json'
+packages:
+  github.com/goto/raccoon/ingestionrule:
+    config:
+      all: true
+      structname: '{{.InterfaceName}}'

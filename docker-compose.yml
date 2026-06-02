@@ -1,4 +1,4 @@
-version: '3.9'
+version: "3.9"
 
 networks:
   cs-network:
@@ -26,14 +26,14 @@ services:
       - "9094:9094"
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
       KAFKA_ADVERTISED_LISTENERS: INSIDE://kafka:9092,OUTSIDE://localhost:9094
       KAFKA_LISTENERS: INSIDE://:9092,OUTSIDE://:9094
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_SOCKET_REQUEST_MAX_BYTES: 1000000000
-      CONFLUENT_METRICS_ENABLE: 'false'
+      CONFLUENT_METRICS_ENABLE: "false"
     links:
       - zookeeper
     networks:
@@ -49,6 +49,7 @@ services:
     depends_on:
       - kafka
       - telegraf
+      - redis
     environment:
       SERVER_WEBSOCKET_PORT: "8080"
       SERVER_WEBSOCKET_CHECK_ORIGIN: "true"
@@ -77,6 +78,26 @@ services:
       METRIC_STATSD_ADDRESS: "telegraf:8125"
       METRIC_STATSD_FLUSH_PERIOD_MS: 100
       LOG_LEVEL: "info"
+      DEDUP_ENABLED: "false"
+      DEDUP_WHITELIST_CONN_GROUP: "[]"
+      DEDUP_IDENTIFIER_MAPPING: ''
+      DEDUP_PROTO_CLASS_NAME_MAPPING: ''
+      REDIS_TYPE: "standalone"
+      REDIS_ADDRESS: "redis:6379"
+      REDIS_USERNAME: ""
+      REDIS_PASSWORD: ""
+      REDIS_POOL_SIZE: 1000
+      REDIS_RETRY_MAX: 3
+      REDIS_RETRY_MIN_BACKOFF: "10s"
+      REDIS_RETRY_MAX_BACKOFF: "60s"
+      REDIS_SENTINEL_MASTER_NAME: ""
+      STENCIL_URL: ""
+      STENCIL_AUTO_REFRESH: "true"
+      STENCIL_REFRESH_INTERVAL: "12h"
+      STENCIL_HTTP_TIMEOUT: "15s"
+      STENCIL_MAX_RETRY: 3
+      STENCIL_MAX_JITTER_INTERVAL: "1s"
+      STENCIL_EXPONENT_FACTOR: 1.5
     ports:
       - "8080:8080"
       - "8081:8081"
@@ -85,8 +106,17 @@ services:
   telegraf:
     image: telegraf
     volumes:
-    - ./.telegraf.sample.conf:/etc/telegraf/telegraf.conf:ro
+      - ./.telegraf.sample.conf:/etc/telegraf/telegraf.conf:ro
     ports:
       - "8125:8125"
+    networks:
+      - cs-network
+
+  redis:
+    image: redis:7-alpine
+    hostname: redis
+    container_name: redis
+    ports:
+      - "6379:6379"
     networks:
       - cs-network

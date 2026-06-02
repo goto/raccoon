@@ -7,12 +7,13 @@ import (
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/gorilla/websocket"
+
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/deserialization"
+	"github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
-	policypkg "github.com/goto/raccoon/policy"
 	"github.com/goto/raccoon/serialization"
 	"github.com/goto/raccoon/services/rest/websocket/connection"
 )
@@ -22,11 +23,11 @@ type serDe struct {
 	deserializer deserialization.DeserializeFunc
 }
 type Handler struct {
-	upgrader    *connection.Upgrader
-	serdeMap    map[int]*serDe
-	collector   collection.Collector
-	policy      *policypkg.Service
-	PingChannel chan connection.Conn
+	upgrader      *connection.Upgrader
+	serdeMap      map[int]*serDe
+	PingChannel   chan connection.Conn
+	collector     collection.Collector
+	ingestionrule *ingestionrule.Service
 }
 
 func getSerDeMap() map[int]*serDe {
@@ -43,7 +44,7 @@ func getSerDeMap() map[int]*serDe {
 	return serDeMap
 }
 
-func NewHandler(pingC chan connection.Conn, collector collection.Collector, policy *policypkg.Service) *Handler {
+func NewHandler(pingC chan connection.Conn, collector collection.Collector, ingestionrule *ingestionrule.Service) *Handler {
 	ugConfig := connection.UpgraderConfig{
 		ReadBufferSize:    config.ServerWs.ReadBufferSize,
 		WriteBufferSize:   config.ServerWs.WriteBufferSize,
@@ -58,11 +59,11 @@ func NewHandler(pingC chan connection.Conn, collector collection.Collector, poli
 
 	upgrader := connection.NewUpgrader(ugConfig)
 	return &Handler{
-		upgrader:    upgrader,
-		serdeMap:    getSerDeMap(),
-		PingChannel: pingC,
-		collector:   collector,
-		policy:      policy,
+		upgrader:      upgrader,
+		serdeMap:      getSerDeMap(),
+		PingChannel:   pingC,
+		collector:     collector,
+		ingestionrule: ingestionrule,
 	}
 }
 
@@ -124,7 +125,9 @@ func (h *Handler) HandlerWSEvents(w http.ResponseWriter, r *http.Request) {
 		for _, e := range payload.Events {
 			logger.Debugf("[websocket.Handler] event: event_name=%s, product=%s, type=%s, event_timestamp=%s, req_guid=%s, conn_group=%s", e.EventName, e.Product, e.Type, e.GetEventTimestamp().AsTime(), payload.ReqGuid, conn.Identifier.Group)
 		}
-		payload.Events = h.policy.Apply(payload.Events, conn.Identifier.Group)
+
+		payload.Events = h.ingestionrule.Apply(r.Context(), payload.Events, conn.Identifier.Group)
+
 		h.collector.Collect(r.Context(), &collection.CollectRequest{
 			ConnectionIdentifier: conn.Identifier,
 			TimeConsumed:         timeConsumed,
