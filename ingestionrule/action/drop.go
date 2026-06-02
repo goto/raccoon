@@ -6,9 +6,9 @@ import (
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
-	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
 )
 
 // Drop is a policy action that drops events matching the configured rules.

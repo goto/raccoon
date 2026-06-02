@@ -2,9 +2,9 @@ package action
 
 import (
 	"github.com/goto/raccoon/config"
-	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/ingestionrule/action/eval"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
+	"github.com/goto/raccoon/logger"
 )
 
 // Evaluator is implemented by every step in the evaluation chain.

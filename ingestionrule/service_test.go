@@ -1,6 +1,7 @@
 package ingestionrule_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -59,7 +60,8 @@ func TestService_Apply_NilIsPassthrough(t *testing.T) {
 
 func TestService_Apply_DropTakesPriorityOverOverride(t *testing.T) {
 	rules := buildRules(time.Hour, time.Hour, false)
-	svc := ingestionrule.NewService(rules, testOverrideEventType, nil)
+	svc, err := ingestionrule.NewService(context.Background(), rules, testOverrideEventType)
+	assert.NoError(t, err)
 
 	events := []*pb.Event{
 		{EventName: "click", Product: "app", EventTimestamp: timestampProto(time.Now().Add(-2 * time.Hour))},
@@ -80,7 +82,8 @@ func TestService_Apply_OverrideWhenNoDrop(t *testing.T) {
 			},
 		},
 	}
-	svc := ingestionrule.NewService(rules, testOverrideEventType, nil)
+	svc, err := ingestionrule.NewService(context.Background(), rules, testOverrideEventType)
+	assert.NoError(t, err)
 
 	events := []*pb.Event{
 		{EventName: "click", Product: "app", EventTimestamp: timestampProto(time.Now().Add(-2 * time.Hour))},
@@ -92,7 +95,8 @@ func TestService_Apply_OverrideWhenNoDrop(t *testing.T) {
 }
 
 func TestService_Apply_PassthroughWhenNoPolicy(t *testing.T) {
-	svc := ingestionrule.NewService(nil, testOverrideEventType, nil)
+	svc, err := ingestionrule.NewService(context.Background(), nil, testOverrideEventType)
+	assert.NoError(t, err)
 
 	events := []*pb.Event{{EventName: "click"}}
 	result := svc.Apply(events, "grp")
@@ -101,7 +105,8 @@ func TestService_Apply_PassthroughWhenNoPolicy(t *testing.T) {
 
 func TestService_Apply_MixedBatch(t *testing.T) {
 	rules := buildRules(time.Hour, 0, false)
-	svc := ingestionrule.NewService(rules, testOverrideEventType, nil)
+	svc, err := ingestionrule.NewService(context.Background(), rules, testOverrideEventType)
+	assert.NoError(t, err)
 
 	clean := &pb.Event{EventName: "other", Product: "app"}
 	stale := &pb.Event{EventName: "click", Product: "app", EventTimestamp: timestampProto(time.Now().Add(-2 * time.Hour))}
@@ -110,7 +115,8 @@ func TestService_Apply_MixedBatch(t *testing.T) {
 }
 
 func TestService_Apply_DeactivateDropsEvent(t *testing.T) {
-	svc := ingestionrule.NewService(buildRules(0, 0, true), testOverrideEventType, nil)
+	svc, err := ingestionrule.NewService(context.Background(), buildRules(0, 0, true), testOverrideEventType)
+	assert.NoError(t, err)
 
 	events := []*pb.Event{
 		{EventName: "click", Product: "app", EventTimestamp: timestampProto(time.Now())},
@@ -122,7 +128,8 @@ func TestService_Apply_DeactivateTakesPriorityOverDrop(t *testing.T) {
 	// Both DEACTIVE and DROP rules target the same event.
 	// DEACTIVE runs first and removes it; DROP never sees it.
 	rules := buildRules(time.Hour, 0, true)
-	svc := ingestionrule.NewService(rules, testOverrideEventType, nil)
+	svc, err := ingestionrule.NewService(context.Background(), rules, testOverrideEventType)
+	assert.NoError(t, err)
 
 	events := []*pb.Event{
 		{EventName: "click", Product: "app", EventTimestamp: timestampProto(time.Now().Add(-2 * time.Hour))},
@@ -131,7 +138,8 @@ func TestService_Apply_DeactivateTakesPriorityOverDrop(t *testing.T) {
 }
 
 func TestService_Apply_DeactivatePassthroughWhenNoMatch(t *testing.T) {
-	svc := ingestionrule.NewService(buildRules(0, 0, true), testOverrideEventType, nil)
+	svc, err := ingestionrule.NewService(context.Background(), buildRules(0, 0, true), testOverrideEventType)
+	assert.NoError(t, err)
 
 	events := []*pb.Event{
 		{EventName: "scroll", Product: "app", EventTimestamp: timestampProto(time.Now())},
@@ -148,7 +156,8 @@ func TestService_Apply_UnknownActionTypeSkipped(t *testing.T) {
 		},
 	}
 	// Should not panic; rule is silently skipped (error logged).
-	svc := ingestionrule.NewService(rules, testOverrideEventType, nil)
+	svc, err := ingestionrule.NewService(context.Background(), rules, testOverrideEventType)
+	assert.NoError(t, err)
 	events := []*pb.Event{{EventName: "click", Product: "app"}}
 	assert.Equal(t, events, svc.Apply(events, "grp"))
 }

@@ -1,6 +1,7 @@
 package ingestionrule
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -8,8 +9,9 @@ import (
 
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
-	"github.com/goto/raccoon/ingestionrule/action/dedup"
-	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
+	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
+	"github.com/goto/raccoon/ingestionrule/action/dedup/schemaregistry"
+	evalcache "github.com/goto/raccoon/ingestionrule/action/eval/cache"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 )
@@ -22,17 +24,17 @@ const MetricEvalDuration = action.MetricEvalLatency
 // Service handlers in grpc, rest, websocket, and mqtt packages each hold a *Service
 // and call Apply to filter events before forwarding them to the buffer channel.
 type Service struct {
-	chain    Chain
-	dedupSvc *dedup.Service
+	chain   Chain
+	checker action.DuplicateChecker
 }
 
 // NewService builds a fully wired Service from the given config rules.
 // It partitions the rules by action type, creates an eval.Cache per action,
 // and assembles the action chain in priority order: Deactivate → Drop → OverrideTimestamp → Dedup.
-func NewService(rules []config.PolicyRule, overrideEventType string, dedupSvc *dedup.Service) *Service {
-	dropCache := cache.NewCache(rulesForAction(rules, config.PolicyActionDrop))
-	overrideCache := cache.NewCache(rulesForAction(rules, config.PolicyActionOverrideTimestamp))
-	deactivateCache := cache.NewCache(rulesForAction(rules, config.PolicyActionDeactivate))
+func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventType string) (*Service, error) {
+	dropCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionDrop))
+	overrideCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionOverrideTimestamp))
+	deactivateCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionDeactivate))
 
 	known := map[config.PolicyActionType]bool{
 		config.PolicyActionDrop:              true,
@@ -45,15 +47,36 @@ func NewService(rules []config.PolicyRule, overrideEventType string, dedupSvc *d
 		}
 	}
 
+	var stencil schemaregistry.StencilClient
+	var checker action.DuplicateChecker
+	var err error
+
+	if config.DedupCfg.Enabled {
+		stencil, err = schemaregistry.NewStencilClient()
+		if err != nil {
+			return nil, err
+		}
+
+		cacheClient, err := cache.NewRedisCache(ctx, config.MetricStatsd.FlushPeriodMs)
+		if err != nil {
+			return nil, err
+		}
+
+		checker, err = cache.NewStore(ctx, cacheClient)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &Service{
 		chain: Chain{
 			action.NewDeactivate(deactivateCache, action.DefaultChain()),
 			action.NewDrop(dropCache, action.DefaultChain()),
 			action.NewOverrideTimestamp(overrideCache, action.DefaultChain(), overrideEventType),
-			action.NewDedup(dedupSvc),
+			action.NewDedup(stencil, config.PolicyCfg.PublisherMapping, checker),
 		},
-		dedupSvc: dedupSvc,
-	}
+		checker: checker,
+	}, nil
 }
 
 // Close closes any resources used by the service (such as deduplication).
@@ -61,9 +84,21 @@ func (s *Service) Close() {
 	if s == nil {
 		return
 	}
-	if s.dedupSvc != nil {
-		s.dedupSvc.Close()
+
+	if s.checker != nil {
+		if err := s.checker.Close(); err != nil {
+			logger.Errorf("failed to close duplicate checker: %v", err)
+		}
 	}
+}
+
+// HealthCheck checks the health of the duplicate checker.
+func (s *Service) HealthCheck() error {
+	if s == nil || s.checker == nil {
+		return nil
+	}
+
+	return s.checker.HealthCheck()
 }
 
 // Apply runs the event batch through the action pipeline and returns only events

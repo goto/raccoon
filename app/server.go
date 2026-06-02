@@ -14,7 +14,6 @@ import (
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/health"
 	"github.com/goto/raccoon/ingestionrule"
-	"github.com/goto/raccoon/ingestionrule/action/dedup"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/publisher"
@@ -26,12 +25,10 @@ import (
 func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
 
-	dedupSvc, err := dedup.NewService(ctx)
+	ingestionRuleSvc, err := initIngestionRule(ctx)
 	if err != nil {
-		panic("error creating dedup service: " + err.Error())
+		panic("error creating ingestion rule service: " + err.Error())
 	}
-
-	ingestionRuleSvc := initIngestionRule(dedupSvc)
 
 	httpServices := services.Create(ctx, bufferChannel, ingestionRuleSvc)
 
@@ -45,7 +42,7 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 		os.Exit(0)
 	}
 
-	registerHealthCheck(httpServices, kPublisher, dedupSvc)
+	registerHealthCheck(httpServices, kPublisher, ingestionRuleSvc)
 
 	logger.Info("Start worker -->")
 	workerPool := worker.CreateWorkerPool(config.Worker.WorkersPoolSize, bufferChannel, config.Worker.DeliveryChannelSize, kPublisher)
@@ -138,26 +135,31 @@ func reportProcMetrics() {
 
 // initIngestionRule builds a *ingestionrule.Service when POLICY_ENABLED=true.
 // Returns nil when policy is disabled; a nil *ingestionrule.Service is safe (Apply is a no-op).
-func initIngestionRule(dedupSvc *dedup.Service) *ingestionrule.Service {
+func initIngestionRule(ctx context.Context) (*ingestionrule.Service, error) {
 	if !config.PolicyCfg.Enabled {
 		logger.Info("ingestionRule enforcement disabled")
-		return nil
+		return nil, nil
 	}
 
-	svc := ingestionrule.NewService(
+	svc, err := ingestionrule.NewService(
+		ctx,
 		config.PolicyCfg.Rules,
 		config.PolicyCfg.OverrideEventType,
-		dedupSvc,
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	logger.Infof("ingestionRule enforcement enabled: loaded %d rules, override event type=%s", len(config.PolicyCfg.Rules), config.PolicyCfg.OverrideEventType)
 
-	return svc
+	return svc, nil
 }
 
-func registerHealthCheck(svcs services.Services, kafka *publisher.Kafka, dedupSvc *dedup.Service) {
+func registerHealthCheck(svcs services.Services, kafka *publisher.Kafka, ingestionRuleSvc *ingestionrule.Service) {
 	health.Register("kafka-broker", kafka.HealthCheck)
-	health.Register("redis", dedupSvc.HealthCheck)
+	if ingestionRuleSvc != nil {
+		health.Register("redis", ingestionRuleSvc.HealthCheck)
+	}
 
 	for _, svc := range svcs.B {
 		if svc.Name() == "MQTT" {
