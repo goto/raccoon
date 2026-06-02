@@ -34,15 +34,14 @@ func TestDedup_Apply_BypassDeduplicationWhenNotWhitelisted(t *testing.T) {
 }
 
 func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
-	// Configure whitelist to include group-whitelisted.
 	config.DedupCfg.WhitelistConnGroup = map[string]struct{}{
-		"group-whitelisted": {},
+		"customer": {},
 	}
 	config.DedupCfg.ProtoClassNameMapping = map[string]string{
-		"click-event-type": "ClickEventProto",
+		"component": "ClickEventProto",
 	}
 	config.DedupCfg.IdentifierMapping = map[string]config.Identifier{
-		"click-publisher": {
+		"customer": {
 			UserID:    "user.id",
 			SessionID: "session.id",
 		},
