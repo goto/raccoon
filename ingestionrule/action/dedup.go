@@ -19,7 +19,9 @@ import (
 )
 
 const (
-	metricNameEventDeserializationError = "event_deserialization_error"
+	metricNameEventDeserializationError    = "event_deserialization_error"
+	metricNameEventDeserializationLatency  = "event_deserialization_latency"
+	metricNameEventDuplicateCheckerLatency = "event_duplicate_checker_latency"
 )
 
 const (
@@ -76,7 +78,10 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 	uniqueEvents := make([]*pb.Event, 0, len(events))
 
 	for _, event := range events {
+		startDeserialize := time.Now()
 		meta, err := d.extractMetadata(event, connGroup)
+		metrics.Timing(metricNameEventDeserializationLatency, time.Since(startDeserialize).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))
+
 		if err != nil {
 			logger.Errorf("dedup: failed to extract metadata: %v", err)
 			uniqueEvents = append(uniqueEvents, event)
@@ -89,7 +94,10 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 			continue
 		}
 
+		startCheck := time.Now()
 		isDuplicate, cacheErr := d.checker.IsDuplicate(ctx, meta)
+		metrics.Timing(metricNameEventDuplicateCheckerLatency, time.Since(startCheck).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))
+
 		if cacheErr != nil {
 			logger.Errorf("dedup: cache verification failed, bypassing filter: %v", cacheErr)
 			uniqueEvents = append(uniqueEvents, event)
@@ -97,6 +105,7 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 		}
 
 		if isDuplicate {
+			metrics.Increment(metricEventDedupCount, fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))
 			continue
 		}
 

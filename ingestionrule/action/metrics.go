@@ -9,3 +9,6 @@ const metricEventLossCount = "clickstream_data_loss"
 
 // metricEventOverrideCount counts events forwarded to the override topic.
 const metricEventOverrideCount = "clickstream_data_override"
+
+// metricEventDedupCount counts events deduplicated by the deduplication logic.
+const metricEventDedupCount = "clickstream_data_dedup"
