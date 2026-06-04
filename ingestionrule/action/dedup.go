@@ -80,7 +80,7 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 	for _, event := range events {
 		startDeserialize := time.Now()
 		meta, err := d.extractMetadata(event, connGroup)
-		metrics.Timing(metricNameEventDeserializationLatency, time.Since(startDeserialize).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))
+		metrics.Timing(metricNameEventDeserializationLatency, time.Since(startDeserialize).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
 
 		if err != nil {
 			logger.Errorf("dedup: failed to extract metadata: %v", err)
@@ -96,7 +96,7 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 
 		startCheck := time.Now()
 		isDuplicate, cacheErr := d.checker.IsDuplicate(ctx, meta)
-		metrics.Timing(metricNameEventDuplicateCheckerLatency, time.Since(startCheck).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))
+		metrics.Timing(metricNameEventDuplicateCheckerLatency, time.Since(startCheck).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
 
 		if cacheErr != nil {
 			logger.Errorf("dedup: cache verification failed, bypassing filter: %v", cacheErr)
@@ -105,7 +105,7 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 		}
 
 		if isDuplicate {
-			metrics.Increment(metricEventDedupCount, fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))
+			metrics.Increment(metricEventLossCount, fmt.Sprintf("reason=DEDUP_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", event.EventName, event.Product, connGroup, event.Type))
 			continue
 		}
 
