@@ -15,6 +15,7 @@ type RedisType = string
 const (
 	RedisTypeSentinel   RedisType = "sentinel"
 	RedisTypeStandalone RedisType = "standalone"
+	RedisTypeCluster    RedisType = "cluster"
 )
 
 type redisConfig struct {
