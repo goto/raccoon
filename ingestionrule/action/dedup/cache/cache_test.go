@@ -10,49 +10,97 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestStore_IsDuplicate(t *testing.T) {
+func TestStore_AreDuplicates(t *testing.T) {
 	ctx := context.Background()
-	event := EventMetadata{
-		UserID:    "user1",
-		SessionID: "session1",
-		EventGUID: "guid1",
+
+	events := []EventMetadata{
+		{UserID: "user1", SessionID: "session1", EventGUID: "guid1"},
+		{UserID: "user2", SessionID: "session2", EventGUID: "guid2"},
 	}
-	expectedKey := "user1:session1:guid1"
+	key1 := "user1:session1:guid1"
+	key2 := "user2:session2:guid2"
 
-	t.Run("NotDuplicate", func(t *testing.T) {
-		mockClient := mocks.NewClient(t)
-		boolCmd := redis.NewBoolResult(true, nil) // SETNX returns true (key did not exist)
-		mockClient.On("SetNX", ctx, expectedKey, "t", DeduplicationTTL).Return(boolCmd)
-
-		s := &Store{client: mockClient}
-		isDup, err := s.IsDuplicate(ctx, event)
-
+	t.Run("Empty Events Slice", func(t *testing.T) {
+		s := &Store{}
+		res, err := s.AreDuplicates(ctx, nil)
 		assert.NoError(t, err)
-		assert.False(t, isDup)
+		assert.Nil(t, res)
 	})
 
-	t.Run("IsDuplicate", func(t *testing.T) {
+	t.Run("Mixed Pipeline Results", func(t *testing.T) {
 		mockClient := mocks.NewClient(t)
-		boolCmd := redis.NewBoolResult(false, nil) // SETNX returns false (key already existed)
-		mockClient.On("SetNX", ctx, expectedKey, "t", DeduplicationTTL).Return(boolCmd)
+		pipe := new(mocks.Client)
+
+		// cmd1 returns true (key did not exist -> NOT duplicate)
+		cmd1 := redis.NewBoolResult(true, nil)
+		// cmd2 returns false (key existed -> IS duplicate)
+		cmd2 := redis.NewBoolResult(false, nil)
+
+		pipe.On("SetNX", ctx, key1, "t", DeduplicationTTL).Return(cmd1)
+		pipe.On("SetNX", ctx, key2, "t", DeduplicationTTL).Return(cmd2)
+		pipe.On("Exec", ctx).Return([]redis.Cmder{cmd1, cmd2}, nil)
+
+		mockClient.On("Pipeline").Return(pipe)
 
 		s := &Store{client: mockClient}
-		isDup, err := s.IsDuplicate(ctx, event)
+		res, err := s.AreDuplicates(ctx, events)
 
 		assert.NoError(t, err)
-		assert.True(t, isDup)
+		// Expecting false (not duplicate) for event 1, and true (is duplicate) for event 2
+		assert.Equal(t, []bool{false, true}, res)
+
+		pipe.AssertExpectations(t)
+		mockClient.AssertExpectations(t)
 	})
 
-	t.Run("RedisError", func(t *testing.T) {
+	t.Run("Redis Exec Pipeline Error", func(t *testing.T) {
 		mockClient := mocks.NewClient(t)
-		boolCmd := redis.NewBoolResult(false, errors.New("connection refused"))
-		mockClient.On("SetNX", ctx, expectedKey, "t", DeduplicationTTL).Return(boolCmd)
+		pipe := new(mocks.Client)
+
+		cmd1 := redis.NewBoolResult(false, nil)
+		cmd2 := redis.NewBoolResult(false, nil)
+
+		pipe.On("SetNX", ctx, key1, "t", DeduplicationTTL).Return(cmd1)
+		pipe.On("SetNX", ctx, key2, "t", DeduplicationTTL).Return(cmd2)
+
+		execErr := errors.New("pipeline execution failed")
+		pipe.On("Exec", ctx).Return(nil, execErr)
+
+		mockClient.On("Pipeline").Return(pipe)
 
 		s := &Store{client: mockClient}
-		isDup, err := s.IsDuplicate(ctx, event)
+		res, err := s.AreDuplicates(ctx, events)
 
-		assert.Error(t, err)
-		assert.False(t, isDup)
+		assert.ErrorIs(t, err, execErr)
+		assert.Nil(t, res)
+
+		pipe.AssertExpectations(t)
+		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("Redis Nil Error Ignored", func(t *testing.T) {
+		// redis.Nil is sometimes returned by pipeline executions when keys aren't found.
+		// Our logic explicitly ignores this error (err != redis.Nil).
+		mockClient := mocks.NewClient(t)
+		pipe := new(mocks.Client)
+
+		cmd1 := redis.NewBoolResult(true, nil)
+		cmd2 := redis.NewBoolResult(true, nil)
+
+		pipe.On("SetNX", ctx, key1, "t", DeduplicationTTL).Return(cmd1)
+		pipe.On("SetNX", ctx, key2, "t", DeduplicationTTL).Return(cmd2)
+		pipe.On("Exec", ctx).Return([]redis.Cmder{cmd1, cmd2}, redis.Nil)
+
+		mockClient.On("Pipeline").Return(pipe)
+
+		s := &Store{client: mockClient}
+		res, err := s.AreDuplicates(ctx, events)
+
+		assert.NoError(t, err)
+		assert.Equal(t, []bool{false, false}, res)
+
+		pipe.AssertExpectations(t)
+		mockClient.AssertExpectations(t)
 	})
 }
 

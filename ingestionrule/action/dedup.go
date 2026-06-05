@@ -43,9 +43,17 @@ const (
 
 // DuplicateChecker defines the capability to verify event uniqueness.
 type DuplicateChecker interface {
-	IsDuplicate(ctx context.Context, event cache.EventMetadata) (bool, error)
+	AreDuplicates(ctx context.Context, events []cache.EventMetadata) ([]bool, error)
 	HealthCheck() error
 	Close() error
+}
+
+// processState holds the state of each event being processed.
+type processState struct {
+	// event is the original event being processed.
+	event *pb.Event
+	// isValid indicates whether the event has valid metadata and should be checked for duplication.
+	isValid bool
 }
 
 // Dedup is a policy action that deduplicates events using duplicate checker and schema registry.
@@ -77,41 +85,67 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 		return events
 	}
 
-	uniqueEvents := make([]*pb.Event, 0, len(events))
+	states := make([]processState, len(events))
+	metadataBatch := make([]cache.EventMetadata, 0, len(events))
 
-	for _, event := range events {
+	for i, event := range events {
 		startDeserialize := time.Now()
 		meta, err := d.extractMetadata(event, connGroup)
 		metrics.Timing(metricNameEventDeserializationLatency, time.Since(startDeserialize).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
 
 		if err != nil {
 			logger.Errorf("dedup: failed to extract metadata: %v", err)
-			uniqueEvents = append(uniqueEvents, event)
+			states[i] = processState{event: event, isValid: false}
 			continue
 		}
 
 		if meta.EventGUID == "" || meta.SessionID == "" || meta.UserID == "" {
 			logger.Errorf("dedup: missing metadata fields: %+v for conn_group=%s,product=%s,event_name=%s", meta, connGroup, event.Product, event.EventName)
-			uniqueEvents = append(uniqueEvents, event)
+			states[i] = processState{event: event, isValid: false}
 			continue
 		}
 
+		states[i] = processState{event: event, isValid: true}
+		metadataBatch = append(metadataBatch, meta)
+	}
+
+	var isDuplicateResults []bool
+	var cacheErr error
+
+	if len(metadataBatch) > 0 {
 		startCheck := time.Now()
-		isDuplicate, cacheErr := d.checker.IsDuplicate(ctx, meta)
+		isDuplicateResults, cacheErr = d.checker.AreDuplicates(ctx, metadataBatch)
 		metrics.Timing(metricNameEventDuplicateCheckerLatency, time.Since(startCheck).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
+	}
+
+	uniqueEvents := make([]*pb.Event, 0, len(events))
+	resultIdx := 0 // Tracks our position in the isDuplicateResults slice
+
+	for _, state := range states {
+		if !state.isValid {
+			uniqueEvents = append(uniqueEvents, state.event)
+			continue
+		}
 
 		if cacheErr != nil {
-			logger.Errorf("dedup: cache verification failed, bypassing filter: %v", cacheErr)
-			uniqueEvents = append(uniqueEvents, event)
+			if resultIdx == 0 { // Only log once per batch
+				logger.Errorf("dedup: cache batch verification failed, bypassing filter: %v", cacheErr)
+			}
+
+			uniqueEvents = append(uniqueEvents, state.event)
+			resultIdx++
 			continue
 		}
+
+		isDuplicate := isDuplicateResults[resultIdx]
+		resultIdx++
 
 		if isDuplicate {
-			metrics.Increment(metricEventLossCount, fmt.Sprintf("reason=DEDUP_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", event.EventName, event.Product, connGroup, event.Type))
+			metrics.Increment(metricEventLossCount, fmt.Sprintf("reason=DEDUP_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", state.event.EventName, state.event.Product, connGroup, state.event.Type))
 			continue
 		}
 
-		uniqueEvents = append(uniqueEvents, event)
+		uniqueEvents = append(uniqueEvents, state.event)
 	}
 
 	return uniqueEvents

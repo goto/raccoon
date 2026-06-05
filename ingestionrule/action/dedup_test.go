@@ -58,11 +58,13 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 	// 1. Success case: event is not a duplicate.
 	t.Run("EventNotDuplicate", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
-		mc.EXPECT().IsDuplicate(mock.Anything, cache.EventMetadata{
-			UserID:    "user-123",
-			SessionID: "session-456",
-			EventGUID: "guid-789",
-		}).Return(false, nil)
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+			{
+				UserID:    "user-123",
+				SessionID: "session-456",
+				EventGUID: "guid-789",
+			},
+		}).Return([]bool{false}, nil)
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
@@ -111,11 +113,13 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 	// 2. Duplicate case: event is already in cache.
 	t.Run("EventDuplicate", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
-		mc.EXPECT().IsDuplicate(mock.Anything, cache.EventMetadata{
-			UserID:    "user-123",
-			SessionID: "session-456",
-			EventGUID: "guid-789",
-		}).Return(true, nil)
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+			{
+				UserID:    "user-123",
+				SessionID: "session-456",
+				EventGUID: "guid-789",
+			},
+		}).Return([]bool{true}, nil)
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
@@ -162,11 +166,13 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 	// 3. Redis error case: fails open.
 	t.Run("RedisErrorFailsOpen", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
-		mc.EXPECT().IsDuplicate(mock.Anything, cache.EventMetadata{
-			UserID:    "user-123",
-			SessionID: "session-456",
-			EventGUID: "guid-789",
-		}).Return(false, errors.New("redis error"))
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+			{
+				UserID:    "user-123",
+				SessionID: "session-456",
+				EventGUID: "guid-789",
+			},
+		}).Return(nil, errors.New("redis error"))
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
@@ -213,11 +219,13 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 	// 4. Conversion case: identifier fields are not strings but can be converted.
 	t.Run("EventWithNonStringIdentifiers", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
-		mc.EXPECT().IsDuplicate(mock.Anything, cache.EventMetadata{
-			UserID:    "123",
-			SessionID: "456",
-			EventGUID: "789",
-		}).Return(false, nil)
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+			{
+				UserID:    "123",
+				SessionID: "456",
+				EventGUID: "789",
+			},
+		}).Return([]bool{false}, nil)
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
