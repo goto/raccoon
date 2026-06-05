@@ -22,13 +22,16 @@ const (
 )
 
 // Client defines the contract for the underlying database infrastructure operations.
-//
-//go:generate  mockery --name=Client --with-expecter --output=./mocks
 type Client interface {
 	SetNX(ctx context.Context, key string, value any, expiration time.Duration) *redis.BoolCmd
 	Ping(ctx context.Context) *redis.StatusCmd
 	Pipeline() redis.Pipeliner
 	Close() error
+}
+
+// Pipeliner defines the contract for the Redis pipeline operations.
+type Pipeliner interface {
+	redis.Pipeliner
 }
 
 // Store manages the wrapper context around the active backend storage engine.

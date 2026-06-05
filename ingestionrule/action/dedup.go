@@ -160,6 +160,11 @@ func (d *Dedup) extractMetadata(event *pb.Event, connGroup string) (cache.EventM
 	// 	return cache.EventMetadata{}, fmt.Errorf("failed to find proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
 	// }
 
+	eventPage := &gojekuicspb.Page{}
+	if err := proto.Unmarshal(event.EventBytes, eventPage); err != nil {
+		return cache.EventMetadata{}, err
+	}
+
 	// parsedMsg, err := d.stencil.Client.Parse(protoClass, event.EventBytes)
 	// if err != nil {
 	// 	metrics.Increment(metricNameEventDeserializationError,
@@ -170,12 +175,7 @@ func (d *Dedup) extractMetadata(event *pb.Event, connGroup string) (cache.EventM
 	// userIdentifier := config.DedupCfg.IdentifierMapping[connGroup]
 	// ref := parsedMsg.ProtoReflect()
 
-	eventPage := &gojekuicspb.Page{}
-	if err := proto.Unmarshal(event.EventBytes, eventPage); err != nil {
-		return cache.EventMetadata{}, err
-	}
-
-	// 	userID, err := d.getStringField(ref, userIdentifier.UserID, connGroup, event, "userID", reasonUserIDNotFound, reasonUserIDTypeInvalid)
+	// userID, err := d.getStringField(ref, userIdentifier.UserID, connGroup, event, "userID", reasonUserIDNotFound, reasonUserIDTypeInvalid)
 	// if err != nil {
 	// 	return cache.EventMetadata{}, err
 	// }

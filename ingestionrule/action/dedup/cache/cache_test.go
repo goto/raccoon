@@ -27,9 +27,44 @@ func TestStore_AreDuplicates(t *testing.T) {
 		assert.Nil(t, res)
 	})
 
+	t.Run("Three Elements Two Duplicates", func(t *testing.T) {
+		batchEvents := []EventMetadata{
+			{UserID: "u1", SessionID: "s1", EventGUID: "g1"},
+			{UserID: "u2", SessionID: "s2", EventGUID: "g2"},
+			{UserID: "u3", SessionID: "s3", EventGUID: "g3"},
+		}
+
+		mockClient := mocks.NewClient(t)
+		pipe := new(mocks.Pipeliner)
+
+		// cmd1: true (not a duplicate)
+		// cmd2: false (is a duplicate)
+		// cmd3: false (is a duplicate)
+		cmd1 := redis.NewBoolResult(true, nil)
+		cmd2 := redis.NewBoolResult(false, nil)
+		cmd3 := redis.NewBoolResult(false, nil)
+
+		pipe.On("SetNX", ctx, "u1:s1:g1", "t", DeduplicationTTL).Return(cmd1)
+		pipe.On("SetNX", ctx, "u2:s2:g2", "t", DeduplicationTTL).Return(cmd2)
+		pipe.On("SetNX", ctx, "u3:s3:g3", "t", DeduplicationTTL).Return(cmd3)
+		pipe.On("Exec", ctx).Return([]redis.Cmder{cmd1, cmd2, cmd3}, nil)
+
+		mockClient.On("Pipeline").Return(pipe)
+
+		s := &Store{client: mockClient}
+		res, err := s.AreDuplicates(ctx, batchEvents)
+
+		assert.NoError(t, err)
+		// Evaluates to: [Not Dup, Is Dup, Is Dup]
+		assert.Equal(t, []bool{false, true, true}, res)
+
+		pipe.AssertExpectations(t)
+		mockClient.AssertExpectations(t)
+	})
+
 	t.Run("Mixed Pipeline Results", func(t *testing.T) {
 		mockClient := mocks.NewClient(t)
-		pipe := new(mocks.Client)
+		pipe := new(mocks.Pipeliner)
 
 		// cmd1 returns true (key did not exist -> NOT duplicate)
 		cmd1 := redis.NewBoolResult(true, nil)
@@ -55,7 +90,7 @@ func TestStore_AreDuplicates(t *testing.T) {
 
 	t.Run("Redis Exec Pipeline Error", func(t *testing.T) {
 		mockClient := mocks.NewClient(t)
-		pipe := new(mocks.Client)
+		pipe := new(mocks.Pipeliner)
 
 		cmd1 := redis.NewBoolResult(false, nil)
 		cmd2 := redis.NewBoolResult(false, nil)
@@ -82,7 +117,7 @@ func TestStore_AreDuplicates(t *testing.T) {
 		// redis.Nil is sometimes returned by pipeline executions when keys aren't found.
 		// Our logic explicitly ignores this error (err != redis.Nil).
 		mockClient := mocks.NewClient(t)
-		pipe := new(mocks.Client)
+		pipe := new(mocks.Pipeliner)
 
 		cmd1 := redis.NewBoolResult(true, nil)
 		cmd2 := redis.NewBoolResult(true, nil)

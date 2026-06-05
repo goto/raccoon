@@ -163,7 +163,56 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		assert.Empty(t, res) // Dropped
 	})
 
-	// 3. Redis error case: fails open.
+	// 3. Batch with multiple duplicates within a single event slice.
+	t.Run("BatchWithMultipleDuplicates", func(t *testing.T) {
+		mc := mocks.NewDuplicateChecker(t)
+
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+			{UserID: "user-1", SessionID: "session-1", EventGUID: "guid-1"},
+			{UserID: "user-2", SessionID: "session-2", EventGUID: "guid-2"},
+			{UserID: "user-3", SessionID: "session-3", EventGUID: "guid-3"},
+		}).Return([]bool{false, true, true}, nil) // 1 unique, 2 duplicates
+
+		ms := &mockStencilClient{
+			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
+				// Dynamically create the mock message based on the byte payload to simulate 3 distinct events
+				idSuffix := string(data)
+				return &mockMessage{
+					fields: map[string]any{
+						"user": &mockMessage{
+							fields: map[string]any{"id": "user-" + idSuffix},
+						},
+						"session": &mockMessage{
+							fields: map[string]any{"id": "session-" + idSuffix},
+						},
+						"meta": &mockMessage{
+							fields: map[string]any{"event_guid": "guid-" + idSuffix},
+						},
+					},
+				}, nil
+			},
+		}
+
+		d := action.NewDedup(
+			schemaregistry.StencilClient{Client: ms},
+			mc,
+		)
+
+		events := []*pb.Event{
+			{Type: "component", EventBytes: []byte("1")}, // Will be marked false (unique)
+			{Type: "component", EventBytes: []byte("2")}, // Will be marked true (duplicate)
+			{Type: "component", EventBytes: []byte("3")}, // Will be marked true (duplicate)
+		}
+
+		res := d.Apply(context.Background(), events, "customer")
+
+		// Assert that the 2 duplicates were dropped, leaving exactly 1 event
+		assert.Len(t, res, 1)
+		// Assert that the surviving event is the correct one (the first one)
+		assert.Equal(t, []byte("1"), res[0].EventBytes)
+	})
+
+	// 4. Redis error case: fails open.
 	t.Run("RedisErrorFailsOpen", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
@@ -216,7 +265,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		assert.Len(t, res, 1) // Bypassed and allowed through
 	})
 
-	// 4. Conversion case: identifier fields are not strings but can be converted.
+	// 5. Conversion case: identifier fields are not strings but can be converted.
 	t.Run("EventWithNonStringIdentifiers", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
