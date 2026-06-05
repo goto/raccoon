@@ -111,6 +111,11 @@ func (pr *Kafka) ProduceBulk(
 		eventType := pr.overrideEventType(event.GetType())
 		//override event type if prefix mapping exist and event type is in expected format, otherwise use the original event type
 		event.Type = eventType
+
+		if eventType == "raccoonloadtest1" {
+			continue
+		}
+
 		topic := fmt.Sprintf(pr.topicFormat[event.GetIsExclusive()], event.Type)
 		message := &kafka.Message{
 			Value:          event.EventBytes,
@@ -188,10 +193,9 @@ func (pr *Kafka) ProduceBulk(
 
 		event := events[order]
 		if m.TopicPartition.Error != nil {
-			eventType := events[i].Type
-			metrics.Decrement("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, eventType))
-			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, eventType))
-			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s", "delivery_failed", eventType, connGroup))
+			metrics.Decrement("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, event.Type))
+			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, event.Type))
+			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s", "delivery_failed", event.Type, connGroup))
 
 			tags := fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s,app_version=%s,platform=%s",
 				"KAFKA_ERROR", event.EventName, strings.ReplaceAll(strings.ToLower(event.Product), "_", ""), connGroup, event.AppVersion, event.Platform,
