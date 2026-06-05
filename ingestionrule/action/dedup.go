@@ -8,7 +8,9 @@ import (
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/spf13/cast"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	gojekuicspb "source.golabs.io/mobile/clickstream-go-proto/v4/gojek/clickstream/products/events/ui"
 
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
@@ -117,43 +119,48 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 
 // extractMetadata deserializes dynamic protobuf payloads using Stencil and handles identity field extractions.
 func (d *Dedup) extractMetadata(event *pb.Event, connGroup string) (cache.EventMetadata, error) {
-	protoClass, ok := config.DedupCfg.ProtoClassNameMapping[event.Type]
-	if !ok {
-		metrics.Increment(metricNameEventDeserializationError,
-			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, reasonProtoClassNotFound, event.Type, event.Product, event.EventName))
-		return cache.EventMetadata{}, fmt.Errorf("failed to find proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
-	}
+	// protoClass, ok := config.DedupCfg.ProtoClassNameMapping[event.Type]
+	// if !ok {
+	// 	metrics.Increment(metricNameEventDeserializationError,
+	// 		fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, reasonProtoClassNotFound, event.Type, event.Product, event.EventName))
+	// 	return cache.EventMetadata{}, fmt.Errorf("failed to find proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
+	// }
 
-	parsedMsg, err := d.stencil.Client.Parse(protoClass, event.EventBytes)
-	if err != nil {
-		metrics.Increment(metricNameEventDeserializationError,
-			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, reasonStencilParseError, event.Type, event.Product, event.EventName))
-		return cache.EventMetadata{}, fmt.Errorf("failed to parse proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
-	}
+	// parsedMsg, err := d.stencil.Client.Parse(protoClass, event.EventBytes)
+	// if err != nil {
+	// 	metrics.Increment(metricNameEventDeserializationError,
+	// 		fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, reasonStencilParseError, event.Type, event.Product, event.EventName))
+	// 	return cache.EventMetadata{}, fmt.Errorf("failed to parse proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
+	// }
 
-	userIdentifier := config.DedupCfg.IdentifierMapping[connGroup]
-	ref := parsedMsg.ProtoReflect()
+	// userIdentifier := config.DedupCfg.IdentifierMapping[connGroup]
+	// ref := parsedMsg.ProtoReflect()
 
-	userID, err := d.getStringField(ref, userIdentifier.UserID, connGroup, event, "userID", reasonUserIDNotFound, reasonUserIDTypeInvalid)
-	if err != nil {
+	eventPage := &gojekuicspb.Page{}
+	if err := proto.Unmarshal(event.EventBytes, eventPage); err != nil {
 		return cache.EventMetadata{}, err
 	}
 
-	sessionID, err := d.getStringField(ref, userIdentifier.SessionID, connGroup, event, "sessionID", reasonSessionIDNotFound, reasonSessionIDTypeInvalid)
-	if err != nil {
-		return cache.EventMetadata{}, err
-	}
+	// 	userID, err := d.getStringField(ref, userIdentifier.UserID, connGroup, event, "userID", reasonUserIDNotFound, reasonUserIDTypeInvalid)
+	// if err != nil {
+	// 	return cache.EventMetadata{}, err
+	// }
 
-	const eventGUIDProtoField = "meta.event_guid"
-	eventGUID, err := d.getStringField(ref, eventGUIDProtoField, connGroup, event, "eventGUID", reasonEventGUIDNotFound, reasonEventGUIDTypeInvalid)
-	if err != nil {
-		return cache.EventMetadata{}, err
-	}
+	// sessionID, err := d.getStringField(ref, userIdentifier.SessionID, connGroup, event, "sessionID", reasonSessionIDNotFound, reasonSessionIDTypeInvalid)
+	// if err != nil {
+	// 	return cache.EventMetadata{}, err
+	// }
+
+	// const eventGUIDProtoField = "meta.event_guid"
+	// eventGUID, err := d.getStringField(ref, eventGUIDProtoField, connGroup, event, "eventGUID", reasonEventGUIDNotFound, reasonEventGUIDTypeInvalid)
+	// if err != nil {
+	// 	return cache.EventMetadata{}, err
+	// }
 
 	return cache.EventMetadata{
-		EventGUID: eventGUID,
-		SessionID: sessionID,
-		UserID:    userID,
+		EventGUID: eventPage.Meta.EventGuid,
+		SessionID: eventPage.Meta.Session.SessionId,
+		UserID:    cast.ToString(eventPage.Meta.Customer.Identity),
 	}, nil
 }
 
