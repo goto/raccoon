@@ -14,6 +14,7 @@ import (
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
+	dedupMocks "github.com/goto/raccoon/ingestionrule/action/dedup/mocks"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/schemaregistry"
 	"github.com/goto/raccoon/ingestionrule/action/mocks"
 )
@@ -58,11 +59,13 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 	// 1. Success case: event is not a duplicate.
 	t.Run("EventNotDuplicate", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
-		mc.EXPECT().IsDuplicate(mock.Anything, cache.EventMetadata{
-			UserID:    "user-123",
-			SessionID: "session-456",
-			EventGUID: "guid-789",
-		}).Return(false, nil)
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+			{
+				UserID:    "user-123",
+				SessionID: "session-456",
+				EventGUID: "guid-789",
+			},
+		}).Return([]bool{false}, nil)
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
@@ -84,13 +87,8 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 			},
 		}
 
-		ms := &mockStencilClient{
-			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-				assert.Equal(t, "ClickEventProto", className)
-				assert.Equal(t, []byte("event-payload"), data)
-				return parsedMsg, nil
-			},
-		}
+		ms := dedupMocks.NewStencilClientMock(t)
+		ms.EXPECT().Parse("ClickEventProto", []byte("event-payload")).Return(parsedMsg, nil)
 
 		d := action.NewDedup(
 			schemaregistry.StencilClient{Client: ms},
@@ -111,11 +109,13 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 	// 2. Duplicate case: event is already in cache.
 	t.Run("EventDuplicate", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
-		mc.EXPECT().IsDuplicate(mock.Anything, cache.EventMetadata{
-			UserID:    "user-123",
-			SessionID: "session-456",
-			EventGUID: "guid-789",
-		}).Return(true, nil)
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+			{
+				UserID:    "user-123",
+				SessionID: "session-456",
+				EventGUID: "guid-789",
+			},
+		}).Return([]bool{true}, nil)
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
@@ -137,11 +137,8 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 			},
 		}
 
-		ms := &mockStencilClient{
-			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-				return parsedMsg, nil
-			},
-		}
+		ms := dedupMocks.NewStencilClientMock(t)
+		ms.EXPECT().Parse(mock.Anything, mock.Anything).Return(parsedMsg, nil)
 
 		d := action.NewDedup(
 			schemaregistry.StencilClient{Client: ms},
@@ -159,14 +156,64 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		assert.Empty(t, res) // Dropped
 	})
 
-	// 3. Redis error case: fails open.
+	// 3. Batch with multiple duplicates within a single event slice.
+	t.Run("BatchWithMultipleDuplicates", func(t *testing.T) {
+		mc := mocks.NewDuplicateChecker(t)
+
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+			{UserID: "user-1", SessionID: "session-1", EventGUID: "guid-1"},
+			{UserID: "user-2", SessionID: "session-2", EventGUID: "guid-2"},
+			{UserID: "user-3", SessionID: "session-3", EventGUID: "guid-3"},
+		}).Return([]bool{false, true, true}, nil) // 1 unique, 2 duplicates
+
+		ms := dedupMocks.NewStencilClientMock(t)
+		ms.EXPECT().Parse(mock.Anything, mock.Anything).RunAndReturn(func(className string, data []byte) (protoreflect.ProtoMessage, error) {
+			// Dynamically create the mock message based on the byte payload to simulate 3 distinct events
+			idSuffix := string(data)
+			return &mockMessage{
+				fields: map[string]any{
+					"user": &mockMessage{
+						fields: map[string]any{"id": "user-" + idSuffix},
+					},
+					"session": &mockMessage{
+						fields: map[string]any{"id": "session-" + idSuffix},
+					},
+					"meta": &mockMessage{
+						fields: map[string]any{"event_guid": "guid-" + idSuffix},
+					},
+				},
+			}, nil
+		})
+
+		d := action.NewDedup(
+			schemaregistry.StencilClient{Client: ms},
+			mc,
+		)
+
+		events := []*pb.Event{
+			{Type: "component", EventBytes: []byte("1")}, // Will be marked false (unique)
+			{Type: "component", EventBytes: []byte("2")}, // Will be marked true (duplicate)
+			{Type: "component", EventBytes: []byte("3")}, // Will be marked true (duplicate)
+		}
+
+		res := d.Apply(context.Background(), events, "customer")
+
+		// Assert that the 2 duplicates were dropped, leaving exactly 1 event
+		assert.Len(t, res, 1)
+		// Assert that the surviving event is the correct one (the first one)
+		assert.Equal(t, []byte("1"), res[0].EventBytes)
+	})
+
+	// 4. Redis error case: fails open.
 	t.Run("RedisErrorFailsOpen", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
-		mc.EXPECT().IsDuplicate(mock.Anything, cache.EventMetadata{
-			UserID:    "user-123",
-			SessionID: "session-456",
-			EventGUID: "guid-789",
-		}).Return(false, errors.New("redis error"))
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+			{
+				UserID:    "user-123",
+				SessionID: "session-456",
+				EventGUID: "guid-789",
+			},
+		}).Return(nil, errors.New("redis error"))
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
@@ -188,11 +235,8 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 			},
 		}
 
-		ms := &mockStencilClient{
-			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-				return parsedMsg, nil
-			},
-		}
+		ms := dedupMocks.NewStencilClientMock(t)
+		ms.EXPECT().Parse(mock.Anything, mock.Anything).Return(parsedMsg, nil)
 
 		d := action.NewDedup(
 			schemaregistry.StencilClient{Client: ms},
@@ -210,14 +254,16 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		assert.Len(t, res, 1) // Bypassed and allowed through
 	})
 
-	// 4. Conversion case: identifier fields are not strings but can be converted.
+	// 5. Conversion case: identifier fields are not strings but can be converted.
 	t.Run("EventWithNonStringIdentifiers", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
-		mc.EXPECT().IsDuplicate(mock.Anything, cache.EventMetadata{
-			UserID:    "123",
-			SessionID: "456",
-			EventGUID: "789",
-		}).Return(false, nil)
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+			{
+				UserID:    "123",
+				SessionID: "456",
+				EventGUID: "789",
+			},
+		}).Return([]bool{false}, nil)
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
@@ -239,11 +285,8 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 			},
 		}
 
-		ms := &mockStencilClient{
-			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-				return parsedMsg, nil
-			},
-		}
+		ms := dedupMocks.NewStencilClientMock(t)
+		ms.EXPECT().Parse(mock.Anything, mock.Anything).Return(parsedMsg, nil)
 
 		d := action.NewDedup(
 			schemaregistry.StencilClient{Client: ms},
@@ -295,11 +338,8 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 	// 2. Stencil parse error
 	t.Run("StencilParseError", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
-		ms := &mockStencilClient{
-			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-				return nil, errors.New("parse error")
-			},
-		}
+		ms := dedupMocks.NewStencilClientMock(t)
+		ms.EXPECT().Parse(mock.Anything, mock.Anything).Return(nil, errors.New("parse error"))
 		d := action.NewDedup(
 			schemaregistry.StencilClient{Client: ms},
 			mc,
@@ -330,11 +370,8 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 				},
 			},
 		}
-		ms := &mockStencilClient{
-			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-				return parsedMsg, nil
-			},
-		}
+		ms := dedupMocks.NewStencilClientMock(t)
+		ms.EXPECT().Parse(mock.Anything, mock.Anything).Return(parsedMsg, nil)
 		d := action.NewDedup(
 			schemaregistry.StencilClient{Client: ms},
 			mc,
@@ -365,11 +402,8 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 				},
 			},
 		}
-		ms := &mockStencilClient{
-			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-				return parsedMsg, nil
-			},
-		}
+		ms := dedupMocks.NewStencilClientMock(t)
+		ms.EXPECT().Parse(mock.Anything, mock.Anything).Return(parsedMsg, nil)
 		d := action.NewDedup(
 			schemaregistry.StencilClient{Client: ms},
 			mc,
@@ -403,11 +437,8 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 				},
 			},
 		}
-		ms := &mockStencilClient{
-			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-				return parsedMsg, nil
-			},
-		}
+		ms := dedupMocks.NewStencilClientMock(t)
+		ms.EXPECT().Parse(mock.Anything, mock.Anything).Return(parsedMsg, nil)
 		d := action.NewDedup(
 			schemaregistry.StencilClient{Client: ms},
 			mc,
@@ -443,11 +474,8 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 				},
 			},
 		}
-		ms := &mockStencilClient{
-			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-				return parsedMsg, nil
-			},
-		}
+		ms := dedupMocks.NewStencilClientMock(t)
+		ms.EXPECT().Parse(mock.Anything, mock.Anything).Return(parsedMsg, nil)
 		d := action.NewDedup(
 			schemaregistry.StencilClient{Client: ms},
 			mc,
@@ -483,11 +511,8 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 				},
 			},
 		}
-		ms := &mockStencilClient{
-			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-				return parsedMsg, nil
-			},
-		}
+		ms := dedupMocks.NewStencilClientMock(t)
+		ms.EXPECT().Parse(mock.Anything, mock.Anything).Return(parsedMsg, nil)
 		d := action.NewDedup(
 			schemaregistry.StencilClient{Client: ms},
 			mc,
@@ -505,29 +530,6 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 type dummyList struct {
 	protoreflect.List
 }
-
-type mockStencilClient struct {
-	parseFunc func(className string, data []byte) (protoreflect.ProtoMessage, error)
-}
-
-func (m *mockStencilClient) Parse(className string, data []byte) (protoreflect.ProtoMessage, error) {
-	if m.parseFunc != nil {
-		return m.parseFunc(className, data)
-	}
-	return nil, nil
-}
-
-func (m *mockStencilClient) Serialize(className string, data interface{}) ([]byte, error) {
-	return nil, nil
-}
-
-func (m *mockStencilClient) GetDescriptor(className string) (protoreflect.MessageDescriptor, error) {
-	return nil, nil
-}
-
-func (m *mockStencilClient) Close() {}
-
-func (m *mockStencilClient) Refresh() {}
 
 type mockMessage struct {
 	fields map[string]any

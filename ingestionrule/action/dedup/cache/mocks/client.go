@@ -136,6 +136,52 @@ func (_c *Client_Ping_Call) RunAndReturn(run func(ctx context.Context) *redis.St
 	return _c
 }
 
+// Pipeline provides a mock function for the type Client
+func (_mock *Client) Pipeline() redis.Pipeliner {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for Pipeline")
+	}
+
+	var r0 redis.Pipeliner
+	if returnFunc, ok := ret.Get(0).(func() redis.Pipeliner); ok {
+		r0 = returnFunc()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(redis.Pipeliner)
+		}
+	}
+	return r0
+}
+
+// Client_Pipeline_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Pipeline'
+type Client_Pipeline_Call struct {
+	*mock.Call
+}
+
+// Pipeline is a helper method to define mock.On call
+func (_e *Client_Expecter) Pipeline() *Client_Pipeline_Call {
+	return &Client_Pipeline_Call{Call: _e.mock.On("Pipeline")}
+}
+
+func (_c *Client_Pipeline_Call) Run(run func()) *Client_Pipeline_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Client_Pipeline_Call) Return(pipeliner redis.Pipeliner) *Client_Pipeline_Call {
+	_c.Call.Return(pipeliner)
+	return _c
+}
+
+func (_c *Client_Pipeline_Call) RunAndReturn(run func() redis.Pipeliner) *Client_Pipeline_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SetNX provides a mock function for the type Client
 func (_mock *Client) SetNX(ctx context.Context, key string, value any, expiration time.Duration) *redis.BoolCmd {
 	ret := _mock.Called(ctx, key, value, expiration)

@@ -22,12 +22,16 @@ const (
 )
 
 // Client defines the contract for the underlying database infrastructure operations.
-//
-//go:generate  mockery --name=Client --with-expecter --output=./mocks
 type Client interface {
 	SetNX(ctx context.Context, key string, value any, expiration time.Duration) *redis.BoolCmd
 	Ping(ctx context.Context) *redis.StatusCmd
+	Pipeline() redis.Pipeliner
 	Close() error
+}
+
+// Pipeliner defines the contract for the Redis pipeline operations.
+type Pipeliner interface {
+	redis.Pipeliner
 }
 
 // Store manages the wrapper context around the active backend storage engine.
@@ -51,19 +55,38 @@ func NewStore(ctx context.Context, client Client) (*Store, error) {
 	}, nil
 }
 
-// IsDuplicate checks if an event has already been ingested within the T-minute sliding window.
-// It utilizes an atomic SETNX command to guarantee thread-safe verification in a single network round-trip.
-func (r *Store) IsDuplicate(ctx context.Context, event EventMetadata) (bool, error) {
-	key := r.buildDeduplicationKey(event)
-
-	ok, err := r.client.SetNX(ctx, key, "t", DeduplicationTTL).Result()
-	if err != nil {
-		logger.Errorf("failed to execute %q Redis command: %v", SETNX, err)
-		metrics.Increment(metricNameRedisError, "command=setnx")
-		return false, err
+// AreDuplicates evaluates a batch of events in a single Redis Pipeline execution.
+// It returns a slice of booleans corresponding to the input array order.
+func (r *Store) AreDuplicates(ctx context.Context, events []EventMetadata) ([]bool, error) {
+	if len(events) == 0 {
+		return nil, nil
 	}
 
-	return !ok, nil
+	pipe := r.client.Pipeline()
+	var cmds []*redis.BoolCmd
+
+	// Queue all SETNX commands locally
+	for _, event := range events {
+		key := r.buildDeduplicationKey(event)
+		cmds = append(cmds, pipe.SetNX(ctx, key, "t", DeduplicationTTL))
+	}
+
+	// Execute all queued commands in ONE network round-trip
+	_, err := pipe.Exec(ctx)
+	if err != nil && err != redis.Nil {
+		logger.Errorf("failed to execute Redis pipeline for deduplication: %v", err)
+		metrics.Increment(metricNameRedisError, "command=pipeline_setnx")
+		return nil, err
+	}
+
+	results := make([]bool, len(events))
+	for i, cmd := range cmds {
+		// cmd.Val() is true if the key was set (meaning it's a NEW event).
+		// Therefore, if it was NOT set (!cmd.Val()), it IS a duplicate.
+		results[i] = !cmd.Val()
+	}
+
+	return results, nil
 }
 
 // HealthCheck checks the health of the cache client by pinging it.
