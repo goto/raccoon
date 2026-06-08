@@ -12,6 +12,8 @@ var StencilCfg stencilConfig
 type stencilConfig struct {
 	// URL is the URL of the stencil server used for getting schema of the kafka messages.
 	URL string
+	// BearerToken is the token used for authenticating requests to the stencil server.
+	BearerToken string
 	// AutoRefresh is a boolean indicating whether to auto-refresh the stencil client.
 	AutoRefresh bool
 	// RefreshInterval is the interval at which to refresh the stencil client.
@@ -28,6 +30,7 @@ type stencilConfig struct {
 
 func stencilConfigLoader() {
 	viper.SetDefault("STENCIL_URL", "")
+	viper.SetDefault("STENCIL_BEARER_TOKEN", "")
 	viper.SetDefault("STENCIL_AUTO_REFRESH", "true")
 	viper.SetDefault("STENCIL_REFRESH_INTERVAL", "12h")
 	viper.SetDefault("STENCIL_HTTP_TIMEOUT", "15s")
@@ -37,6 +40,7 @@ func stencilConfigLoader() {
 
 	StencilCfg = stencilConfig{
 		URL:               viper.GetString("STENCIL_URL"),
+		BearerToken:       viper.GetString("STENCIL_BEARER_TOKEN"),
 		AutoRefresh:       viper.GetBool("STENCIL_AUTO_REFRESH"),
 		RefreshInterval:   viper.GetDuration("STENCIL_REFRESH_INTERVAL"),
 		HTTPTimeout:       viper.GetDuration("STENCIL_HTTP_TIMEOUT"),
