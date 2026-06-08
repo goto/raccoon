@@ -20,7 +20,6 @@ require (
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/alexcesaro/statsd.v2 v2.0.0
 	gopkg.in/confluentinc/confluent-kafka-go.v1 v1.4.2
-	source.golabs.io/mobile/clickstream-go-proto/v4 v4.560.0
 )
 
 require (

@@ -16,6 +16,8 @@ type StencilClient struct {
 	Client stencil.Client
 }
 
+const headerKeyAuthorization = "Authorization"
+
 func NewStencilClient() (StencilClient, error) {
 	opts := stencil.Options{
 		AutoRefresh:     config.StencilCfg.AutoRefresh,
@@ -23,6 +25,13 @@ func NewStencilClient() (StencilClient, error) {
 		HTTPOptions: stencil.HTTPOptions{
 			Timeout: config.StencilCfg.HTTPTimeout,
 		},
+	}
+
+	token := config.StencilCfg.BearerToken
+	if token != "" {
+		opts.HTTPOptions.Headers = map[string]string{
+			headerKeyAuthorization: fmt.Sprintf("Bearer %s", token),
+		}
 	}
 
 	maxRetry := config.StencilCfg.MaxRetry
