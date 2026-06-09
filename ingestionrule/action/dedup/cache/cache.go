@@ -7,6 +7,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 )
@@ -71,8 +72,16 @@ func (r *Store) AreDuplicates(ctx context.Context, events []EventMetadata) ([]bo
 		cmds = append(cmds, pipe.SetNX(ctx, key, "t", DeduplicationTTL))
 	}
 
+	execCtx := ctx
+	if config.RedisCfg.ContextTimeoutEnabled {
+		var cancel context.CancelFunc
+
+		execCtx, cancel = context.WithTimeout(ctx, config.RedisCfg.ContextTimeout)
+		defer cancel()
+	}
+
 	// Execute all queued commands in ONE network round-trip
-	_, err := pipe.Exec(ctx)
+	_, err := pipe.Exec(execCtx)
 	if err != nil && err != redis.Nil {
 		logger.Errorf("failed to execute Redis pipeline for deduplication: %v", err)
 		metrics.Increment(metricNameRedisError, "command=pipeline_setnx")

@@ -70,13 +70,14 @@ func NewRedisCache(ctx context.Context, metricPushInterval time.Duration) (redis
 		}
 
 		client = redis.NewClusterClient(&redis.ClusterOptions{
-			Addrs:           clusterAddrs,
-			MaxRetries:      config.RedisCfg.RetryProperties.MaxRetries,
-			MinRetryBackoff: config.RedisCfg.RetryProperties.MinRetryBackOff,
-			MaxRetryBackoff: config.RedisCfg.RetryProperties.MaxRetryBackOff,
-			PoolSize:        config.RedisCfg.PoolSize,
-			Username:        config.RedisCfg.Username,
-			Password:        config.RedisCfg.Password,
+			Addrs:                 clusterAddrs,
+			MaxRetries:            config.RedisCfg.RetryProperties.MaxRetries,
+			MinRetryBackoff:       config.RedisCfg.RetryProperties.MinRetryBackOff,
+			MaxRetryBackoff:       config.RedisCfg.RetryProperties.MaxRetryBackOff,
+			PoolSize:              config.RedisCfg.PoolSize,
+			Username:              config.RedisCfg.Username,
+			Password:              config.RedisCfg.Password,
+			ContextTimeoutEnabled: config.RedisCfg.ContextTimeoutEnabled,
 		})
 	default:
 		return nil, fmt.Errorf("unsupported or invalid redis deployment type: %q", config.RedisCfg.Type)

@@ -156,31 +156,25 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		assert.Empty(t, res) // Dropped
 	})
 
-	// 3. Batch with multiple duplicates within a single event slice.
-	t.Run("BatchWithMultipleDuplicates", func(t *testing.T) {
+	t.Run("IntraBatchDuplicates", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 
+		// Expect 4 events, where the 4th is an exact duplicate of the 3rd
 		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
-			{UserID: "user-1", SessionID: "session-1", EventGUID: "guid-1"},
-			{UserID: "user-2", SessionID: "session-2", EventGUID: "guid-2"},
-			{UserID: "user-3", SessionID: "session-3", EventGUID: "guid-3"},
-		}).Return([]bool{false, true, true}, nil) // 1 unique, 2 duplicates
+			{UserID: "u-1", SessionID: "session-1", EventGUID: "guid-1"},
+			{UserID: "u-2", SessionID: "session-2", EventGUID: "guid-2"},
+			{UserID: "u-3", SessionID: "session-3", EventGUID: "guid-3"},
+			{UserID: "u-3", SessionID: "session-3", EventGUID: "guid-3"}, // Duplicate payload
+		}).Return([]bool{false, false, false, true}, nil)
 
 		ms := dedupMocks.NewStencilClientMock(t)
 		ms.EXPECT().Parse(mock.Anything, mock.Anything).RunAndReturn(func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-			// Dynamically create the mock message based on the byte payload to simulate 3 distinct events
 			idSuffix := string(data)
 			return &mockMessage{
 				fields: map[string]any{
-					"user": &mockMessage{
-						fields: map[string]any{"id": "user-" + idSuffix},
-					},
-					"session": &mockMessage{
-						fields: map[string]any{"id": "session-" + idSuffix},
-					},
-					"meta": &mockMessage{
-						fields: map[string]any{"event_guid": "guid-" + idSuffix},
-					},
+					"user":    &mockMessage{fields: map[string]any{"id": "u-" + idSuffix}},
+					"session": &mockMessage{fields: map[string]any{"id": "session-" + idSuffix}},
+					"meta":    &mockMessage{fields: map[string]any{"event_guid": "guid-" + idSuffix}},
 				},
 			}, nil
 		})
@@ -191,17 +185,19 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		)
 
 		events := []*pb.Event{
-			{Type: "component", EventBytes: []byte("1")}, // Will be marked false (unique)
-			{Type: "component", EventBytes: []byte("2")}, // Will be marked true (duplicate)
-			{Type: "component", EventBytes: []byte("3")}, // Will be marked true (duplicate)
+			{Type: "component", EventBytes: []byte("1")},
+			{Type: "component", EventBytes: []byte("2")},
+			{Type: "component", EventBytes: []byte("3")},
+			{Type: "component", EventBytes: []byte("3")}, // The intra-batch duplicate
 		}
 
 		res := d.Apply(context.Background(), events, "customer")
 
-		// Assert that the 2 duplicates were dropped, leaving exactly 1 event
-		assert.Len(t, res, 1)
-		// Assert that the surviving event is the correct one (the first one)
+		// The 4th event must be dropped, leaving the first 3
+		assert.Len(t, res, 3)
 		assert.Equal(t, []byte("1"), res[0].EventBytes)
+		assert.Equal(t, []byte("2"), res[1].EventBytes)
+		assert.Equal(t, []byte("3"), res[2].EventBytes)
 	})
 
 	// 4. Redis error case: fails open.
@@ -252,6 +248,51 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 
 		res := d.Apply(context.Background(), events, "customer")
 		assert.Len(t, res, 1) // Bypassed and allowed through
+	})
+
+	t.Run("GuaranteedOrderMapping", func(t *testing.T) {
+		mc := mocks.NewDuplicateChecker(t)
+
+		// 4 distinct events, but the checker says the 2nd and 4th already exist in Redis
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+			{UserID: "u-A", SessionID: "session-A", EventGUID: "guid-A"},
+			{UserID: "u-B", SessionID: "session-B", EventGUID: "guid-B"},
+			{UserID: "u-C", SessionID: "session-C", EventGUID: "guid-C"},
+			{UserID: "u-B", SessionID: "session-B", EventGUID: "guid-B"},
+		}).Return([]bool{false, false, false, true}, nil) // Alternating hit/miss
+
+		ms := dedupMocks.NewStencilClientMock(t)
+		ms.EXPECT().Parse(mock.Anything, mock.Anything).RunAndReturn(func(className string, data []byte) (protoreflect.ProtoMessage, error) {
+			idSuffix := string(data)
+			return &mockMessage{
+				fields: map[string]any{
+					"user":    &mockMessage{fields: map[string]any{"id": "u-" + idSuffix}},
+					"session": &mockMessage{fields: map[string]any{"id": "session-" + idSuffix}},
+					"meta":    &mockMessage{fields: map[string]any{"event_guid": "guid-" + idSuffix}},
+				},
+			}, nil
+		})
+
+		d := action.NewDedup(
+			schemaregistry.StencilClient{Client: ms},
+			mc,
+		)
+
+		events := []*pb.Event{
+			{Type: "component", EventBytes: []byte("A")}, // Will map to false -> Kept
+			{Type: "component", EventBytes: []byte("B")}, // Will map to false  -> Kept
+			{Type: "component", EventBytes: []byte("C")}, // Will map to false -> Kept
+			{Type: "component", EventBytes: []byte("B")}, // Will map to true  -> Dropped
+		}
+
+		res := d.Apply(context.Background(), events, "customer")
+
+		// We must be left with exactly 2 events (A and C), proving the index tracking
+		// inside `Apply` didn't misalign the boolean results
+		assert.Len(t, res, 3)
+		assert.Equal(t, []byte("A"), res[0].EventBytes)
+		assert.Equal(t, []byte("B"), res[1].EventBytes)
+		assert.Equal(t, []byte("C"), res[2].EventBytes)
 	})
 
 	// 5. Conversion case: identifier fields are not strings but can be converted.
