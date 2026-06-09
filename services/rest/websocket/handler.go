@@ -166,12 +166,16 @@ func (h *Handler) Ack(conn connection.Conn, resChannel chan AckInfo, s serializa
 }
 
 func (h *Handler) sendEventCounters(events []*pb.Event, group string) {
+	if len(events) == 0 {
+		return
+	}
+
 	for _, e := range events {
 		metrics.Count("events_rx_bytes_total", len(e.EventBytes), fmt.Sprintf("conn_group=%s,event_type=%s", group, e.Type))
-
-		tags := fmt.Sprintf("conn_group=%s,event_type=%s,app_version=%s,platform=%s,protocol_type=websocket", group, e.Type, e.AppVersion, e.Platform)
-		metrics.Increment("events_rx_total", tags)
 	}
+
+	tags := fmt.Sprintf("conn_group=%s,protocol_type=websocket", group)
+	metrics.Count("events_rx_total", len(events), tags)
 }
 
 func writeSuccessResponse(conn connection.Conn, serialize serialization.SerializeFunc, messageType int, requestGUID string) {
