@@ -2,6 +2,10 @@ package cache
 
 import (
 	"context"
+	"encoding/hex"
+	"hash/fnv"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -41,7 +45,9 @@ type Store struct {
 
 // EventMetadata holds the unique contextual identity traits of an incoming event.
 type EventMetadata struct {
-	EventGUID string
+	EventName      string
+	Product        string
+	EventTimestamp time.Time
 }
 
 // NewStore instantiates the unified storage framework wrapper.
@@ -104,5 +110,21 @@ func (r *Store) Close() error {
 // buildDeduplicationKey constructs a deterministic unique identifier for an event payload
 // using pre-allocated memory to optimize string concatenation performance.
 func (r *Store) buildDeduplicationKey(event EventMetadata) string {
-	return event.EventGUID
+	h := fnv.New64a()
+	h.Write([]byte(event.EventName))
+	h.Write([]byte(KeySeparator))
+	h.Write([]byte(event.Product))
+
+	hashHex := hex.EncodeToString(h.Sum(nil))
+
+	timeStr := strconv.FormatInt(event.EventTimestamp.Unix(), 10)
+
+	var sb strings.Builder
+	sb.Grow(len(hashHex) + len(KeySeparator) + len(timeStr))
+
+	sb.WriteString(hashHex)
+	sb.WriteString(KeySeparator)
+	sb.WriteString(timeStr)
+
+	return sb.String()
 }

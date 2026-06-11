@@ -2,6 +2,7 @@ package protoutil
 
 import (
 	"fmt"
+	"time"
 
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -65,4 +66,40 @@ func GetEnumStringValue(msg protoreflect.Message, fieldName string) string {
 	}
 
 	return string(valueDescriptor.Name())
+}
+
+// GetTimestampFieldValue safely extracts a time.Time from a dynamic message field representing a google.protobuf.Timestamp.
+func GetTimestampFieldValue(msg protoreflect.Message, fieldName string) (time.Time, error) {
+	fieldDesc := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if fieldDesc == nil {
+		return time.Time{}, fmt.Errorf("field '%s' not found", fieldName)
+	}
+
+	val := msg.Get(fieldDesc)
+	// Ensure the value is a valid message and is of the expected type.
+	if !val.IsValid() || fieldDesc.Kind() != protoreflect.MessageKind || val.Message().Descriptor().FullName() != "google.protobuf.Timestamp" {
+		return time.Time{}, fmt.Errorf("field '%s' is not a valid google.protobuf.Timestamp", fieldName)
+	}
+
+	tsMsg := val.Message()
+
+	return protoTimestampToTime(tsMsg)
+}
+
+// protoTimestampToTime takes a dynamic message representing a
+// google.protobuf.Timestamp and converts it to a time.Time.
+// It returns an error if the message does not have the expected 'seconds' and
+// 'nanos' fields, or if the fields are not valid.
+func protoTimestampToTime(msg protoreflect.Message) (time.Time, error) {
+	secondsDesc := msg.Descriptor().Fields().ByName("seconds")
+	nanosDesc := msg.Descriptor().Fields().ByName("nanos")
+
+	if secondsDesc == nil || nanosDesc == nil {
+		return time.Time{}, fmt.Errorf("message does not have the expected 'seconds' and 'nanos' fields")
+	}
+
+	seconds := msg.Get(secondsDesc).Int()
+	nanos := msg.Get(nanosDesc).Int()
+
+	return time.Unix(seconds, nanos), nil
 }

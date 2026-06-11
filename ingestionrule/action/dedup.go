@@ -35,8 +35,17 @@ const (
 	reasonSessionIDNotFound    = "sessionID not found"
 	reasonSessionIDTypeInvalid = "sessionID type invalid"
 
-	reasonEventGUIDNotFound    = "eventGUID not found"
-	reasonEventGUIDTypeInvalid = "eventGUID type invalid"
+	reasonEventNameNotFound    = "event_name not found"
+	reasonEventNameTypeInvalid = "event_name type invalid"
+
+	reasonEventTimestampNotFound    = "event_timestamp not found"
+	reasonEventTimestampTypeInvalid = "event_timestamp type invalid"
+)
+
+const (
+	protoFieldEventName      = "event_name"
+	protoFieldProduct        = "product"
+	protoFieldEventTimestamp = "event_timestamp"
 )
 
 // DuplicateChecker defines the capability to verify event uniqueness.
@@ -97,7 +106,7 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 			continue
 		}
 
-		if meta.EventGUID == "" {
+		if meta.EventName == "" || meta.Product == "" || meta.EventTimestamp.IsZero() {
 			logger.Errorf("dedup: missing metadata fields: %+v for conn_group=%s,product=%s,event_name=%s", meta, connGroup, event.Product, event.EventName)
 			states[i] = processState{event: event, isValid: false}
 			continue
@@ -167,14 +176,22 @@ func (d *Dedup) extractMetadata(event *pb.Event, connGroup string) (cache.EventM
 
 	ref := parsedMsg.ProtoReflect()
 
-	const eventGUIDProtoField = "meta.event_guid"
-	eventGUID, err := d.getStringField(ref, eventGUIDProtoField, connGroup, event, "eventGUID", reasonEventGUIDNotFound, reasonEventGUIDTypeInvalid)
+	eventName, err := d.getStringField(ref, protoFieldEventName, connGroup, event, "event_name", reasonEventNameNotFound, reasonEventNameTypeInvalid)
 	if err != nil {
 		return cache.EventMetadata{}, err
 	}
 
+	eventTimestamp, err := protoutil.GetTimestampFieldValue(ref, protoFieldEventTimestamp)
+	if err != nil {
+		metrics.Increment(metricNameEventDeserializationError,
+			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, reasonEventTimestampNotFound, event.Type, event.Product, event.EventName))
+		return cache.EventMetadata{}, fmt.Errorf("failed to extract event_timestamp for conn_group=%s,event_type=%s,product=%s,event_name=%s: %w", connGroup, event.Type, event.Product, event.EventName, err)
+	}
+
 	return cache.EventMetadata{
-		EventGUID: eventGUID,
+		EventName:      eventName,
+		Product:        protoutil.GetEnumStringValue(ref, protoFieldProduct),
+		EventTimestamp: eventTimestamp,
 	}, nil
 }
 

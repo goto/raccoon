@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache/mocks"
 	"github.com/redis/go-redis/v9"
@@ -13,12 +14,14 @@ import (
 func TestStore_AreDuplicates(t *testing.T) {
 	ctx := context.Background()
 
+	s := &Store{}
+	now := time.Now()
 	events := []EventMetadata{
-		{EventGUID: "guid1"},
-		{EventGUID: "guid2"},
+		{EventName: "click", Product: "app", EventTimestamp: now},
+		{EventName: "scroll", Product: "app", EventTimestamp: now.Add(time.Second)},
 	}
-	key1 := "guid1"
-	key2 := "guid2"
+	key1 := s.buildDeduplicationKey(events[0])
+	key2 := s.buildDeduplicationKey(events[1])
 
 	t.Run("Empty Events Slice", func(t *testing.T) {
 		s := &Store{}
@@ -28,10 +31,12 @@ func TestStore_AreDuplicates(t *testing.T) {
 	})
 
 	t.Run("Three Elements Two Duplicates", func(t *testing.T) {
+		s := &Store{}
+		now := time.Now()
 		batchEvents := []EventMetadata{
-			{EventGUID: "g1"},
-			{EventGUID: "g2"},
-			{EventGUID: "g3"},
+			{EventName: "click", Product: "app", EventTimestamp: now},
+			{EventName: "scroll", Product: "app", EventTimestamp: now.Add(time.Second)},
+			{EventName: "swipe", Product: "app", EventTimestamp: now.Add(2 * time.Second)},
 		}
 
 		mockClient := mocks.NewClient(t)
@@ -44,15 +49,16 @@ func TestStore_AreDuplicates(t *testing.T) {
 		cmd2 := redis.NewBoolResult(false, nil)
 		cmd3 := redis.NewBoolResult(false, nil)
 
-		pipe.On("SetNX", ctx, "g1", "t", DeduplicationTTL).Return(cmd1)
-		pipe.On("SetNX", ctx, "g2", "t", DeduplicationTTL).Return(cmd2)
-		pipe.On("SetNX", ctx, "g3", "t", DeduplicationTTL).Return(cmd3)
+		pipe.On("SetNX", ctx, s.buildDeduplicationKey(batchEvents[0]), "t", DeduplicationTTL).Return(cmd1)
+		pipe.On("SetNX", ctx, s.buildDeduplicationKey(batchEvents[1]), "t", DeduplicationTTL).Return(cmd2)
+		pipe.On("SetNX", ctx, s.buildDeduplicationKey(batchEvents[2]), "t", DeduplicationTTL).Return(cmd3)
 		pipe.On("Exec", ctx).Return([]redis.Cmder{cmd1, cmd2, cmd3}, nil)
 
 		mockClient.On("Pipeline").Return(pipe)
 
-		s := &Store{client: mockClient}
+		s.client = mockClient
 		res, err := s.AreDuplicates(ctx, batchEvents)
+
 
 		assert.NoError(t, err)
 		// Evaluates to: [Not Dup, Is Dup, Is Dup]
