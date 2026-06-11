@@ -14,11 +14,11 @@ func TestStore_AreDuplicates(t *testing.T) {
 	ctx := context.Background()
 
 	events := []EventMetadata{
-		{UserID: "user1", SessionID: "session1", EventGUID: "guid1"},
-		{UserID: "user2", SessionID: "session2", EventGUID: "guid2"},
+		{EventGUID: "guid1"},
+		{EventGUID: "guid2"},
 	}
-	key1 := "user1:session1:guid1"
-	key2 := "user2:session2:guid2"
+	key1 := "guid1"
+	key2 := "guid2"
 
 	t.Run("Empty Events Slice", func(t *testing.T) {
 		s := &Store{}
@@ -29,9 +29,9 @@ func TestStore_AreDuplicates(t *testing.T) {
 
 	t.Run("Three Elements Two Duplicates", func(t *testing.T) {
 		batchEvents := []EventMetadata{
-			{UserID: "u1", SessionID: "s1", EventGUID: "g1"},
-			{UserID: "u2", SessionID: "s2", EventGUID: "g2"},
-			{UserID: "u3", SessionID: "s3", EventGUID: "g3"},
+			{EventGUID: "g1"},
+			{EventGUID: "g2"},
+			{EventGUID: "g3"},
 		}
 
 		mockClient := mocks.NewClient(t)
@@ -44,9 +44,9 @@ func TestStore_AreDuplicates(t *testing.T) {
 		cmd2 := redis.NewBoolResult(false, nil)
 		cmd3 := redis.NewBoolResult(false, nil)
 
-		pipe.On("SetNX", ctx, "u1:s1:g1", "t", DeduplicationTTL).Return(cmd1)
-		pipe.On("SetNX", ctx, "u2:s2:g2", "t", DeduplicationTTL).Return(cmd2)
-		pipe.On("SetNX", ctx, "u3:s3:g3", "t", DeduplicationTTL).Return(cmd3)
+		pipe.On("SetNX", ctx, "g1", "t", DeduplicationTTL).Return(cmd1)
+		pipe.On("SetNX", ctx, "g2", "t", DeduplicationTTL).Return(cmd2)
+		pipe.On("SetNX", ctx, "g3", "t", DeduplicationTTL).Return(cmd3)
 		pipe.On("Exec", ctx).Return([]redis.Cmder{cmd1, cmd2, cmd3}, nil)
 
 		mockClient.On("Pipeline").Return(pipe)

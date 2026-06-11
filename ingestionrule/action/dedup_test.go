@@ -60,8 +60,6 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
 			{
-				UserID:    "user-123",
-				SessionID: "session-456",
 				EventGUID: "guid-789",
 			},
 		}).Return([]bool{false}, nil)
@@ -115,8 +113,6 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
 			{
-				UserID:    "user-123",
-				SessionID: "session-456",
 				EventGUID: "guid-789",
 			},
 		}).Return([]bool{true}, nil)
@@ -168,9 +164,9 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 
 		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
-			{UserID: "user-1", SessionID: "session-1", EventGUID: "guid-1"},
-			{UserID: "user-2", SessionID: "session-2", EventGUID: "guid-2"},
-			{UserID: "user-3", SessionID: "session-3", EventGUID: "guid-3"},
+			{EventGUID: "guid-1"},
+			{EventGUID: "guid-2"},
+			{EventGUID: "guid-3"},
 		}).Return([]bool{false, true, true}, nil) // 1 unique, 2 duplicates
 
 		ms := &mockStencilClient{
@@ -217,8 +213,6 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
 			{
-				UserID:    "user-123",
-				SessionID: "session-456",
 				EventGUID: "guid-789",
 			},
 		}).Return(nil, errors.New("redis error"))
@@ -270,8 +264,6 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
 			{
-				UserID:    "123",
-				SessionID: "456",
 				EventGUID: "789",
 			},
 		}).Return([]bool{false}, nil)

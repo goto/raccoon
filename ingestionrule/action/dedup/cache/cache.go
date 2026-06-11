@@ -2,7 +2,6 @@ package cache
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -43,8 +42,6 @@ type Store struct {
 // EventMetadata holds the unique contextual identity traits of an incoming event.
 type EventMetadata struct {
 	EventGUID string
-	SessionID string
-	UserID    string
 }
 
 // NewStore instantiates the unified storage framework wrapper.
@@ -107,14 +104,5 @@ func (r *Store) Close() error {
 // buildDeduplicationKey constructs a deterministic unique identifier for an event payload
 // using pre-allocated memory to optimize string concatenation performance.
 func (r *Store) buildDeduplicationKey(event EventMetadata) string {
-	var sb strings.Builder
-	sb.Grow(len(event.UserID) + 1 + len(event.SessionID) + 1 + len(event.EventGUID))
-
-	sb.WriteString(event.UserID)
-	sb.WriteString(KeySeparator)
-	sb.WriteString(event.SessionID)
-	sb.WriteString(KeySeparator)
-	sb.WriteString(event.EventGUID)
-
-	return sb.String()
+	return event.EventGUID
 }

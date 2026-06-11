@@ -97,7 +97,7 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 			continue
 		}
 
-		if meta.EventGUID == "" || meta.SessionID == "" || meta.UserID == "" {
+		if meta.EventGUID == "" {
 			logger.Errorf("dedup: missing metadata fields: %+v for conn_group=%s,product=%s,event_name=%s", meta, connGroup, event.Product, event.EventName)
 			states[i] = processState{event: event, isValid: false}
 			continue
@@ -165,18 +165,7 @@ func (d *Dedup) extractMetadata(event *pb.Event, connGroup string) (cache.EventM
 		return cache.EventMetadata{}, fmt.Errorf("failed to parse proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
 	}
 
-	userIdentifier := config.DedupCfg.IdentifierMapping[connGroup]
 	ref := parsedMsg.ProtoReflect()
-
-	userID, err := d.getStringField(ref, userIdentifier.UserID, connGroup, event, "userID", reasonUserIDNotFound, reasonUserIDTypeInvalid)
-	if err != nil {
-		return cache.EventMetadata{}, err
-	}
-
-	sessionID, err := d.getStringField(ref, userIdentifier.SessionID, connGroup, event, "sessionID", reasonSessionIDNotFound, reasonSessionIDTypeInvalid)
-	if err != nil {
-		return cache.EventMetadata{}, err
-	}
 
 	const eventGUIDProtoField = "meta.event_guid"
 	eventGUID, err := d.getStringField(ref, eventGUIDProtoField, connGroup, event, "eventGUID", reasonEventGUIDNotFound, reasonEventGUIDTypeInvalid)
@@ -186,8 +175,6 @@ func (d *Dedup) extractMetadata(event *pb.Event, connGroup string) (cache.EventM
 
 	return cache.EventMetadata{
 		EventGUID: eventGUID,
-		SessionID: sessionID,
-		UserID:    userID,
 	}, nil
 }
 
