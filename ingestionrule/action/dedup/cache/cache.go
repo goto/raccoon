@@ -2,12 +2,10 @@ package cache
 
 import (
 	"context"
-	"encoding/hex"
-	"hash/fnv"
 	"strconv"
-	"strings"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/goto/raccoon/logger"
@@ -108,23 +106,20 @@ func (r *Store) Close() error {
 }
 
 // buildDeduplicationKey constructs a deterministic unique identifier for an event payload
-// using pre-allocated memory to optimize string concatenation performance.
+// by streaming the fields directly into xxhash to minimize heap memory allocations.
 func (r *Store) buildDeduplicationKey(event EventMetadata) string {
-	h := fnv.New64a()
-	h.Write([]byte(event.EventName))
-	h.Write([]byte(KeySeparator))
-	h.Write([]byte(event.Product))
+	d := xxhash.New()
 
-	hashHex := hex.EncodeToString(h.Sum(nil))
+	_, _ = d.WriteString(event.EventName)
+	_, _ = d.WriteString(KeySeparator)
+	_, _ = d.WriteString(event.Product)
+	_, _ = d.WriteString(KeySeparator)
 
-	timeStr := strconv.FormatInt(event.EventTimestamp.Unix(), 10)
+	// Format the nanosecond timestamp without heap allocation
+	// A 20-byte array easily holds the 19-digit int64 from UnixNano().
+	var timeBuf [20]byte
+	timeBytes := strconv.AppendInt(timeBuf[:0], event.EventTimestamp.UnixNano(), 10)
+	_, _ = d.Write(timeBytes)
 
-	var sb strings.Builder
-	sb.Grow(len(hashHex) + len(KeySeparator) + len(timeStr))
-
-	sb.WriteString(hashHex)
-	sb.WriteString(KeySeparator)
-	sb.WriteString(timeStr)
-
-	return sb.String()
+	return strconv.FormatUint(d.Sum64(), 16)
 }
