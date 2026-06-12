@@ -2,12 +2,12 @@ package cache
 
 import (
 	"context"
-	"strings"
+	"strconv"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 )
@@ -43,9 +43,9 @@ type Store struct {
 
 // EventMetadata holds the unique contextual identity traits of an incoming event.
 type EventMetadata struct {
-	EventGUID string
-	SessionID string
-	UserID    string
+	EventName      string
+	Product        string
+	EventTimestamp time.Time
 }
 
 // NewStore instantiates the unified storage framework wrapper.
@@ -72,16 +72,8 @@ func (r *Store) AreDuplicates(ctx context.Context, events []EventMetadata) ([]bo
 		cmds = append(cmds, pipe.SetNX(ctx, key, "t", DeduplicationTTL))
 	}
 
-	execCtx := ctx
-	if config.RedisCfg.ContextTimeoutEnabled {
-		var cancel context.CancelFunc
-
-		execCtx, cancel = context.WithTimeout(ctx, config.RedisCfg.ContextTimeout)
-		defer cancel()
-	}
-
 	// Execute all queued commands in ONE network round-trip
-	_, err := pipe.Exec(execCtx)
+	_, err := pipe.Exec(ctx)
 	if err != nil && err != redis.Nil {
 		logger.Errorf("failed to execute Redis pipeline for deduplication: %v", err)
 		metrics.Increment(metricNameRedisError, "command=pipeline_setnx")
@@ -114,16 +106,20 @@ func (r *Store) Close() error {
 }
 
 // buildDeduplicationKey constructs a deterministic unique identifier for an event payload
-// using pre-allocated memory to optimize string concatenation performance.
+// by streaming the fields directly into xxhash to minimize heap memory allocations.
 func (r *Store) buildDeduplicationKey(event EventMetadata) string {
-	var sb strings.Builder
-	sb.Grow(len(event.UserID) + 1 + len(event.SessionID) + 1 + len(event.EventGUID))
+	d := xxhash.New()
 
-	sb.WriteString(event.UserID)
-	sb.WriteString(KeySeparator)
-	sb.WriteString(event.SessionID)
-	sb.WriteString(KeySeparator)
-	sb.WriteString(event.EventGUID)
+	_, _ = d.WriteString(event.EventName)
+	_, _ = d.WriteString(KeySeparator)
+	_, _ = d.WriteString(event.Product)
+	_, _ = d.WriteString(KeySeparator)
 
-	return sb.String()
+	// Format the nanosecond timestamp without heap allocation
+	// A 20-byte array easily holds the 19-digit int64 from UnixNano().
+	var timeBuf [20]byte
+	timeBytes := strconv.AppendInt(timeBuf[:0], event.EventTimestamp.UnixNano(), 10)
+	_, _ = d.Write(timeBytes)
+
+	return strconv.FormatUint(d.Sum64(), 16)
 }
