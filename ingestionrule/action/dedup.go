@@ -46,6 +46,7 @@ const (
 	protoFieldEventName      = "event_name"
 	protoFieldProduct        = "product"
 	protoFieldEventTimestamp = "event_timestamp"
+	protoFieldEventGUID      = "event_guid"
 )
 
 // DuplicateChecker defines the capability to verify event uniqueness.
@@ -106,7 +107,7 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 			continue
 		}
 
-		if meta.EventName == "" || meta.Product == "" || meta.EventTimestamp.IsZero() {
+		if meta.EventGUID == "" || meta.Publisher == "" {
 			logger.Errorf("dedup: missing metadata fields: %+v for conn_group=%s,product=%s,event_name=%s", meta, connGroup, event.Product, event.EventName)
 			states[i] = processState{event: event, isValid: false}
 			continue
@@ -167,6 +168,13 @@ func (d *Dedup) extractMetadata(event *pb.Event, connGroup string) (cache.EventM
 		return cache.EventMetadata{}, fmt.Errorf("failed to find proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
 	}
 
+	publisher, ok := config.PolicyCfg.PublisherMapping[connGroup]
+	if !ok {
+		metrics.Increment(metricNameEventDeserializationError,
+			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, reasonPublisherNotFound, event.Type, event.Product, event.EventName))
+		return cache.EventMetadata{}, fmt.Errorf("failed to publisher for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
+	}
+
 	parsedMsg, err := d.stencil.Client.Parse(protoClass, event.EventBytes)
 	if err != nil {
 		metrics.Increment(metricNameEventDeserializationError,
@@ -176,22 +184,14 @@ func (d *Dedup) extractMetadata(event *pb.Event, connGroup string) (cache.EventM
 
 	ref := parsedMsg.ProtoReflect()
 
-	eventName, err := d.getStringField(ref, protoFieldEventName, connGroup, event, "event_name", reasonEventNameNotFound, reasonEventNameTypeInvalid)
+	eventGUID, err := d.getStringField(ref, protoFieldEventGUID, connGroup, event, protoFieldEventGUID, reasonEventNameNotFound, reasonEventNameTypeInvalid)
 	if err != nil {
 		return cache.EventMetadata{}, err
 	}
 
-	eventTimestamp, err := protoutil.GetTimestampFieldValue(ref, protoFieldEventTimestamp)
-	if err != nil {
-		metrics.Increment(metricNameEventDeserializationError,
-			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, reasonEventTimestampNotFound, event.Type, event.Product, event.EventName))
-		return cache.EventMetadata{}, fmt.Errorf("failed to extract event_timestamp for conn_group=%s,event_type=%s,product=%s,event_name=%s: %w", connGroup, event.Type, event.Product, event.EventName, err)
-	}
-
 	return cache.EventMetadata{
-		EventName:      eventName,
-		Product:        protoutil.GetEnumStringValue(ref, protoFieldProduct),
-		EventTimestamp: eventTimestamp,
+		EventGUID: eventGUID,
+		Publisher: publisher,
 	}, nil
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache/mocks"
 	"github.com/redis/go-redis/v9"
@@ -15,10 +14,9 @@ func TestStore_AreDuplicates(t *testing.T) {
 	ctx := context.Background()
 
 	s := &Store{}
-	now := time.Now()
 	events := []EventMetadata{
-		{EventName: "click", Product: "app", EventTimestamp: now},
-		{EventName: "scroll", Product: "app", EventTimestamp: now.Add(time.Second)},
+		{Publisher: "pub-1", EventGUID: "guid-1"},
+		{Publisher: "pub-2", EventGUID: "guid-2"},
 	}
 	key1 := s.buildDeduplicationKey(events[0])
 	key2 := s.buildDeduplicationKey(events[1])
@@ -32,11 +30,10 @@ func TestStore_AreDuplicates(t *testing.T) {
 
 	t.Run("Three Elements Two Duplicates", func(t *testing.T) {
 		s := &Store{}
-		now := time.Now()
 		batchEvents := []EventMetadata{
-			{EventName: "click", Product: "app", EventTimestamp: now},
-			{EventName: "scroll", Product: "app", EventTimestamp: now.Add(time.Second)},
-			{EventName: "swipe", Product: "app", EventTimestamp: now.Add(2 * time.Second)},
+			{Publisher: "pub-1", EventGUID: "guid-1"},
+			{Publisher: "pub-2", EventGUID: "guid-2"},
+			{Publisher: "pub-3", EventGUID: "guid-3"},
 		}
 
 		mockClient := mocks.NewClient(t)

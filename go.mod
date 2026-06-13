@@ -16,6 +16,7 @@ require (
 	github.com/spf13/cast v1.3.0
 	github.com/spf13/viper v1.7.0
 	github.com/stretchr/testify v1.11.1
+	github.com/zeebo/xxh3 v1.1.0
 	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/alexcesaro/statsd.v2 v2.0.0
@@ -47,6 +48,7 @@ require (
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.3 // indirect
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect

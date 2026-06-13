@@ -2,11 +2,11 @@ package cache
 
 import (
 	"context"
-	"strconv"
+	"fmt"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/redis/go-redis/v9"
+	"github.com/zeebo/xxh3"
 
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
@@ -43,9 +43,8 @@ type Store struct {
 
 // EventMetadata holds the unique contextual identity traits of an incoming event.
 type EventMetadata struct {
-	EventName      string
-	Product        string
-	EventTimestamp time.Time
+	Publisher string
+	EventGUID string
 }
 
 // NewStore instantiates the unified storage framework wrapper.
@@ -106,20 +105,17 @@ func (r *Store) Close() error {
 }
 
 // buildDeduplicationKey constructs a deterministic unique identifier for an event payload
-// by streaming the fields directly into xxhash to minimize heap memory allocations.
+// by streaming the fields directly into xxh3 to minimize heap memory allocations.
 func (r *Store) buildDeduplicationKey(event EventMetadata) string {
-	d := xxhash.New()
+	d := xxh3.New()
 
-	_, _ = d.WriteString(event.EventName)
+	_, _ = d.WriteString(event.Publisher)
 	_, _ = d.WriteString(KeySeparator)
-	_, _ = d.WriteString(event.Product)
-	_, _ = d.WriteString(KeySeparator)
+	_, _ = d.WriteString(event.EventGUID)
 
-	// Format the nanosecond timestamp without heap allocation
-	// A 20-byte array easily holds the 19-digit int64 from UnixNano().
-	var timeBuf [20]byte
-	timeBytes := strconv.AppendInt(timeBuf[:0], event.EventTimestamp.UnixNano(), 10)
-	_, _ = d.Write(timeBytes)
+	// Sum128 returns an xxh3.Uint128 struct containing Hi and Lo uint64 values
+	hash := d.Sum128()
 
-	return strconv.FormatUint(d.Sum64(), 16)
+	// Format the 128-bit hash as a contiguous 32-character hexadecimal string
+	return fmt.Sprintf("%016x%016x", hash.Hi, hash.Lo)
 }
