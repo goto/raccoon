@@ -42,13 +42,6 @@ const (
 	reasonEventTimestampTypeInvalid = "event_timestamp type invalid"
 )
 
-const (
-	protoFieldEventName      = "event_name"
-	protoFieldProduct        = "product"
-	protoFieldEventTimestamp = "event_timestamp"
-	protoFieldEventGUID      = "event_guid"
-)
-
 // DuplicateChecker defines the capability to verify event uniqueness.
 type DuplicateChecker interface {
 	AreDuplicates(ctx context.Context, events []cache.EventMetadata) ([]bool, error)
@@ -183,6 +176,8 @@ func (d *Dedup) extractMetadata(event *pb.Event, connGroup string) (cache.EventM
 	}
 
 	ref := parsedMsg.ProtoReflect()
+
+	const protoFieldEventGUID = "meta.event_guid"
 
 	eventGUID, err := d.getStringField(ref, protoFieldEventGUID, connGroup, event, protoFieldEventGUID, reasonEventNameNotFound, reasonEventNameTypeInvalid)
 	if err != nil {
