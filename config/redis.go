@@ -26,6 +26,11 @@ type redisConfig struct {
 	PoolSize           int
 	RetryProperties    retryConfig
 	SentinelMasterName string
+	CacheDuration      cacheConfig
+}
+
+type cacheConfig struct {
+	Dedup time.Duration
 }
 
 type retryConfig struct {
@@ -44,6 +49,7 @@ func redisConfigLoader() {
 	viper.SetDefault("REDIS_RETRY_MIN_BACKOFF", "1s")
 	viper.SetDefault("REDIS_RETRY_MAX_BACKOFF", "30s")
 	viper.SetDefault("REDIS_SENTINEL_MASTER_NAME", "")
+	viper.SetDefault("REDIS_CACHE_DURATION_DEDUP", "30m")
 
 	RedisCfg = redisConfig{
 		Type:     viper.GetString("REDIS_TYPE"),
@@ -57,5 +63,8 @@ func redisConfigLoader() {
 			MaxRetryBackOff: viper.GetDuration("REDIS_RETRY_MAX_BACKOFF"),
 		},
 		SentinelMasterName: viper.GetString("REDIS_SENTINEL_MASTER_NAME"),
+		CacheDuration: cacheConfig{
+			Dedup: viper.GetDuration("REDIS_CACHE_DURATION_DEDUP"),
+		},
 	}
 }

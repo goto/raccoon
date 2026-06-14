@@ -8,14 +8,9 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/zeebo/xxh3"
 
+	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
-)
-
-const (
-	SETNX            = "SETNX"
-	DeduplicationTTL = 30 * time.Minute
-	KeySeparator     = ":"
 )
 
 const (
@@ -68,7 +63,7 @@ func (r *Store) AreDuplicates(ctx context.Context, events []EventMetadata) ([]bo
 	// Queue all SETNX commands locally
 	for _, event := range events {
 		key := r.buildDeduplicationKey(event)
-		cmds = append(cmds, pipe.SetNX(ctx, key, "t", DeduplicationTTL))
+		cmds = append(cmds, pipe.SetNX(ctx, key, "t", config.RedisCfg.CacheDuration.Dedup))
 	}
 
 	// Execute all queued commands in ONE network round-trip
@@ -109,8 +104,10 @@ func (r *Store) Close() error {
 func (r *Store) buildDeduplicationKey(event EventMetadata) string {
 	d := xxh3.New()
 
+	const keySeparator = ":"
+
 	_, _ = d.WriteString(event.Publisher)
-	_, _ = d.WriteString(KeySeparator)
+	_, _ = d.WriteString(keySeparator)
 	_, _ = d.WriteString(event.EventGUID)
 
 	// Sum128 returns an xxh3.Uint128 struct containing Hi and Lo uint64 values
