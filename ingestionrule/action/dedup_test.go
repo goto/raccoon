@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/stretchr/testify/assert"
@@ -49,31 +48,23 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 	config.DedupCfg.ProtoClassNameMapping = map[string]string{
 		"component": "ClickEventProto",
 	}
-
-	testTime := time.Unix(123456, 0)
+	config.PolicyCfg.PublisherMapping = map[string]string{
+		"customer": "customer-publisher",
+	}
 
 	// 1. Success case: event is not a duplicate.
 	t.Run("EventNotDuplicate", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
 			{
-				EventName:      "click",
-				Product:        "app",
-				EventTimestamp: testTime,
+				Publisher: "customer-publisher",
+				EventGUID: "guid-1",
 			},
 		}).Return([]bool{false}, nil)
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
-				"event_name": "click",
-				"product":    protoreflect.EnumNumber(1),
-				"event_timestamp": &mockMessage{
-					fullName: "google.protobuf.Timestamp",
-					fields: map[string]any{
-						"seconds": testTime.Unix(),
-						"nanos":   int32(0),
-					},
-				},
+				"event_guid": "guid-1",
 			},
 		}
 
@@ -106,23 +97,14 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
 			{
-				EventName:      "click",
-				Product:        "app",
-				EventTimestamp: testTime,
+				Publisher: "customer-publisher",
+				EventGUID: "guid-1",
 			},
 		}).Return([]bool{true}, nil)
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
-				"event_name": "click",
-				"product":    protoreflect.EnumNumber(1),
-				"event_timestamp": &mockMessage{
-					fullName: "google.protobuf.Timestamp",
-					fields: map[string]any{
-						"seconds": testTime.Unix(),
-						"nanos":   int32(0),
-					},
-				},
+				"event_guid": "guid-1",
 			},
 		}
 
@@ -153,9 +135,9 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 
 		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
-			{EventName: "click-1", Product: "app", EventTimestamp: testTime},
-			{EventName: "click-2", Product: "app", EventTimestamp: testTime},
-			{EventName: "click-3", Product: "app", EventTimestamp: testTime},
+			{Publisher: "customer-publisher", EventGUID: "guid-1"},
+			{Publisher: "customer-publisher", EventGUID: "guid-2"},
+			{Publisher: "customer-publisher", EventGUID: "guid-3"},
 		}).Return([]bool{false, true, true}, nil) // 1 unique, 2 duplicates
 
 		ms := &mockStencilClient{
@@ -163,15 +145,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 				idSuffix := string(data)
 				return &mockMessage{
 					fields: map[string]any{
-						"event_name": "click-" + idSuffix,
-						"product":    protoreflect.EnumNumber(1),
-						"event_timestamp": &mockMessage{
-							fullName: "google.protobuf.Timestamp",
-							fields: map[string]any{
-								"seconds": testTime.Unix(),
-								"nanos":   int32(0),
-							},
-						},
+						"event_guid": "guid-" + idSuffix,
 					},
 				}, nil
 			},
@@ -201,23 +175,14 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
 			{
-				EventName:      "click",
-				Product:        "app",
-				EventTimestamp: testTime,
+				Publisher: "customer-publisher",
+				EventGUID: "guid-1",
 			},
 		}).Return(nil, errors.New("redis error"))
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
-				"event_name": "click",
-				"product":    protoreflect.EnumNumber(1),
-				"event_timestamp": &mockMessage{
-					fullName: "google.protobuf.Timestamp",
-					fields: map[string]any{
-						"seconds": testTime.Unix(),
-						"nanos":   int32(0),
-					},
-				},
+				"event_guid": "guid-1",
 			},
 		}
 
@@ -248,23 +213,14 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
 			{
-				EventName:      "789",
-				Product:        "app",
-				EventTimestamp: testTime,
+				Publisher: "customer-publisher",
+				EventGUID: "789",
 			},
 		}).Return([]bool{false}, nil)
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
-				"event_name": []byte("789"),
-				"product":    protoreflect.EnumNumber(1),
-				"event_timestamp": &mockMessage{
-					fullName: "google.protobuf.Timestamp",
-					fields: map[string]any{
-						"seconds": testTime.Unix(),
-						"nanos":   int32(0),
-					},
-				},
+				"event_guid": []byte("789"),
 			},
 		}
 
@@ -298,8 +254,9 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 	config.DedupCfg.ProtoClassNameMapping = map[string]string{
 		"component": "ClickEventProto",
 	}
-
-	testTime := time.Unix(123456, 0)
+	config.PolicyCfg.PublisherMapping = map[string]string{
+		"customer": "customer-publisher",
+	}
 
 	// 1. Proto class not found
 	t.Run("ProtoClassNotFound", func(t *testing.T) {
@@ -338,18 +295,36 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 		assert.Equal(t, events, res) // Fails open
 	})
 
-	// 3. EventName field not found
-	t.Run("EventNameNotFound", func(t *testing.T) {
+	// 3. EventGUID field not found
+	t.Run("EventGUIDNotFound", func(t *testing.T) {
+		mc := mocks.NewDuplicateChecker(t)
+		parsedMsg := &mockMessage{
+			fields: map[string]any{},
+		}
+		ms := &mockStencilClient{
+			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
+				return parsedMsg, nil
+			},
+		}
+		d := action.NewDedup(
+			schemaregistry.StencilClient{Client: ms},
+			mc,
+		)
+		events := []*pb.Event{
+			{
+				Type: "component",
+			},
+		}
+		res := d.Apply(context.Background(), events, "customer")
+		assert.Equal(t, events, res) // Fails open
+	})
+
+	// 4. EventGUID field not convertible
+	t.Run("EventGUIDNotConvertible", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
-				"event_timestamp": &mockMessage{
-					fullName: "google.protobuf.Timestamp",
-					fields: map[string]any{
-						"seconds": testTime.Unix(),
-						"nanos":   int32(0),
-					},
-				},
+				"event_guid": dummyList{}, // dummyList is not convertible to string
 			},
 		}
 		ms := &mockStencilClient{
@@ -370,113 +345,12 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 		assert.Equal(t, events, res) // Fails open
 	})
 
-	// 4. EventTimestamp field not found
-	t.Run("EventTimestampNotFound", func(t *testing.T) {
+	// 5. Empty metadata fields (empty EventGUID)
+	t.Run("EmptyEventGUID", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
-				"event_name": "click",
-			},
-		}
-		ms := &mockStencilClient{
-			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-				return parsedMsg, nil
-			},
-		}
-		d := action.NewDedup(
-			schemaregistry.StencilClient{Client: ms},
-			mc,
-		)
-		events := []*pb.Event{
-			{
-				Type: "component",
-			},
-		}
-		res := d.Apply(context.Background(), events, "customer")
-		assert.Equal(t, events, res) // Fails open
-	})
-
-	// 5. EventName field not convertible
-	t.Run("EventNameNotConvertible", func(t *testing.T) {
-		mc := mocks.NewDuplicateChecker(t)
-		parsedMsg := &mockMessage{
-			fields: map[string]any{
-				"event_name": dummyList{}, // dummyList is not convertible to string
-				"event_timestamp": &mockMessage{
-					fullName: "google.protobuf.Timestamp",
-					fields: map[string]any{
-						"seconds": testTime.Unix(),
-						"nanos":   int32(0),
-					},
-				},
-			},
-		}
-		ms := &mockStencilClient{
-			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-				return parsedMsg, nil
-			},
-		}
-		d := action.NewDedup(
-			schemaregistry.StencilClient{Client: ms},
-			mc,
-		)
-		events := []*pb.Event{
-			{
-				Type: "component",
-			},
-		}
-		res := d.Apply(context.Background(), events, "customer")
-		assert.Equal(t, events, res) // Fails open
-	})
-
-	// 6. Empty metadata fields (empty EventName)
-	t.Run("EmptyMetadataFields", func(t *testing.T) {
-		mc := mocks.NewDuplicateChecker(t)
-		parsedMsg := &mockMessage{
-			fields: map[string]any{
-				"event_name": "",
-				"product":    protoreflect.EnumNumber(1),
-				"event_timestamp": &mockMessage{
-					fullName: "google.protobuf.Timestamp",
-					fields: map[string]any{
-						"seconds": testTime.Unix(),
-						"nanos":   int32(0),
-					},
-				},
-			},
-		}
-		ms := &mockStencilClient{
-			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-				return parsedMsg, nil
-			},
-		}
-		d := action.NewDedup(
-			schemaregistry.StencilClient{Client: ms},
-			mc,
-		)
-		events := []*pb.Event{
-			{
-				Type: "component",
-			},
-		}
-		res := d.Apply(context.Background(), events, "customer")
-		assert.Equal(t, events, res) // Should fail open and return the event
-	})
-
-	// 7. Empty product field
-	t.Run("EmptyProductField", func(t *testing.T) {
-		mc := mocks.NewDuplicateChecker(t)
-		parsedMsg := &mockMessage{
-			fields: map[string]any{
-				"event_name": "click",
-				"event_timestamp": &mockMessage{
-					fullName: "google.protobuf.Timestamp",
-					fields: map[string]any{
-						"seconds": testTime.Unix(),
-						"nanos":   int32(0),
-					},
-				},
-				// "product" is deliberately omitted, so it will be parsed as ""
+				"event_guid": "",
 			},
 		}
 		ms := &mockStencilClient{
@@ -594,28 +468,7 @@ func (fds *mockFieldDescriptors) ByName(name protoreflect.Name) protoreflect.Fie
 		return nil
 	}
 	var kind protoreflect.Kind
-	var enumDesc protoreflect.EnumDescriptor
-	if string(name) == "product" {
-		kind = protoreflect.EnumKind
-		enumDesc = &mockEnumDescriptor{
-			values: &mockEnumValueDescriptors{
-				byNumber: func(n protoreflect.EnumNumber) protoreflect.EnumValueDescriptor {
-					if n == 0 {
-						return &mockEnumValueDescriptor{name: protoreflect.Name("")}
-					}
-					productNames := map[protoreflect.EnumNumber]string{
-						1: "app",
-						2: "web",
-					}
-					nameStr := productNames[n]
-					if nameStr == "" {
-						nameStr = "app"
-					}
-					return &mockEnumValueDescriptor{name: protoreflect.Name(nameStr)}
-				},
-			},
-		}
-	} else if _, ok := val.(*mockMessage); ok {
+	if _, ok := val.(*mockMessage); ok {
 		kind = protoreflect.MessageKind
 	} else if _, ok := val.(int64); ok {
 		kind = protoreflect.Int64Kind
@@ -624,14 +477,13 @@ func (fds *mockFieldDescriptors) ByName(name protoreflect.Name) protoreflect.Fie
 	} else {
 		kind = protoreflect.StringKind
 	}
-	return &mockFieldDescriptor{name: name, kind: kind, enum: enumDesc}
+	return &mockFieldDescriptor{name: name, kind: kind}
 }
 
 type mockFieldDescriptor struct {
 	protoreflect.FieldDescriptor
 	name protoreflect.Name
 	kind protoreflect.Kind
-	enum protoreflect.EnumDescriptor
 }
 
 func (fd *mockFieldDescriptor) Name() protoreflect.Name {
@@ -640,38 +492,4 @@ func (fd *mockFieldDescriptor) Name() protoreflect.Name {
 
 func (fd *mockFieldDescriptor) Kind() protoreflect.Kind {
 	return fd.kind
-}
-
-func (fd *mockFieldDescriptor) Enum() protoreflect.EnumDescriptor {
-	return fd.enum
-}
-
-type mockEnumDescriptor struct {
-	protoreflect.EnumDescriptor
-	values protoreflect.EnumValueDescriptors
-}
-
-func (d *mockEnumDescriptor) Values() protoreflect.EnumValueDescriptors {
-	return d.values
-}
-
-type mockEnumValueDescriptors struct {
-	protoreflect.EnumValueDescriptors
-	byNumber func(n protoreflect.EnumNumber) protoreflect.EnumValueDescriptor
-}
-
-func (v *mockEnumValueDescriptors) ByNumber(n protoreflect.EnumNumber) protoreflect.EnumValueDescriptor {
-	if v.byNumber != nil {
-		return v.byNumber(n)
-	}
-	return nil
-}
-
-type mockEnumValueDescriptor struct {
-	protoreflect.EnumValueDescriptor
-	name protoreflect.Name
-}
-
-func (v *mockEnumValueDescriptor) Name() protoreflect.Name {
-	return v.name
 }

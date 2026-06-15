@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
+	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache/mocks"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -15,10 +15,9 @@ func TestStore_AreDuplicates(t *testing.T) {
 	ctx := context.Background()
 
 	s := &Store{}
-	now := time.Now()
 	events := []EventMetadata{
-		{EventName: "click", Product: "app", EventTimestamp: now},
-		{EventName: "scroll", Product: "app", EventTimestamp: now.Add(time.Second)},
+		{Publisher: "pub-1", EventGUID: "guid-1"},
+		{Publisher: "pub-2", EventGUID: "guid-2"},
 	}
 	key1 := s.buildDeduplicationKey(events[0])
 	key2 := s.buildDeduplicationKey(events[1])
@@ -32,11 +31,10 @@ func TestStore_AreDuplicates(t *testing.T) {
 
 	t.Run("Three Elements Two Duplicates", func(t *testing.T) {
 		s := &Store{}
-		now := time.Now()
 		batchEvents := []EventMetadata{
-			{EventName: "click", Product: "app", EventTimestamp: now},
-			{EventName: "scroll", Product: "app", EventTimestamp: now.Add(time.Second)},
-			{EventName: "swipe", Product: "app", EventTimestamp: now.Add(2 * time.Second)},
+			{Publisher: "pub-1", EventGUID: "guid-1"},
+			{Publisher: "pub-2", EventGUID: "guid-2"},
+			{Publisher: "pub-3", EventGUID: "guid-3"},
 		}
 
 		mockClient := mocks.NewClient(t)
@@ -49,9 +47,9 @@ func TestStore_AreDuplicates(t *testing.T) {
 		cmd2 := redis.NewBoolResult(false, nil)
 		cmd3 := redis.NewBoolResult(false, nil)
 
-		pipe.On("SetNX", ctx, s.buildDeduplicationKey(batchEvents[0]), "t", DeduplicationTTL).Return(cmd1)
-		pipe.On("SetNX", ctx, s.buildDeduplicationKey(batchEvents[1]), "t", DeduplicationTTL).Return(cmd2)
-		pipe.On("SetNX", ctx, s.buildDeduplicationKey(batchEvents[2]), "t", DeduplicationTTL).Return(cmd3)
+		pipe.On("SetNX", ctx, s.buildDeduplicationKey(batchEvents[0]), "t", config.RedisCfg.CacheDuration.Dedup).Return(cmd1)
+		pipe.On("SetNX", ctx, s.buildDeduplicationKey(batchEvents[1]), "t", config.RedisCfg.CacheDuration.Dedup).Return(cmd2)
+		pipe.On("SetNX", ctx, s.buildDeduplicationKey(batchEvents[2]), "t", config.RedisCfg.CacheDuration.Dedup).Return(cmd3)
 		pipe.On("Exec", ctx).Return([]redis.Cmder{cmd1, cmd2, cmd3}, nil)
 
 		mockClient.On("Pipeline").Return(pipe)
@@ -76,8 +74,8 @@ func TestStore_AreDuplicates(t *testing.T) {
 		// cmd2 returns false (key existed -> IS duplicate)
 		cmd2 := redis.NewBoolResult(false, nil)
 
-		pipe.On("SetNX", ctx, key1, "t", DeduplicationTTL).Return(cmd1)
-		pipe.On("SetNX", ctx, key2, "t", DeduplicationTTL).Return(cmd2)
+		pipe.On("SetNX", ctx, key1, "t", config.RedisCfg.CacheDuration.Dedup).Return(cmd1)
+		pipe.On("SetNX", ctx, key2, "t", config.RedisCfg.CacheDuration.Dedup).Return(cmd2)
 		pipe.On("Exec", ctx).Return([]redis.Cmder{cmd1, cmd2}, nil)
 
 		mockClient.On("Pipeline").Return(pipe)
@@ -100,8 +98,8 @@ func TestStore_AreDuplicates(t *testing.T) {
 		cmd1 := redis.NewBoolResult(false, nil)
 		cmd2 := redis.NewBoolResult(false, nil)
 
-		pipe.On("SetNX", ctx, key1, "t", DeduplicationTTL).Return(cmd1)
-		pipe.On("SetNX", ctx, key2, "t", DeduplicationTTL).Return(cmd2)
+		pipe.On("SetNX", ctx, key1, "t", config.RedisCfg.CacheDuration.Dedup).Return(cmd1)
+		pipe.On("SetNX", ctx, key2, "t", config.RedisCfg.CacheDuration.Dedup).Return(cmd2)
 
 		execErr := errors.New("pipeline execution failed")
 		pipe.On("Exec", ctx).Return(nil, execErr)
@@ -127,8 +125,8 @@ func TestStore_AreDuplicates(t *testing.T) {
 		cmd1 := redis.NewBoolResult(true, nil)
 		cmd2 := redis.NewBoolResult(true, nil)
 
-		pipe.On("SetNX", ctx, key1, "t", DeduplicationTTL).Return(cmd1)
-		pipe.On("SetNX", ctx, key2, "t", DeduplicationTTL).Return(cmd2)
+		pipe.On("SetNX", ctx, key1, "t", config.RedisCfg.CacheDuration.Dedup).Return(cmd1)
+		pipe.On("SetNX", ctx, key2, "t", config.RedisCfg.CacheDuration.Dedup).Return(cmd2)
 		pipe.On("Exec", ctx).Return([]redis.Cmder{cmd1, cmd2}, redis.Nil)
 
 		mockClient.On("Pipeline").Return(pipe)
