@@ -64,7 +64,11 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
-				"event_guid": "guid-1",
+				"meta": &mockMessage{
+					fields: map[string]any{
+						"event_guid": "guid-1",
+					},
+				},
 			},
 		}
 
@@ -104,7 +108,11 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
-				"event_guid": "guid-1",
+				"meta": &mockMessage{
+					fields: map[string]any{
+						"event_guid": "guid-1",
+					},
+				},
 			},
 		}
 
@@ -145,7 +153,11 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 				idSuffix := string(data)
 				return &mockMessage{
 					fields: map[string]any{
-						"event_guid": "guid-" + idSuffix,
+						"meta": &mockMessage{
+							fields: map[string]any{
+								"event_guid": "guid-" + idSuffix,
+							},
+						},
 					},
 				}, nil
 			},
@@ -182,7 +194,11 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
-				"event_guid": "guid-1",
+				"meta": &mockMessage{
+					fields: map[string]any{
+						"event_guid": "guid-1",
+					},
+				},
 			},
 		}
 
@@ -220,7 +236,11 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
-				"event_guid": []byte("789"),
+				"meta": &mockMessage{
+					fields: map[string]any{
+						"event_guid": []byte("789"),
+					},
+				},
 			},
 		}
 
@@ -324,7 +344,11 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
-				"event_guid": dummyList{}, // dummyList is not convertible to string
+				"meta": &mockMessage{
+					fields: map[string]any{
+						"event_guid": dummyList{}, // dummyList is not convertible to string
+					},
+				},
 			},
 		}
 		ms := &mockStencilClient{
@@ -350,7 +374,11 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
-				"event_guid": "",
+				"meta": &mockMessage{
+					fields: map[string]any{
+						"event_guid": "",
+					},
+				},
 			},
 		}
 		ms := &mockStencilClient{
