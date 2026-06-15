@@ -66,8 +66,17 @@ func (r *Store) AreDuplicates(ctx context.Context, events []EventMetadata) ([]bo
 		cmds = append(cmds, pipe.SetNX(ctx, key, "t", config.RedisCfg.CacheDuration.Dedup))
 	}
 
+	execCtx := ctx
+
+	// Conditionally wrap the context with a timeout if the flag is enabled
+	if config.RedisCfg.ContextTimeoutEnabled {
+		var cancel context.CancelFunc
+		execCtx, cancel = context.WithTimeout(ctx, config.RedisCfg.ContextTimeout)
+		defer cancel()
+	}
+
 	// Execute all queued commands in ONE network round-trip
-	_, err := pipe.Exec(ctx)
+	_, err := pipe.Exec(execCtx)
 	if err != nil && err != redis.Nil {
 		logger.Errorf("failed to execute Redis pipeline for deduplication: %v", err)
 		metrics.Increment(metricNameRedisError, "command=pipeline_setnx")
@@ -104,13 +113,25 @@ func (r *Store) Close() error {
 	return nil
 }
 
-// buildDeduplicationKey constructs a deterministic unique identifier for an event payload
-// by streaming the fields directly into xxh3 to minimize heap memory allocations.
+// buildDeduplicationKey constructs a deterministic, fixed-length unique identifier
+// for an event payload to be stored in Redis.
+//
+// Algorithm & Performance:
+// It utilizes the XXH3 (Extreme Hash) 128-bit non-cryptographic hashing algorithm.
+// XXH3 operates near RAM speed limits, outperforming cryptographic hashes like SHA-256
+// while maintaining an exceptionally low collision probability across billions of keys.
+//
+// Key Format:
+// The generated string is always a contiguous 32-character lowercase hexadecimal string
+// representing the complete 128-bit signature ($16 \text{ bytes} \times 2 \text{ hex characters/byte}$):
+//   - First 16 characters: High 64 bits (`hash.Hi`) padded with leading zeros if necessary.
+//   - Last 16 characters: Low 64 bits (`hash.Lo`) padded with leading zeros if necessary.
 func (r *Store) buildDeduplicationKey(event EventMetadata) string {
 	d := xxh3.New()
 
 	const keySeparator = ":"
 
+	// key: <publisher>:<event_guid>
 	_, _ = d.WriteString(event.Publisher)
 	_, _ = d.WriteString(keySeparator)
 	_, _ = d.WriteString(event.EventGUID)
