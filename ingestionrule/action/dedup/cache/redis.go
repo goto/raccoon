@@ -36,24 +36,26 @@ func NewRedisCache(ctx context.Context, metricPushInterval time.Duration) (redis
 		}
 
 		client = redis.NewFailoverClient(&redis.FailoverOptions{
-			MasterName:      config.RedisCfg.SentinelMasterName,
-			SentinelAddrs:   sentinelAddrs,
-			MaxRetries:      config.RedisCfg.RetryProperties.MaxRetries,
-			MinRetryBackoff: config.RedisCfg.RetryProperties.MinRetryBackOff,
-			MaxRetryBackoff: config.RedisCfg.RetryProperties.MaxRetryBackOff,
-			PoolSize:        config.RedisCfg.PoolSize,
-			Username:        config.RedisCfg.Username,
-			Password:        config.RedisCfg.Password,
+			MasterName:            config.RedisCfg.SentinelMasterName,
+			SentinelAddrs:         sentinelAddrs,
+			MaxRetries:            config.RedisCfg.RetryProperties.MaxRetries,
+			MinRetryBackoff:       config.RedisCfg.RetryProperties.MinRetryBackOff,
+			MaxRetryBackoff:       config.RedisCfg.RetryProperties.MaxRetryBackOff,
+			PoolSize:              config.RedisCfg.PoolSize,
+			Username:              config.RedisCfg.Username,
+			Password:              config.RedisCfg.Password,
+			ContextTimeoutEnabled: config.RedisCfg.ContextTimeoutEnabled,
 		})
 	case config.RedisTypeStandalone:
 		client = redis.NewClient(&redis.Options{
-			Addr:            config.RedisCfg.Address,
-			Username:        config.RedisCfg.Username,
-			Password:        config.RedisCfg.Password,
-			MaxRetries:      config.RedisCfg.RetryProperties.MaxRetries,
-			MinRetryBackoff: config.RedisCfg.RetryProperties.MinRetryBackOff,
-			MaxRetryBackoff: config.RedisCfg.RetryProperties.MaxRetryBackOff,
-			PoolSize:        config.RedisCfg.PoolSize,
+			Addr:                  config.RedisCfg.Address,
+			Username:              config.RedisCfg.Username,
+			Password:              config.RedisCfg.Password,
+			MaxRetries:            config.RedisCfg.RetryProperties.MaxRetries,
+			MinRetryBackoff:       config.RedisCfg.RetryProperties.MinRetryBackOff,
+			MaxRetryBackoff:       config.RedisCfg.RetryProperties.MaxRetryBackOff,
+			PoolSize:              config.RedisCfg.PoolSize,
+			ContextTimeoutEnabled: config.RedisCfg.ContextTimeoutEnabled,
 		})
 	case config.RedisTypeCluster:
 		rawAddrs := strings.Split(config.RedisCfg.Address, ",")
@@ -70,13 +72,14 @@ func NewRedisCache(ctx context.Context, metricPushInterval time.Duration) (redis
 		}
 
 		client = redis.NewClusterClient(&redis.ClusterOptions{
-			Addrs:           clusterAddrs,
-			MaxRetries:      config.RedisCfg.RetryProperties.MaxRetries,
-			MinRetryBackoff: config.RedisCfg.RetryProperties.MinRetryBackOff,
-			MaxRetryBackoff: config.RedisCfg.RetryProperties.MaxRetryBackOff,
-			PoolSize:        config.RedisCfg.PoolSize,
-			Username:        config.RedisCfg.Username,
-			Password:        config.RedisCfg.Password,
+			Addrs:                 clusterAddrs,
+			MaxRetries:            config.RedisCfg.RetryProperties.MaxRetries,
+			MinRetryBackoff:       config.RedisCfg.RetryProperties.MinRetryBackOff,
+			MaxRetryBackoff:       config.RedisCfg.RetryProperties.MaxRetryBackOff,
+			PoolSize:              config.RedisCfg.PoolSize,
+			Username:              config.RedisCfg.Username,
+			Password:              config.RedisCfg.Password,
+			ContextTimeoutEnabled: config.RedisCfg.ContextTimeoutEnabled,
 		})
 	default:
 		return nil, fmt.Errorf("unsupported or invalid redis deployment type: %q", config.RedisCfg.Type)

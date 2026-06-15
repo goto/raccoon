@@ -35,15 +35,26 @@ const (
 	reasonSessionIDNotFound    = "sessionID not found"
 	reasonSessionIDTypeInvalid = "sessionID type invalid"
 
-	reasonEventGUIDNotFound    = "eventGUID not found"
-	reasonEventGUIDTypeInvalid = "eventGUID type invalid"
+	reasonEventNameNotFound    = "event_name not found"
+	reasonEventNameTypeInvalid = "event_name type invalid"
+
+	reasonEventTimestampNotFound    = "event_timestamp not found"
+	reasonEventTimestampTypeInvalid = "event_timestamp type invalid"
 )
 
 // DuplicateChecker defines the capability to verify event uniqueness.
 type DuplicateChecker interface {
-	IsDuplicate(ctx context.Context, event cache.EventMetadata) (bool, error)
+	AreDuplicates(ctx context.Context, events []cache.EventMetadata) ([]bool, error)
 	HealthCheck() error
 	Close() error
+}
+
+// processState holds the state of each event being processed.
+type processState struct {
+	// event is the original event being processed.
+	event *pb.Event
+	// isValid indicates whether the event has valid metadata and should be checked for duplication.
+	isValid bool
 }
 
 // Dedup is a policy action that deduplicates events using duplicate checker and schema registry.
@@ -75,41 +86,67 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 		return events
 	}
 
-	uniqueEvents := make([]*pb.Event, 0, len(events))
+	states := make([]processState, len(events))
+	metadataBatch := make([]cache.EventMetadata, 0, len(events))
 
-	for _, event := range events {
+	for i, event := range events {
 		startDeserialize := time.Now()
 		meta, err := d.extractMetadata(event, connGroup)
 		metrics.Timing(metricNameEventDeserializationLatency, time.Since(startDeserialize).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
 
 		if err != nil {
 			logger.Errorf("dedup: failed to extract metadata: %v", err)
-			uniqueEvents = append(uniqueEvents, event)
+			states[i] = processState{event: event, isValid: false}
 			continue
 		}
 
-		if meta.EventGUID == "" || meta.SessionID == "" || meta.UserID == "" {
+		if meta.EventGUID == "" || meta.Publisher == "" {
 			logger.Errorf("dedup: missing metadata fields: %+v for conn_group=%s,product=%s,event_name=%s", meta, connGroup, event.Product, event.EventName)
-			uniqueEvents = append(uniqueEvents, event)
+			states[i] = processState{event: event, isValid: false}
 			continue
 		}
 
+		states[i] = processState{event: event, isValid: true}
+		metadataBatch = append(metadataBatch, meta)
+	}
+
+	var isDuplicateResults []bool
+	var cacheErr error
+
+	if len(metadataBatch) > 0 {
 		startCheck := time.Now()
-		isDuplicate, cacheErr := d.checker.IsDuplicate(ctx, meta)
+		isDuplicateResults, cacheErr = d.checker.AreDuplicates(ctx, metadataBatch)
 		metrics.Timing(metricNameEventDuplicateCheckerLatency, time.Since(startCheck).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
+	}
+
+	uniqueEvents := make([]*pb.Event, 0, len(events))
+	resultIdx := 0 // Tracks our position in the isDuplicateResults slice
+
+	for _, state := range states {
+		if !state.isValid {
+			uniqueEvents = append(uniqueEvents, state.event)
+			continue
+		}
 
 		if cacheErr != nil {
-			logger.Errorf("dedup: cache verification failed, bypassing filter: %v", cacheErr)
-			uniqueEvents = append(uniqueEvents, event)
+			if resultIdx == 0 { // Only log once per batch
+				logger.Errorf("dedup: cache batch verification failed, bypassing filter: %v", cacheErr)
+			}
+
+			uniqueEvents = append(uniqueEvents, state.event)
+			resultIdx++
 			continue
 		}
+
+		isDuplicate := isDuplicateResults[resultIdx]
+		resultIdx++
 
 		if isDuplicate {
-			metrics.Increment(metricEventLossCount, fmt.Sprintf("reason=DEDUP_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", event.EventName, event.Product, connGroup, event.Type))
+			metrics.Increment(metricEventLossCount, fmt.Sprintf("reason=DEDUP_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", state.event.EventName, state.event.Product, connGroup, state.event.Type))
 			continue
 		}
 
-		uniqueEvents = append(uniqueEvents, event)
+		uniqueEvents = append(uniqueEvents, state.event)
 	}
 
 	return uniqueEvents
@@ -124,6 +161,13 @@ func (d *Dedup) extractMetadata(event *pb.Event, connGroup string) (cache.EventM
 		return cache.EventMetadata{}, fmt.Errorf("failed to find proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
 	}
 
+	publisher, ok := config.PolicyCfg.PublisherMapping[connGroup]
+	if !ok {
+		metrics.Increment(metricNameEventDeserializationError,
+			fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, reasonPublisherNotFound, event.Type, event.Product, event.EventName))
+		return cache.EventMetadata{}, fmt.Errorf("failed to publisher for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
+	}
+
 	parsedMsg, err := d.stencil.Client.Parse(protoClass, event.EventBytes)
 	if err != nil {
 		metrics.Increment(metricNameEventDeserializationError,
@@ -131,29 +175,18 @@ func (d *Dedup) extractMetadata(event *pb.Event, connGroup string) (cache.EventM
 		return cache.EventMetadata{}, fmt.Errorf("failed to parse proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
 	}
 
-	userIdentifier := config.DedupCfg.IdentifierMapping[connGroup]
 	ref := parsedMsg.ProtoReflect()
 
-	userID, err := d.getStringField(ref, userIdentifier.UserID, connGroup, event, "userID", reasonUserIDNotFound, reasonUserIDTypeInvalid)
-	if err != nil {
-		return cache.EventMetadata{}, err
-	}
+	const protoFieldEventGUID = "meta.event_guid"
 
-	sessionID, err := d.getStringField(ref, userIdentifier.SessionID, connGroup, event, "sessionID", reasonSessionIDNotFound, reasonSessionIDTypeInvalid)
-	if err != nil {
-		return cache.EventMetadata{}, err
-	}
-
-	const eventGUIDProtoField = "meta.event_guid"
-	eventGUID, err := d.getStringField(ref, eventGUIDProtoField, connGroup, event, "eventGUID", reasonEventGUIDNotFound, reasonEventGUIDTypeInvalid)
+	eventGUID, err := d.getStringField(ref, protoFieldEventGUID, connGroup, event, protoFieldEventGUID, reasonEventNameNotFound, reasonEventNameTypeInvalid)
 	if err != nil {
 		return cache.EventMetadata{}, err
 	}
 
 	return cache.EventMetadata{
 		EventGUID: eventGUID,
-		SessionID: sessionID,
-		UserID:    userID,
+		Publisher: publisher,
 	}, nil
 }
 

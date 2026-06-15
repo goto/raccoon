@@ -38,6 +38,74 @@ func (_m *DuplicateChecker) EXPECT() *DuplicateChecker_Expecter {
 	return &DuplicateChecker_Expecter{mock: &_m.Mock}
 }
 
+// AreDuplicates provides a mock function for the type DuplicateChecker
+func (_mock *DuplicateChecker) AreDuplicates(ctx context.Context, events []cache.EventMetadata) ([]bool, error) {
+	ret := _mock.Called(ctx, events)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AreDuplicates")
+	}
+
+	var r0 []bool
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []cache.EventMetadata) ([]bool, error)); ok {
+		return returnFunc(ctx, events)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []cache.EventMetadata) []bool); ok {
+		r0 = returnFunc(ctx, events)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]bool)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, []cache.EventMetadata) error); ok {
+		r1 = returnFunc(ctx, events)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// DuplicateChecker_AreDuplicates_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AreDuplicates'
+type DuplicateChecker_AreDuplicates_Call struct {
+	*mock.Call
+}
+
+// AreDuplicates is a helper method to define mock.On call
+//   - ctx context.Context
+//   - events []cache.EventMetadata
+func (_e *DuplicateChecker_Expecter) AreDuplicates(ctx interface{}, events interface{}) *DuplicateChecker_AreDuplicates_Call {
+	return &DuplicateChecker_AreDuplicates_Call{Call: _e.mock.On("AreDuplicates", ctx, events)}
+}
+
+func (_c *DuplicateChecker_AreDuplicates_Call) Run(run func(ctx context.Context, events []cache.EventMetadata)) *DuplicateChecker_AreDuplicates_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 []cache.EventMetadata
+		if args[1] != nil {
+			arg1 = args[1].([]cache.EventMetadata)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *DuplicateChecker_AreDuplicates_Call) Return(bools []bool, err error) *DuplicateChecker_AreDuplicates_Call {
+	_c.Call.Return(bools, err)
+	return _c
+}
+
+func (_c *DuplicateChecker_AreDuplicates_Call) RunAndReturn(run func(ctx context.Context, events []cache.EventMetadata) ([]bool, error)) *DuplicateChecker_AreDuplicates_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Close provides a mock function for the type DuplicateChecker
 func (_mock *DuplicateChecker) Close() error {
 	ret := _mock.Called()
@@ -122,72 +190,6 @@ func (_c *DuplicateChecker_HealthCheck_Call) Return(err error) *DuplicateChecker
 }
 
 func (_c *DuplicateChecker_HealthCheck_Call) RunAndReturn(run func() error) *DuplicateChecker_HealthCheck_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// IsDuplicate provides a mock function for the type DuplicateChecker
-func (_mock *DuplicateChecker) IsDuplicate(ctx context.Context, event cache.EventMetadata) (bool, error) {
-	ret := _mock.Called(ctx, event)
-
-	if len(ret) == 0 {
-		panic("no return value specified for IsDuplicate")
-	}
-
-	var r0 bool
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, cache.EventMetadata) (bool, error)); ok {
-		return returnFunc(ctx, event)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, cache.EventMetadata) bool); ok {
-		r0 = returnFunc(ctx, event)
-	} else {
-		r0 = ret.Get(0).(bool)
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, cache.EventMetadata) error); ok {
-		r1 = returnFunc(ctx, event)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// DuplicateChecker_IsDuplicate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsDuplicate'
-type DuplicateChecker_IsDuplicate_Call struct {
-	*mock.Call
-}
-
-// IsDuplicate is a helper method to define mock.On call
-//   - ctx context.Context
-//   - event cache.EventMetadata
-func (_e *DuplicateChecker_Expecter) IsDuplicate(ctx interface{}, event interface{}) *DuplicateChecker_IsDuplicate_Call {
-	return &DuplicateChecker_IsDuplicate_Call{Call: _e.mock.On("IsDuplicate", ctx, event)}
-}
-
-func (_c *DuplicateChecker_IsDuplicate_Call) Run(run func(ctx context.Context, event cache.EventMetadata)) *DuplicateChecker_IsDuplicate_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 cache.EventMetadata
-		if args[1] != nil {
-			arg1 = args[1].(cache.EventMetadata)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *DuplicateChecker_IsDuplicate_Call) Return(b bool, err error) *DuplicateChecker_IsDuplicate_Call {
-	_c.Call.Return(b, err)
-	return _c
-}
-
-func (_c *DuplicateChecker_IsDuplicate_Call) RunAndReturn(run func(ctx context.Context, event cache.EventMetadata) (bool, error)) *DuplicateChecker_IsDuplicate_Call {
 	_c.Call.Return(run)
 	return _c
 }
