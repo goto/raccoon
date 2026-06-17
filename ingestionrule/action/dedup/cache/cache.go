@@ -52,7 +52,7 @@ func NewStore(ctx context.Context, client Client) (*Store, error) {
 
 // AreDuplicates evaluates a batch of events in a single Redis Pipeline execution.
 // It returns a slice of booleans corresponding to the input array order.
-func (r *Store) AreDuplicates(ctx context.Context, events []EventMetadata) ([]bool, error) {
+func (r *Store) AreDuplicates(ctx context.Context, events []EventMetadata, ttl time.Duration) ([]bool, error) {
 	if len(events) == 0 {
 		return nil, nil
 	}
@@ -63,7 +63,7 @@ func (r *Store) AreDuplicates(ctx context.Context, events []EventMetadata) ([]bo
 	// Queue all SETNX commands locally
 	for _, event := range events {
 		key := r.buildDeduplicationKey(event)
-		cmds = append(cmds, pipe.SetNX(ctx, key, "t", config.RedisCfg.CacheDuration.Dedup))
+		cmds = append(cmds, pipe.SetNX(ctx, key, "t", ttl))
 	}
 
 	execCtx := ctx

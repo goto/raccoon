@@ -31,8 +31,6 @@ type redisConfig struct {
 	// ContextTimeout determine the total timeout for the entire Redis operation
 	// Pool checkout + Dial + Write + Read + Retries
 	ContextTimeout time.Duration
-	// CacheDuration determines the duration for caching Redis responses
-	CacheDuration cacheConfig
 }
 
 // cacheConfig holds the configuration for caching Redis responses in several usecases.
@@ -74,8 +72,5 @@ func redisConfigLoader() {
 		SentinelMasterName:    viper.GetString("REDIS_SENTINEL_MASTER_NAME"),
 		ContextTimeoutEnabled: viper.GetBool("REDIS_CONTEXT_TIMEOUT_ENABLED"),
 		ContextTimeout:        viper.GetDuration("REDIS_CONTEXT_TIMEOUT"),
-		CacheDuration: cacheConfig{
-			Dedup: viper.GetDuration("REDIS_CACHE_DURATION_DEDUP"),
-		},
 	}
 }

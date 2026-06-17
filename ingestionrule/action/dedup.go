@@ -44,7 +44,7 @@ const (
 
 // DuplicateChecker defines the capability to verify event uniqueness.
 type DuplicateChecker interface {
-	AreDuplicates(ctx context.Context, events []cache.EventMetadata) ([]bool, error)
+	AreDuplicates(ctx context.Context, events []cache.EventMetadata, ttl time.Duration) ([]bool, error)
 	HealthCheck() error
 	Close() error
 }
@@ -86,6 +86,12 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 		return events
 	}
 
+	cacheDuration, found := config.DedupCfg.ConnGroupCacheDuration[connGroup]
+	if !found {
+		logger.Errorf("dedup: failed to find cache duration for conn_group=%s", connGroup)
+		return events
+	}
+
 	states := make([]processState, len(events))
 	metadataBatch := make([]cache.EventMetadata, 0, len(events))
 
@@ -115,7 +121,7 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 
 	if len(metadataBatch) > 0 {
 		startCheck := time.Now()
-		isDuplicateResults, cacheErr = d.checker.AreDuplicates(ctx, metadataBatch)
+		isDuplicateResults, cacheErr = d.checker.AreDuplicates(ctx, metadataBatch, cacheDuration)
 		metrics.Timing(metricNameEventDuplicateCheckerLatency, time.Since(startCheck).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
 	}
 
