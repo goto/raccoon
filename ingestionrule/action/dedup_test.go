@@ -8,11 +8,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
 	"github.com/goto/raccoon/ingestionrule/action/mocks"
+	"github.com/goto/raccoon/ingestionrule/schemaregistry"
 	"github.com/goto/raccoon/model"
 )
 
@@ -230,6 +232,15 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 	config.DedupCfg.WhitelistConnGroup = map[string]struct{}{
 		"customer": {},
+	}
+	config.DedupCfg.ProtoClassNameMapping = map[string]string{
+		"component": "ClickEventProto",
+	}
+	config.PolicyCfg.PublisherMapping = map[string]string{
+		"customer": "customer-publisher",
+	}
+	config.DedupCfg.ConnGroupCacheDuration = map[string]time.Duration{
+		"customer": 5 * time.Minute,
 	}
 
 	// 1. Empty metadata fields (empty EventGUID)
