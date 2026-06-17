@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/goto/raccoon/config/util"
 	"github.com/spf13/viper"
@@ -20,24 +21,16 @@ type dedupConfig struct {
 	// Enabled controls whether deduplication is active.
 	// Set DEDUP_ENABLED=true to enable.
 	Enabled bool
-	// IdentifierMapping holds the user and session ID field mappings for a connection group.
-	IdentifierMapping map[string]Identifier
 	// ProtoClassNameMapping maps event_type to proto class name.
 	ProtoClassNameMapping map[string]string
 	// WhitelistConnGroup is a list of connection groups that are processed with dedup.
 	WhitelistConnGroup map[string]struct{}
+	// ConnGroupCacheDuration is a map of connection groups to their cache durations.
+	ConnGroupCacheDuration map[string]time.Duration
 }
 
 func dedupConfigLoader() {
 	viper.SetDefault("DEDUP_ENABLED", "false")
-
-	connGroupIdentifierMap := make(map[string]Identifier)
-	rawMapping := util.MustGetString("DEDUP_IDENTIFIER_MAPPING")
-	if rawMapping != "" {
-		if err := json.Unmarshal([]byte(rawMapping), &connGroupIdentifierMap); err != nil {
-			panic("config: invalid DEDUP_IDENTIFIER_MAPPING: " + err.Error())
-		}
-	}
 
 	var rawWhitelist []string
 
@@ -59,10 +52,18 @@ func dedupConfigLoader() {
 		}
 	}
 
+	connGroupCacheDuration := make(map[string]time.Duration)
+	rawConnGroupCacheDuration := util.MustGetString("DEDUP_CONN_GROUP_CACHE_DURATION")
+	if rawConnGroupCacheDuration != "" {
+		if err := json.Unmarshal([]byte(rawConnGroupCacheDuration), &connGroupCacheDuration); err != nil {
+			panic("config: invalid DEDUP_CONN_GROUP_CACHE_DURATION: " + err.Error())
+		}
+	}
+
 	DedupCfg = dedupConfig{
-		Enabled:               util.MustGetBool("DEDUP_ENABLED"),
-		WhitelistConnGroup:    whitelistMap,
-		IdentifierMapping:     connGroupIdentifierMap,
-		ProtoClassNameMapping: protoClassNameMap,
+		Enabled:                util.MustGetBool("DEDUP_ENABLED"),
+		WhitelistConnGroup:     whitelistMap,
+		ProtoClassNameMapping:  protoClassNameMap,
+		ConnGroupCacheDuration: connGroupCacheDuration,
 	}
 }

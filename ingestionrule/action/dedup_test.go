@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/stretchr/testify/assert"
@@ -51,6 +52,9 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 	config.PolicyCfg.PublisherMapping = map[string]string{
 		"customer": "customer-publisher",
 	}
+	config.DedupCfg.ConnGroupCacheDuration = map[string]time.Duration{
+		"customer": 5 * time.Minute,
+	}
 
 	// 1. Success case: event is not a duplicate.
 	t.Run("EventNotDuplicate", func(t *testing.T) {
@@ -60,7 +64,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 				Publisher: "customer-publisher",
 				EventGUID: "guid-1",
 			},
-		}).Return([]bool{false}, nil)
+		}, 5*time.Minute).Return([]bool{false}, nil)
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
@@ -104,7 +108,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 				Publisher: "customer-publisher",
 				EventGUID: "guid-1",
 			},
-		}).Return([]bool{true}, nil)
+		}, 5*time.Minute).Return([]bool{true}, nil)
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
@@ -146,7 +150,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 			{Publisher: "customer-publisher", EventGUID: "guid-1"},
 			{Publisher: "customer-publisher", EventGUID: "guid-2"},
 			{Publisher: "customer-publisher", EventGUID: "guid-3"},
-		}).Return([]bool{false, true, true}, nil) // 1 unique, 2 duplicates
+		}, 5*time.Minute).Return([]bool{false, true, true}, nil) // 1 unique, 2 duplicates
 
 		ms := &mockStencilClient{
 			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
@@ -190,7 +194,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 				Publisher: "customer-publisher",
 				EventGUID: "guid-1",
 			},
-		}).Return(nil, errors.New("redis error"))
+		}, 5*time.Minute).Return(nil, errors.New("redis error"))
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
@@ -232,7 +236,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 				Publisher: "customer-publisher",
 				EventGUID: "789",
 			},
-		}).Return([]bool{false}, nil)
+		}, 5*time.Minute).Return([]bool{false}, nil)
 
 		parsedMsg := &mockMessage{
 			fields: map[string]any{
