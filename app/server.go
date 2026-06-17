@@ -17,6 +17,7 @@ import (
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/publisher"
+	"github.com/goto/raccoon/schemaregistry"
 	"github.com/goto/raccoon/services"
 	"github.com/goto/raccoon/worker"
 )
@@ -25,7 +26,12 @@ import (
 func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
 
-	ingestionRuleSvc, err := initIngestionRule(ctx)
+	stencil, err := schemaregistry.NewStencilClient()
+	if err != nil {
+		panic("error creating stencil client: " + err.Error())
+	}
+
+	ingestionRuleSvc, err := initIngestionRule(ctx, stencil)
 	if err != nil {
 		panic("error creating ingestion rule service: " + err.Error())
 	}
@@ -35,7 +41,7 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 	logger.Info("Start Server -->")
 	httpServices.Start(ctx, cancel)
 	logger.Info("Start publisher -->")
-	kPublisher, err := publisher.NewKafka()
+	kPublisher, err := publisher.NewKafka(stencil)
 	if err != nil {
 		logger.Error("Error creating kafka producer", err)
 		logger.Info("Exiting server")
@@ -135,7 +141,7 @@ func reportProcMetrics() {
 
 // initIngestionRule builds a *ingestionrule.Service when POLICY_ENABLED=true.
 // Returns nil when policy is disabled; a nil *ingestionrule.Service is safe (Apply is a no-op).
-func initIngestionRule(ctx context.Context) (*ingestionrule.Service, error) {
+func initIngestionRule(ctx context.Context, stencil schemaregistry.StencilClient) (*ingestionrule.Service, error) {
 	if !config.PolicyCfg.Enabled {
 		logger.Info("ingestionRule enforcement disabled")
 		return nil, nil
@@ -145,6 +151,7 @@ func initIngestionRule(ctx context.Context) (*ingestionrule.Service, error) {
 		ctx,
 		config.PolicyCfg.Rules,
 		config.PolicyCfg.OverrideEventType,
+		stencil,
 	)
 	if err != nil {
 		return nil, err

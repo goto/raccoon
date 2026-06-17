@@ -1,4 +1,4 @@
-package eval
+package model
 
 import "time"
 
@@ -11,8 +11,6 @@ type EventMetadata struct {
 	EventName string
 	// Product is the protobuf Event.Product field.
 	Product string
-	// ConnGroup is the connection group from the request header.
-	ConnGroup string
 	// Publisher is the resolved publisher, derived from ConnGroup via the mapping.
 	Publisher string
 	// TopicName is the Kafka topic this event would be produced to by default.

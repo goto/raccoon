@@ -4,12 +4,13 @@ import (
 	"time"
 
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/model"
 )
 
 // Condition is the policy predicate that decides whether an action should be applied.
 // Implementations can inspect any aspect of the event (e.g. timestamp, payload size).
 type Condition interface {
-	Breached(meta EventMetadata) bool
+	Breached(meta model.EventMetadata) bool
 }
 
 // NewNoCondition returns a Condition that is always breached.
@@ -20,7 +21,7 @@ func NewNoCondition() Condition {
 
 type noCondition struct{}
 
-func (noCondition) Breached(_ EventMetadata) bool { return true }
+func (noCondition) Breached(_ model.EventMetadata) bool { return true }
 
 // NewTimestampCondition returns a Condition that checks the event timestamp against the
 // configured past/future threshold. Returns true (breached) when the timestamp falls
@@ -33,7 +34,7 @@ type timestampCondition struct {
 	threshold config.PolicyTimestampThreshold
 }
 
-func (c timestampCondition) Breached(meta EventMetadata) bool {
+func (c timestampCondition) Breached(meta model.EventMetadata) bool {
 	return !WithinThreshold(c.threshold, meta.EventTimestamp)
 }
 
