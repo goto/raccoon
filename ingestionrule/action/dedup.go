@@ -9,7 +9,7 @@ import (
 
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
-	"github.com/goto/raccoon/ingestionrule/action/dedup/schemaregistry"
+	"github.com/goto/raccoon/schemaregistry"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 )
@@ -61,7 +61,7 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 
 	for i, event := range events {
 		startDeserialize := time.Now()
-		meta, err := ExtractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, d.stencil)
+		meta, err := extractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, d.stencil)
 		metrics.Timing(metricNameEventDeserializationLatency, time.Since(startDeserialize).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
 
 		if err != nil {

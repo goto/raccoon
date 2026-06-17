@@ -6,9 +6,10 @@ import (
 	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+
 	"github.com/goto/raccoon/config"
-	"github.com/goto/raccoon/ingestionrule/action/dedup/schemaregistry"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
+	"github.com/goto/raccoon/schemaregistry"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 )
@@ -37,17 +38,20 @@ func (d *Deactivate) Apply(_ context.Context, events []*pb.Event, connGroup stri
 	filtered := make([]*pb.Event, 0, len(events))
 
 	for _, event := range events {
-		meta, err := ExtractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, d.stencil)
+		meta, err := extractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, d.stencil)
 		if err != nil {
 			logger.Errorf("deactivate: failed to extract metadata: %v", err)
 			metrics.Increment(metricNameEventDeserializationError, fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, getErrorReason(err), event.Type, event.Product, event.EventName))
+
+			filtered = append(filtered, event)
+			continue
 		}
 
-		logger.Debugf("[deactivate.Apply] meta: event_name=%s, product=%s, publisher=%s, topic=%s, conn_group=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.ConnGroup)
+		logger.Debugf("[deactivate.Apply] meta: event_name=%s, product=%s, publisher=%s, topic=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName)
 
 		if d.evalChain.Run(meta, d.cache) {
-			logger.Infof("[deactivate.Apply] deactivating event: event_name=%s, product=%s, publisher=%s, conn_group=%s, topic=%s, event_timestamp=%s", meta.EventName, meta.Product, meta.Publisher, meta.ConnGroup, meta.TopicName, meta.EventTimestamp)
-			metrics.Increment(metricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, meta.ConnGroup, meta.EventType))
+			logger.Infof("[deactivate.Apply] deactivating event: event_name=%s, product=%s, publisher=%s, topic=%s, event_timestamp=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp)
+			metrics.Increment(metricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_POLICY,event_name=%s,product=%s,publisher=%s,event_type=%s", meta.EventName, meta.Product, meta.Publisher, meta.EventType))
 			continue
 		}
 

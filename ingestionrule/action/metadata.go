@@ -6,10 +6,10 @@ import (
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/config"
-	"github.com/goto/raccoon/ingestionrule/action/dedup/protoutil"
-	"github.com/goto/raccoon/ingestionrule/action/dedup/schemaregistry"
-	"github.com/goto/raccoon/ingestionrule/action/eval"
 	"github.com/goto/raccoon/logger"
+	"github.com/goto/raccoon/model"
+	"github.com/goto/raccoon/protoutil"
+	"github.com/goto/raccoon/schemaregistry"
 	"github.com/spf13/cast"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -39,23 +39,27 @@ const (
 )
 
 const (
-	protoFieldEventGUID    = "meta.event_guid"
-	protoFieldEventName    = "event_name"
-	protoFieldEventProduct = "product"
+	protoFieldEventGUID      = "meta.event_guid"
+	protoFieldEventName      = "event_name"
+	protoFieldEventProduct   = "product"
+	protoFieldEventTimestamp = "event_timestamp"
 )
 
-// ExtractMetadataWithPayload builds an EventMetadata using the deserialized payload (parsed using Stencil)
-// for event_name, product, and event_timestamp, returning an error if parsing fails.
-func ExtractMetadata(
+// extractMetadata builds an EventMetadata for an event.
+// It extracts event_name, product, and event_timestamp from the event's payload by parsing it with Stencil.
+//
+// Returns:
+//   - eval.EventMetadata: An EventMetadata struct containing the extracted metadata.
+//   - error: An error if any occurs during metadata extraction (e.g., proto class not found, payload parsing failure).
+func extractMetadata(
 	event *pb.Event,
 	connGroup string,
 	publisherMap map[string]string,
 	topicFormat string,
 	stencil schemaregistry.StencilClient,
-) (eval.EventMetadata, error) {
-	meta := eval.EventMetadata{
+) (model.EventMetadata, error) {
+	meta := model.EventMetadata{
 		EventType: event.GetType(),
-		ConnGroup: connGroup,
 		Publisher: resolvePublisher(connGroup, publisherMap),
 		TopicName: fmt.Sprintf(topicFormat, event.GetType()),
 	}
@@ -72,21 +76,28 @@ func ExtractMetadata(
 
 	ref := parsedMsg.ProtoReflect()
 
-	if eventGUID, err := getStringField(ref, protoFieldEventGUID, protoFieldEventGUID, reasonEventGUIDNotFound, reasonEventGUIDTypeInvalid); err == nil {
-		meta.EventGUID = eventGUID
+	eventGUID, err := getStringField(ref, protoFieldEventGUID, protoFieldEventGUID, connGroup, event)
+	if err != nil {
+		return meta, err
 	}
 
-	if eventName, err := getStringField(ref, protoFieldEventName, protoFieldEventName, reasonEventNameNotFound, reasonEventNameTypeInvalid); err == nil {
-		meta.EventName = eventName
+	meta.EventGUID = eventGUID
+
+	eventName, err := getStringField(ref, protoFieldEventName, protoFieldEventName, connGroup, event)
+	if err != nil {
+		return meta, err
 	}
 
-	if product := protoutil.GetEnumStringValue(ref, protoFieldEventProduct); product != "" {
-		meta.Product = product
+	meta.EventName = eventName
+
+	meta.Product = protoutil.GetEnumStringValue(ref, protoFieldEventProduct)
+
+	ts, err := protoutil.GetTimestampFieldValue(ref, protoFieldEventTimestamp)
+	if err != nil {
+		return meta, err
 	}
 
-	if ts, err := protoutil.GetTimestampFieldValue(ref, "event_timestamp"); err == nil {
-		meta.EventTimestamp = ts
-	}
+	meta.EventTimestamp = ts
 
 	return meta, nil
 }
@@ -96,17 +107,17 @@ func getStringField(
 	ref protoreflect.Message,
 	path string,
 	fieldName string,
-	reasonNotFound string,
-	reasonTypeInvalid string,
+	connGroup string,
+	event *pb.Event,
 ) (string, error) {
 	rawVal, ok := protoutil.GetFieldValue(ref, strings.Split(path, "."))
 	if !ok {
-		return "", fmt.Errorf("%s", reasonNotFound)
+		return "", fmt.Errorf("failed to find %s for conn_group=%s,event_type=%s,product=%s,event_name=%s", fieldName, connGroup, event.Type, event.Product, event.EventName)
 	}
 
 	val, err := cast.ToStringE(rawVal)
 	if err != nil {
-		return "", fmt.Errorf("%s: %w", reasonTypeInvalid, err)
+		return "", fmt.Errorf("%q field type is not convertible to string for conn_group=%s,event_type=%s,product=%s,event_name=%s: %w", fieldName, connGroup, event.Type, event.Product, event.EventName, err)
 	}
 
 	return val, nil

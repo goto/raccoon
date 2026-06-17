@@ -10,10 +10,10 @@ import (
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
-	"github.com/goto/raccoon/ingestionrule/action/dedup/schemaregistry"
 	evalcache "github.com/goto/raccoon/ingestionrule/action/eval/cache"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
+	"github.com/goto/raccoon/schemaregistry"
 )
 
 // MetricEvalDuration is the service-level alias for the shared latency metric.
@@ -31,7 +31,9 @@ type Service struct {
 // NewService builds a fully wired Service from the given config rules.
 // It partitions the rules by action type, creates an eval.Cache per action,
 // and assembles the action chain in priority order: Deactivate → Drop → OverrideTimestamp → Dedup.
-func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventType string) (*Service, error) {
+func NewService(
+	ctx context.Context, rules []config.PolicyRule, overrideEventType string, stencil schemaregistry.StencilClient,
+) (*Service, error) {
 	dropCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionDrop))
 	overrideCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionOverrideTimestamp))
 	deactivateCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionDeactivate))
@@ -47,14 +49,7 @@ func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventTyp
 		}
 	}
 
-	var stencil schemaregistry.StencilClient
 	var checker action.DuplicateChecker
-	var err error
-
-	stencil, err = schemaregistry.NewStencilClient()
-	if err != nil {
-		return nil, err
-	}
 
 	if config.DedupCfg.Enabled {
 		cacheClient, err := cache.NewRedisCache(ctx, config.MetricStatsd.FlushPeriodMs)

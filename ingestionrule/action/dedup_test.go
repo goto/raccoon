@@ -14,8 +14,8 @@ import (
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
-	"github.com/goto/raccoon/ingestionrule/action/dedup/schemaregistry"
 	"github.com/goto/raccoon/ingestionrule/action/mocks"
+	"github.com/goto/raccoon/schemaregistry"
 )
 
 func TestDedup_Apply_NilChecker(t *testing.T) {

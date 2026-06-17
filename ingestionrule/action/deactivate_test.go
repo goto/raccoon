@@ -6,13 +6,14 @@ import (
 	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-	"github.com/goto/raccoon/config"
-	"github.com/goto/raccoon/ingestionrule/action"
-	"github.com/goto/raccoon/ingestionrule/action/dedup/schemaregistry"
-	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/ingestionrule/action"
+	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
+	"github.com/goto/raccoon/schemaregistry"
 )
 
 func buildDeactivateEventCache(name, product, publisher string) *cache.Cache {
