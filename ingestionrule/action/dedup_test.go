@@ -281,6 +281,9 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 	config.PolicyCfg.PublisherMapping = map[string]string{
 		"customer": "customer-publisher",
 	}
+	config.DedupCfg.ConnGroupCacheDuration = map[string]time.Duration{
+		"customer": 5 * time.Minute,
+	}
 
 	// 1. Proto class not found
 	t.Run("ProtoClassNotFound", func(t *testing.T) {
