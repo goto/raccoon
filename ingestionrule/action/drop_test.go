@@ -8,8 +8,10 @@ import (
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
+	"github.com/goto/raccoon/ingestionrule/action/dedup/schemaregistry"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -30,7 +32,7 @@ func buildDropCache(name, product, publisher string, past time.Duration) *cache.
 // newDrop is a test helper. Cache publisher must match the connGroup passed to
 // Apply because ResolvePublisher falls back to connGroup when no mapping is set.
 func newDrop(c *cache.Cache) *action.Drop {
-	return action.NewDrop(c, action.DefaultChain())
+	return action.NewDrop(c, action.DefaultChain(), schemaregistry.StencilClient{})
 }
 
 func TestDrop_DropsBreachedEvents(t *testing.T) {
@@ -84,4 +86,53 @@ func TestDrop_FiltersMixedBatch(t *testing.T) {
 	result := newDrop(c).Apply(context.Background(), events, "pub-a")
 	assert.Len(t, result, 1)
 	assert.Equal(t, "scroll", result[0].GetEventName())
+}
+
+func TestDrop_UsesDeserializedPayload(t *testing.T) {
+	config.DedupCfg.ProtoClassNameMapping = map[string]string{
+		"component": "ClickEventProto",
+	}
+
+	staleTime := time.Now().Add(-2 * time.Hour)
+	tsMsg := &mockMessage{
+		fullName: "google.protobuf.Timestamp",
+		fields: map[string]any{
+			"seconds": staleTime.Unix(),
+			"nanos":   int32(staleTime.Nanosecond()),
+		},
+	}
+
+	metaMsg := &mockMessage{
+		fields: map[string]any{
+			"event_guid": "test-guid-123",
+		},
+	}
+
+	parsedMsg := &mockMessage{
+		fields: map[string]any{
+			"meta":            metaMsg,
+			"event_name":      "deserialized-click",
+			"product":         protoreflect.EnumNumber(1),
+			"event_timestamp": tsMsg,
+		},
+	}
+
+	ms := &mockStencilClient{
+		parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
+			return parsedMsg, nil
+		},
+	}
+
+	c := buildDropCache("deserialized-click", "clickstream", "pub-a", time.Hour)
+	d := action.NewDrop(c, action.DefaultChain(), schemaregistry.StencilClient{Client: ms})
+
+	events := []*pb.Event{{
+		Type:           "component",
+		EventName:      "wrapper-click",
+		Product:        "wrapper-app",
+		EventBytes:     []byte("some-bytes"),
+		EventTimestamp: timestamppb.New(time.Now().Add(-2 * time.Hour)), // breached
+	}}
+
+	assert.Empty(t, d.Apply(context.Background(), events, "pub-a"))
 }

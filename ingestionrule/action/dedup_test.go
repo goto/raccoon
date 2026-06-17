@@ -59,6 +59,8 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 			{
 				Publisher: "customer-publisher",
 				EventGUID: "guid-1",
+				EventName: "click",
+				Product:   "clickstream",
 			},
 		}).Return([]bool{false}, nil)
 
@@ -69,6 +71,8 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 						"event_guid": "guid-1",
 					},
 				},
+				"event_name": "click",
+				"product":    protoreflect.EnumNumber(1),
 			},
 		}
 
@@ -103,6 +107,8 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 			{
 				Publisher: "customer-publisher",
 				EventGUID: "guid-1",
+				EventName: "click",
+				Product:   "clickstream",
 			},
 		}).Return([]bool{true}, nil)
 
@@ -113,6 +119,8 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 						"event_guid": "guid-1",
 					},
 				},
+				"event_name": "click",
+				"product":    protoreflect.EnumNumber(1),
 			},
 		}
 
@@ -143,9 +151,9 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 
 		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
-			{Publisher: "customer-publisher", EventGUID: "guid-1"},
-			{Publisher: "customer-publisher", EventGUID: "guid-2"},
-			{Publisher: "customer-publisher", EventGUID: "guid-3"},
+			{Publisher: "customer-publisher", EventGUID: "guid-1", EventName: "click", Product: "clickstream"},
+			{Publisher: "customer-publisher", EventGUID: "guid-2", EventName: "click", Product: "clickstream"},
+			{Publisher: "customer-publisher", EventGUID: "guid-3", EventName: "click", Product: "clickstream"},
 		}).Return([]bool{false, true, true}, nil) // 1 unique, 2 duplicates
 
 		ms := &mockStencilClient{
@@ -158,6 +166,8 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 								"event_guid": "guid-" + idSuffix,
 							},
 						},
+						"event_name": "click",
+						"product":    protoreflect.EnumNumber(1),
 					},
 				}, nil
 			},
@@ -189,6 +199,8 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 			{
 				Publisher: "customer-publisher",
 				EventGUID: "guid-1",
+				EventName: "click",
+				Product:   "clickstream",
 			},
 		}).Return(nil, errors.New("redis error"))
 
@@ -199,6 +211,8 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 						"event_guid": "guid-1",
 					},
 				},
+				"event_name": "click",
+				"product":    protoreflect.EnumNumber(1),
 			},
 		}
 
@@ -231,6 +245,8 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 			{
 				Publisher: "customer-publisher",
 				EventGUID: "789",
+				EventName: "click",
+				Product:   "clickstream",
 			},
 		}).Return([]bool{false}, nil)
 
@@ -241,6 +257,8 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 						"event_guid": []byte("789"),
 					},
 				},
+				"event_name": "click",
+				"product":    protoreflect.EnumNumber(1),
 			},
 		}
 
@@ -496,7 +514,9 @@ func (fds *mockFieldDescriptors) ByName(name protoreflect.Name) protoreflect.Fie
 		return nil
 	}
 	var kind protoreflect.Kind
-	if _, ok := val.(*mockMessage); ok {
+	if string(name) == "product" {
+		kind = protoreflect.EnumKind
+	} else if _, ok := val.(*mockMessage); ok {
 		kind = protoreflect.MessageKind
 	} else if _, ok := val.(int64); ok {
 		kind = protoreflect.Int64Kind
@@ -520,4 +540,43 @@ func (fd *mockFieldDescriptor) Name() protoreflect.Name {
 
 func (fd *mockFieldDescriptor) Kind() protoreflect.Kind {
 	return fd.kind
+}
+
+func (fd *mockFieldDescriptor) Enum() protoreflect.EnumDescriptor {
+	return &mockEnumDescriptor{
+		values: map[protoreflect.EnumNumber]string{
+			1: "clickstream",
+		},
+	}
+}
+
+type mockEnumDescriptor struct {
+	protoreflect.EnumDescriptor
+	values map[protoreflect.EnumNumber]string
+}
+
+func (d *mockEnumDescriptor) Values() protoreflect.EnumValueDescriptors {
+	return &mockEnumValueDescriptors{values: d.values}
+}
+
+type mockEnumValueDescriptors struct {
+	protoreflect.EnumValueDescriptors
+	values map[protoreflect.EnumNumber]string
+}
+
+func (v *mockEnumValueDescriptors) ByNumber(n protoreflect.EnumNumber) protoreflect.EnumValueDescriptor {
+	name, ok := v.values[n]
+	if !ok {
+		return nil
+	}
+	return &mockEnumValueDescriptor{name: name}
+}
+
+type mockEnumValueDescriptor struct {
+	protoreflect.EnumValueDescriptor
+	name string
+}
+
+func (v *mockEnumValueDescriptor) Name() protoreflect.Name {
+	return protoreflect.Name(v.name)
 }

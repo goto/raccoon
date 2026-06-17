@@ -51,12 +51,12 @@ func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventTyp
 	var checker action.DuplicateChecker
 	var err error
 
-	if config.DedupCfg.Enabled {
-		stencil, err = schemaregistry.NewStencilClient()
-		if err != nil {
-			return nil, err
-		}
+	stencil, err = schemaregistry.NewStencilClient()
+	if err != nil {
+		return nil, err
+	}
 
+	if config.DedupCfg.Enabled {
 		cacheClient, err := cache.NewRedisCache(ctx, config.MetricStatsd.FlushPeriodMs)
 		if err != nil {
 			return nil, err
@@ -70,9 +70,9 @@ func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventTyp
 
 	return &Service{
 		chain: Chain{
-			action.NewDeactivate(deactivateCache, action.DefaultChain()),
-			action.NewDrop(dropCache, action.DefaultChain()),
-			action.NewOverrideTimestamp(overrideCache, action.DefaultChain(), overrideEventType),
+			action.NewDeactivate(deactivateCache, action.DefaultChain(), stencil),
+			action.NewDrop(dropCache, action.DefaultChain(), stencil),
+			action.NewOverrideTimestamp(overrideCache, action.DefaultChain(), overrideEventType, stencil),
 			action.NewDedup(stencil, checker),
 		},
 		checker: checker,

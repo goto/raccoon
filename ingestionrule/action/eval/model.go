@@ -19,4 +19,6 @@ type EventMetadata struct {
 	TopicName string
 	// EventTimestamp is the event's own timestamp.
 	EventTimestamp time.Time
+	// EventGUID is the unique identifier of the event.
+	EventGUID string
 }

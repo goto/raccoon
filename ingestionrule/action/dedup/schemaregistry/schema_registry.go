@@ -19,6 +19,10 @@ type StencilClient struct {
 const headerKeyAuthorization = "Authorization"
 
 func NewStencilClient() (StencilClient, error) {
+	if config.StencilCfg.URL == "" {
+		return StencilClient{}, nil
+	}
+
 	opts := stencil.Options{
 		AutoRefresh:     config.StencilCfg.AutoRefresh,
 		RefreshInterval: config.StencilCfg.RefreshInterval,

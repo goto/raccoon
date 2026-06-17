@@ -7,6 +7,7 @@ import (
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/ingestionrule/action/dedup/schemaregistry"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
@@ -16,11 +17,16 @@ import (
 type Drop struct {
 	cache     *cache.Cache
 	evalChain Chain
+	stencil   schemaregistry.StencilClient
 }
 
 // NewDrop creates a new Drop action with the given cache and evaluator chain.
-func NewDrop(c *cache.Cache, evalChain Chain) *Drop {
-	return &Drop{cache: c, evalChain: evalChain}
+func NewDrop(c *cache.Cache, evalChain Chain, stencil schemaregistry.StencilClient) *Drop {
+	return &Drop{
+		cache:     c,
+		evalChain: evalChain,
+		stencil:   stencil,
+	}
 }
 
 // Apply evaluates every event in the batch against the drop policy rules.
@@ -30,7 +36,12 @@ func (d *Drop) Apply(_ context.Context, events []*pb.Event, connGroup string) []
 	filtered := make([]*pb.Event, 0, len(events))
 
 	for _, event := range events {
-		meta := ExtractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern)
+		meta, err := ExtractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, d.stencil)
+		if err != nil {
+			logger.Errorf("drop: failed to extract metadata: %v", err)
+			metrics.Increment(metricNameEventDeserializationError, fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, getErrorReason(err), event.Type, event.Product, event.EventName))
+		}
+
 		logger.Debugf("[drop.Apply] meta: event_name=%s, product=%s, publisher=%s, topic=%s, conn_group=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.ConnGroup)
 
 		if d.evalChain.Run(meta, d.cache) {
