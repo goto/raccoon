@@ -7,6 +7,7 @@ import (
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/ingestionrule/action/dedup/schemaregistry"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
@@ -17,11 +18,16 @@ import (
 type Deactivate struct {
 	cache     *cache.Cache
 	evalChain Chain
+	stencil   schemaregistry.StencilClient
 }
 
 // NewDeactivate creates a new Deactivate action with the given cache and evaluator chain.
-func NewDeactivate(c *cache.Cache, evalChain Chain) *Deactivate {
-	return &Deactivate{cache: c, evalChain: evalChain}
+func NewDeactivate(c *cache.Cache, evalChain Chain, stencil schemaregistry.StencilClient) *Deactivate {
+	return &Deactivate{
+		cache:     c,
+		evalChain: evalChain,
+		stencil:   stencil,
+	}
 }
 
 // Apply evaluates every event in the batch against the deactivate policy rules.
@@ -31,7 +37,12 @@ func (d *Deactivate) Apply(_ context.Context, events []*pb.Event, connGroup stri
 	filtered := make([]*pb.Event, 0, len(events))
 
 	for _, event := range events {
-		meta := ExtractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern)
+		meta, err := ExtractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, d.stencil)
+		if err != nil {
+			logger.Errorf("deactivate: failed to extract metadata: %v", err)
+			metrics.Increment(metricNameEventDeserializationError, fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, getErrorReason(err), event.Type, event.Product, event.EventName))
+		}
+
 		logger.Debugf("[deactivate.Apply] meta: event_name=%s, product=%s, publisher=%s, topic=%s, conn_group=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.ConnGroup)
 
 		if d.evalChain.Run(meta, d.cache) {

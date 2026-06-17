@@ -40,6 +40,8 @@ type Store struct {
 type EventMetadata struct {
 	Publisher string
 	EventGUID string
+	EventName string
+	Product   string
 }
 
 // NewStore instantiates the unified storage framework wrapper.
