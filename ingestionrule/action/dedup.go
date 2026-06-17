@@ -86,14 +86,14 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 		return events
 	}
 
-	states := make([]processState, len(events))
-	metadataBatch := make([]cache.EventMetadata, 0, len(events))
-
-	cacheDuration, ok := config.DedupCfg.ConnGroupCacheDuration[connGroup]
-	if !ok {
+	cacheDuration, found := config.DedupCfg.ConnGroupCacheDuration[connGroup]
+	if !found {
 		logger.Errorf("dedup: failed to find cache duration for conn_group=%s", connGroup)
 		return events
 	}
+
+	states := make([]processState, len(events))
+	metadataBatch := make([]cache.EventMetadata, 0, len(events))
 
 	for i, event := range events {
 		startDeserialize := time.Now()
