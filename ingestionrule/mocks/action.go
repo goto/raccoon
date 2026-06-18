@@ -7,7 +7,7 @@ package mocks
 import (
 	"context"
 
-	"buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+	"github.com/goto/raccoon/model"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -39,19 +39,19 @@ func (_m *Action) EXPECT() *Action_Expecter {
 }
 
 // Apply provides a mock function for the type Action
-func (_mock *Action) Apply(ctx context.Context, events []*raccoonv1beta1.Event, connGroup string) []*raccoonv1beta1.Event {
+func (_mock *Action) Apply(ctx context.Context, events []*model.EventMetadata, connGroup string) []*model.EventMetadata {
 	ret := _mock.Called(ctx, events, connGroup)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Apply")
 	}
 
-	var r0 []*raccoonv1beta1.Event
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []*raccoonv1beta1.Event, string) []*raccoonv1beta1.Event); ok {
+	var r0 []*model.EventMetadata
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []*model.EventMetadata, string) []*model.EventMetadata); ok {
 		r0 = returnFunc(ctx, events, connGroup)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*raccoonv1beta1.Event)
+			r0 = ret.Get(0).([]*model.EventMetadata)
 		}
 	}
 	return r0
@@ -64,21 +64,21 @@ type Action_Apply_Call struct {
 
 // Apply is a helper method to define mock.On call
 //   - ctx context.Context
-//   - events []*raccoonv1beta1.Event
+//   - events []*model.EventMetadata
 //   - connGroup string
 func (_e *Action_Expecter) Apply(ctx interface{}, events interface{}, connGroup interface{}) *Action_Apply_Call {
 	return &Action_Apply_Call{Call: _e.mock.On("Apply", ctx, events, connGroup)}
 }
 
-func (_c *Action_Apply_Call) Run(run func(ctx context.Context, events []*raccoonv1beta1.Event, connGroup string)) *Action_Apply_Call {
+func (_c *Action_Apply_Call) Run(run func(ctx context.Context, events []*model.EventMetadata, connGroup string)) *Action_Apply_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 []*raccoonv1beta1.Event
+		var arg1 []*model.EventMetadata
 		if args[1] != nil {
-			arg1 = args[1].([]*raccoonv1beta1.Event)
+			arg1 = args[1].([]*model.EventMetadata)
 		}
 		var arg2 string
 		if args[2] != nil {
@@ -93,12 +93,12 @@ func (_c *Action_Apply_Call) Run(run func(ctx context.Context, events []*raccoon
 	return _c
 }
 
-func (_c *Action_Apply_Call) Return(events1 []*raccoonv1beta1.Event) *Action_Apply_Call {
-	_c.Call.Return(events1)
+func (_c *Action_Apply_Call) Return(eventMetadatas []*model.EventMetadata) *Action_Apply_Call {
+	_c.Call.Return(eventMetadatas)
 	return _c
 }
 
-func (_c *Action_Apply_Call) RunAndReturn(run func(ctx context.Context, events []*raccoonv1beta1.Event, connGroup string) []*raccoonv1beta1.Event) *Action_Apply_Call {
+func (_c *Action_Apply_Call) RunAndReturn(run func(ctx context.Context, events []*model.EventMetadata, connGroup string) []*model.EventMetadata) *Action_Apply_Call {
 	_c.Call.Return(run)
 	return _c
 }

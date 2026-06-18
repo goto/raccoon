@@ -1,41 +1,27 @@
-package action
+package schemaregistry
 
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-	"github.com/goto/raccoon/config"
-	"github.com/goto/raccoon/logger"
-	"github.com/goto/raccoon/model"
-	"github.com/goto/raccoon/protoutil"
-	"github.com/goto/raccoon/schemaregistry"
 	"github.com/spf13/cast"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
+	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/ingestionrule/action"
+	"github.com/goto/raccoon/logger"
+	"github.com/goto/raccoon/metrics"
+	"github.com/goto/raccoon/model"
+	"github.com/goto/raccoon/protoutil"
 )
 
-const (
-	metricNameEventDeserializationError    = "event_deserialization_error"
-	metricNameEventDeserializationLatency  = "event_deserialization_latency"
-	metricNameEventDuplicateCheckerLatency = "event_duplicate_checker_latency"
-)
+// MetricEventLossCount is the service-level alias for the shared event loss count metric.
+const MetricEventLossCount = action.MetricEventLossCount
 
 const (
-	reasonProtoClassNotFound = "proto class not found"
-	reasonStencilParseError  = "stencil parse error"
-	reasonPublisherNotFound  = "publisher not found"
-
-	reasonEventGUIDNotFound    = "event_guid not found"
-	reasonEventGUIDTypeInvalid = "event_guid type invalid"
-
-	reasonEventNameNotFound    = "event_name not found"
-	reasonEventNameTypeInvalid = "event_name type invalid"
-
-	reasonProductNotFound    = "product not found"
-	reasonProductTypeInvalid = "product type invalid"
-
-	reasonEventTimestampNotFound    = "event_timestamp not found"
-	reasonEventTimestampTypeInvalid = "event_timestamp type invalid"
+	metricNameEventDeserializationLatency = "event_deserialization_latency"
 )
 
 const (
@@ -44,6 +30,33 @@ const (
 	protoFieldEventProduct   = "product"
 	protoFieldEventTimestamp = "event_timestamp"
 )
+
+// DeserializeEvents extracts metadata for the entire batch of events and tracks error and latency metrics.
+func DeserializeEvents(
+	events []*pb.Event,
+	connGroup string,
+	publisherMap map[string]string,
+	topicFormat string,
+	stencil StencilClient,
+) []*model.EventMetadata {
+	metadataBatch := make([]*model.EventMetadata, 0, len(events))
+
+	for _, event := range events {
+		startDeserialize := time.Now()
+		meta, err := extractMetadata(event, connGroup, publisherMap, topicFormat, stencil)
+		metrics.Timing(metricNameEventDeserializationLatency, time.Since(startDeserialize).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
+
+		if err != nil {
+			logger.Errorf("deserialization error: %v", err)
+			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DESERIALIZATION_ERROR,publisher=%s,product=%s,event_name=%s", meta.Publisher, meta.Product, meta.EventName))
+			continue
+		}
+
+		metadataBatch = append(metadataBatch, &meta)
+	}
+
+	return metadataBatch
+}
 
 // extractMetadata builds an EventMetadata for an event.
 // It extracts event_name, product, and event_timestamp from the event's payload by parsing it with Stencil.
@@ -56,12 +69,14 @@ func extractMetadata(
 	connGroup string,
 	publisherMap map[string]string,
 	topicFormat string,
-	stencil schemaregistry.StencilClient,
+	stencil StencilClient,
 ) (model.EventMetadata, error) {
 	meta := model.EventMetadata{
-		EventType: event.GetType(),
-		Publisher: resolvePublisher(connGroup, publisherMap),
+		Event:     event,
 		TopicName: fmt.Sprintf(topicFormat, event.GetType()),
+		Publisher: resolvePublisher(connGroup, publisherMap),
+		Product:   event.GetProduct(),
+		EventName: event.GetEventName(),
 	}
 
 	protoClass, ok := config.DedupCfg.ProtoClassNameMapping[event.Type]
@@ -76,21 +91,19 @@ func extractMetadata(
 
 	ref := parsedMsg.ProtoReflect()
 
-	eventGUID, err := getStringField(ref, protoFieldEventGUID, protoFieldEventGUID, connGroup, event)
-	if err != nil {
-		return meta, err
-	}
-
-	meta.EventGUID = eventGUID
-
-	eventName, err := getStringField(ref, protoFieldEventName, protoFieldEventName, connGroup, event)
+	eventName, err := getStringField(ref, protoFieldEventName, protoFieldEventName, meta)
 	if err != nil {
 		return meta, err
 	}
 
 	meta.EventName = eventName
 
-	meta.Product = protoutil.GetEnumStringValue(ref, protoFieldEventProduct)
+	product := protoutil.GetEnumStringValue(ref, protoFieldEventProduct)
+	if product == "" {
+		return meta, fmt.Errorf("failed to find product for publisher=%s,product=%s,event_name=%s", meta.Publisher, meta.Product, meta.EventName)
+	}
+
+	meta.Product = product
 
 	ts, err := protoutil.GetTimestampFieldValue(ref, protoFieldEventTimestamp)
 	if err != nil {
@@ -98,6 +111,13 @@ func extractMetadata(
 	}
 
 	meta.EventTimestamp = ts
+
+	eventGUID, err := getStringField(ref, protoFieldEventGUID, protoFieldEventGUID, meta)
+	if err != nil {
+		return meta, err
+	}
+
+	meta.EventGUID = eventGUID
 
 	return meta, nil
 }
@@ -107,46 +127,19 @@ func getStringField(
 	ref protoreflect.Message,
 	path string,
 	fieldName string,
-	connGroup string,
-	event *pb.Event,
+	meta model.EventMetadata,
 ) (string, error) {
 	rawVal, ok := protoutil.GetFieldValue(ref, strings.Split(path, "."))
 	if !ok {
-		return "", fmt.Errorf("failed to find %s for conn_group=%s,event_type=%s,product=%s,event_name=%s", fieldName, connGroup, event.Type, event.Product, event.EventName)
+		return "", fmt.Errorf("failed to find %q for publisher=%s,product=%s,event_name=%s", fieldName, meta.Publisher, meta.Product, meta.EventName)
 	}
 
 	val, err := cast.ToStringE(rawVal)
 	if err != nil {
-		return "", fmt.Errorf("%q field type is not convertible to string for conn_group=%s,event_type=%s,product=%s,event_name=%s: %w", fieldName, connGroup, event.Type, event.Product, event.EventName, err)
+		return "", fmt.Errorf("%q field type is not convertible to string for publisher=%s,product=%s,event_name=%s: %w", fieldName, meta.Publisher, meta.Product, meta.EventName, err)
 	}
 
 	return val, nil
-}
-
-func getErrorReason(err error) string {
-	if err == nil {
-		return ""
-	}
-	errStr := err.Error()
-	reasons := []string{
-		reasonProtoClassNotFound,
-		reasonStencilParseError,
-		reasonPublisherNotFound,
-		reasonEventGUIDNotFound,
-		reasonEventGUIDTypeInvalid,
-		reasonEventNameNotFound,
-		reasonEventNameTypeInvalid,
-		reasonProductNotFound,
-		reasonProductTypeInvalid,
-		reasonEventTimestampNotFound,
-		reasonEventTimestampTypeInvalid,
-	}
-	for _, r := range reasons {
-		if strings.Contains(errStr, r) {
-			return r
-		}
-	}
-	return "unknown error"
 }
 
 // resolvePublisher maps a conn_group to a publisher name using the provided map.

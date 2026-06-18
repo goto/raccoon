@@ -5,7 +5,7 @@
 package mocks
 
 import (
-	"github.com/goto/raccoon/ingestionrule/action/eval"
+	"github.com/goto/raccoon/model"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -37,7 +37,7 @@ func (_m *Condition) EXPECT() *Condition_Expecter {
 }
 
 // Breached provides a mock function for the type Condition
-func (_mock *Condition) Breached(meta eval.EventMetadata) bool {
+func (_mock *Condition) Breached(meta model.EventMetadata) bool {
 	ret := _mock.Called(meta)
 
 	if len(ret) == 0 {
@@ -45,7 +45,7 @@ func (_mock *Condition) Breached(meta eval.EventMetadata) bool {
 	}
 
 	var r0 bool
-	if returnFunc, ok := ret.Get(0).(func(eval.EventMetadata) bool); ok {
+	if returnFunc, ok := ret.Get(0).(func(model.EventMetadata) bool); ok {
 		r0 = returnFunc(meta)
 	} else {
 		r0 = ret.Get(0).(bool)
@@ -59,16 +59,16 @@ type Condition_Breached_Call struct {
 }
 
 // Breached is a helper method to define mock.On call
-//   - meta eval.EventMetadata
+//   - meta model.EventMetadata
 func (_e *Condition_Expecter) Breached(meta interface{}) *Condition_Breached_Call {
 	return &Condition_Breached_Call{Call: _e.mock.On("Breached", meta)}
 }
 
-func (_c *Condition_Breached_Call) Run(run func(meta eval.EventMetadata)) *Condition_Breached_Call {
+func (_c *Condition_Breached_Call) Run(run func(meta model.EventMetadata)) *Condition_Breached_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 eval.EventMetadata
+		var arg0 model.EventMetadata
 		if args[0] != nil {
-			arg0 = args[0].(eval.EventMetadata)
+			arg0 = args[0].(model.EventMetadata)
 		}
 		run(
 			arg0,
@@ -82,7 +82,7 @@ func (_c *Condition_Breached_Call) Return(b bool) *Condition_Breached_Call {
 	return _c
 }
 
-func (_c *Condition_Breached_Call) RunAndReturn(run func(meta eval.EventMetadata) bool) *Condition_Breached_Call {
+func (_c *Condition_Breached_Call) RunAndReturn(run func(meta model.EventMetadata) bool) *Condition_Breached_Call {
 	_c.Call.Return(run)
 	return _c
 }

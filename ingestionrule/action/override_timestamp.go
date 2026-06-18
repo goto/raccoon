@@ -5,13 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-
-	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
-	"github.com/goto/raccoon/schemaregistry"
+	"github.com/goto/raccoon/model"
 )
 
 // OverrideTimestamp evaluates OVERRIDE_TIMESTAMP policies. When a matching rule's
@@ -21,7 +18,6 @@ type OverrideTimestamp struct {
 	cache             *cache.Cache
 	evalChain         Chain
 	overrideEventType string
-	stencil           schemaregistry.StencilClient
 }
 
 // NewOverrideTimestamp creates an OverrideTimestamp action.
@@ -30,13 +26,11 @@ func NewOverrideTimestamp(
 	c *cache.Cache,
 	evalChain Chain,
 	overrideEventType string,
-	stencil schemaregistry.StencilClient,
 ) *OverrideTimestamp {
 	return &OverrideTimestamp{
 		cache:             c,
 		evalChain:         evalChain,
 		overrideEventType: overrideEventType,
-		stencil:           stencil,
 	}
 }
 
@@ -44,24 +38,14 @@ func NewOverrideTimestamp(
 // are cloned with Type set to the override topic and kept in the returned slice
 // so the worker routes them to the correction pipeline. Events that do not match
 // pass through unchanged.
-func (o *OverrideTimestamp) Apply(_ context.Context, events []*pb.Event, connGroup string) []*pb.Event {
+func (o *OverrideTimestamp) Apply(_ context.Context, events []*model.EventMetadata, connGroup string) []*model.EventMetadata {
 	start := time.Now()
 
-	for _, event := range events {
-		meta, err := extractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, o.stencil)
-		if err != nil {
-			logger.Errorf("override_timestamp: failed to extract metadata: %v", err)
-			metrics.Increment(metricNameEventDeserializationError, fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, getErrorReason(err), event.Type, event.Product, event.EventName))
-
-			continue
-		}
-
-		logger.Debugf("[override_timestamp.Apply] meta: event_name=%s, product=%s, publisher=%s, topic=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName)
-
-		if o.evalChain.Run(meta, o.cache) {
-			logger.Infof("[override_timestamp.Apply] overriding timestamp: event_name=%s, product=%s, publisher=%s, topic=%s, event_timestamp=%s, override_type=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp, o.overrideEventType)
-			event.Type = o.overrideEventType
-			metrics.Increment(metricEventOverrideCount, fmt.Sprintf("reason=OVERRIDE_TIMESTAMP,event_name=%s,product=%s,publisher=%s,event_type=%s", meta.EventName, meta.Product, meta.Publisher, meta.EventType))
+	for _, meta := range events {
+		if o.evalChain.Run(*meta, o.cache) {
+			logger.Debugf("[override_timestamp.Apply] overriding timestamp: event_name=%s, product=%s, publisher=%s, topic=%s, event_timestamp=%s, override_type=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp, o.overrideEventType)
+			meta.Event.Type = o.overrideEventType
+			metrics.Increment(metricEventOverrideCount, fmt.Sprintf("reason=OVERRIDE_TIMESTAMP,publisher=%s,product=%s,event_name=%s", meta.Publisher, meta.Product, meta.EventName))
 		}
 	}
 
