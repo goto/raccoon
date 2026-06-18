@@ -1,12 +1,16 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+)
 
 // EventMetadata holds the attributes extracted from an incoming event and its
 // connection context. It is the primary input to the policy evaluation chain.
 type EventMetadata struct {
-	// EventType is the protobuf Event.Type field (used to derive topic name).
-	EventType string
+	// Event is the original protobuf Event
+	Event *pb.Event
 	// EventName is the protobuf Event.EventName field.
 	EventName string
 	// Product is the protobuf Event.Product field.

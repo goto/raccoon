@@ -7,6 +7,7 @@ import (
 	"github.com/goto/raccoon/ingestionrule/action"
 	"github.com/goto/raccoon/ingestionrule/action/eval"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
+	"github.com/goto/raccoon/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,7 +21,7 @@ type stubEvaluator struct {
 }
 
 func (s *stubEvaluator) Resource() config.PolicyResourceType { return s.resource }
-func (s *stubEvaluator) Evaluate(_ eval.EventMetadata, _ map[string]eval.Condition) (bool, bool) {
+func (s *stubEvaluator) Evaluate(_ model.EventMetadata, _ map[string]eval.Condition) (bool, bool) {
 	return s.result, s.found
 }
 
@@ -30,14 +31,14 @@ func TestChain_Run_ApplyWhenFirstEvaluatorMatches(t *testing.T) {
 	chain := action.Chain{
 		&stubEvaluator{resource: config.PolicyResourceEvent, result: true, found: true},
 	}
-	assert.True(t, chain.Run(eval.EventMetadata{}, emptyCache()))
+	assert.True(t, chain.Run(model.EventMetadata{}, emptyCache()))
 }
 
 func TestChain_Run_FalseWhenOnlySkip(t *testing.T) {
 	chain := action.Chain{
 		&stubEvaluator{resource: config.PolicyResourceEvent, result: false, found: false},
 	}
-	assert.False(t, chain.Run(eval.EventMetadata{}, emptyCache()))
+	assert.False(t, chain.Run(model.EventMetadata{}, emptyCache()))
 }
 
 func TestChain_Run_StopsAtEventRuleFoundEvenWhenNotBreached(t *testing.T) {
@@ -47,7 +48,7 @@ func TestChain_Run_StopsAtEventRuleFoundEvenWhenNotBreached(t *testing.T) {
 		&stubEvaluator{resource: config.PolicyResourceEvent, result: false, found: true},
 		&stubEvaluator{resource: config.PolicyResourceTopic, result: true, found: true},
 	}
-	assert.False(t, chain.Run(eval.EventMetadata{}, emptyCache()))
+	assert.False(t, chain.Run(model.EventMetadata{}, emptyCache()))
 }
 
 func TestChain_Run_FallsThruToTopicWhenEventNotFound(t *testing.T) {
@@ -56,7 +57,7 @@ func TestChain_Run_FallsThruToTopicWhenEventNotFound(t *testing.T) {
 		&stubEvaluator{resource: config.PolicyResourceEvent, result: false, found: false},
 		&stubEvaluator{resource: config.PolicyResourceTopic, result: true, found: true},
 	}
-	assert.True(t, chain.Run(eval.EventMetadata{}, emptyCache()))
+	assert.True(t, chain.Run(model.EventMetadata{}, emptyCache()))
 }
 
 func TestChain_Run_FalseWhenAllNoMatch(t *testing.T) {
@@ -64,7 +65,7 @@ func TestChain_Run_FalseWhenAllNoMatch(t *testing.T) {
 		&stubEvaluator{resource: config.PolicyResourceEvent, result: false, found: true},
 		&stubEvaluator{resource: config.PolicyResourceTopic, result: false, found: true},
 	}
-	assert.False(t, chain.Run(eval.EventMetadata{}, emptyCache()))
+	assert.False(t, chain.Run(model.EventMetadata{}, emptyCache()))
 }
 
 func TestChain_Run_FalseWhenNoRulesFound(t *testing.T) {
@@ -72,9 +73,9 @@ func TestChain_Run_FalseWhenNoRulesFound(t *testing.T) {
 		&stubEvaluator{resource: config.PolicyResourceEvent, result: false, found: false},
 		&stubEvaluator{resource: config.PolicyResourceTopic, result: false, found: false},
 	}
-	assert.False(t, chain.Run(eval.EventMetadata{}, emptyCache()))
+	assert.False(t, chain.Run(model.EventMetadata{}, emptyCache()))
 }
 
 func TestChain_Run_EmptyChainReturnsFalse(t *testing.T) {
-	assert.False(t, action.Chain{}.Run(eval.EventMetadata{}, emptyCache()))
+	assert.False(t, action.Chain{}.Run(model.EventMetadata{}, emptyCache()))
 }

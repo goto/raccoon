@@ -14,8 +14,6 @@ import (
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
-	"github.com/goto/raccoon/model"
-	"github.com/goto/raccoon/schemaregistry"
 )
 
 const (
@@ -34,7 +32,7 @@ type KafkaProducer interface {
 	HealthCheck() error
 }
 
-func NewKafka(stencil schemaregistry.StencilClient) (*Kafka, error) {
+func NewKafka() (*Kafka, error) {
 	kp, err := newKafkaClient(config.PublisherKafka.ToKafkaConfigMap())
 	if err != nil {
 		return &Kafka{}, err
@@ -54,7 +52,6 @@ func NewKafka(stencil schemaregistry.StencilClient) (*Kafka, error) {
 		flushInterval:          config.PublisherKafka.FlushInterval,
 		topicFormat:            topicFormat,
 		eventTypePrefixMapping: config.PublisherKafka.EventTypePrefixMapping,
-		stencil:                stencil,
 	}
 
 	return k, nil
@@ -74,7 +71,6 @@ type Kafka struct {
 	flushInterval          int
 	topicFormat            map[bool]string
 	eventTypePrefixMapping map[string]string
-	stencil                schemaregistry.StencilClient
 }
 
 func (pr *Kafka) overrideEventType(eventType string) string {
@@ -299,18 +295,6 @@ func (pr *Kafka) Close() int {
 	logger.Info(fmt.Sprintf("Outstanding events still un-flushed : %d", remaining))
 	pr.kp.Close()
 	return remaining
-}
-
-func (pr *Kafka) ExtractEventsMetadata(
-	connGroup string,
-	publisherMap map[string]string,
-) (model.EventMetadata, error) {
-
-
-	return model.EventMetadata{
-		EventName: event.Name,
-		Product:   event.Product,
-	}
 }
 
 func allNil(errors []error) bool {

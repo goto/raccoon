@@ -4,6 +4,8 @@ import (
 	"context"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+
+	"github.com/goto/raccoon/model"
 )
 
 // Action is implemented by each ingestion policy action (Drop, OverrideTimestamp).
@@ -11,7 +13,7 @@ import (
 // that should continue to normal ingestion. Each action owns its iteration and
 // I/O, allowing batch-level optimisations such as a single ProduceBulk call.
 type Action interface {
-	Apply(ctx context.Context, events []*pb.Event, connGroup string) []*pb.Event
+	Apply(ctx context.Context, events []*model.EventMetadata, connGroup string) []*model.EventMetadata
 }
 
 // Chain is an ordered pipeline of Actions. Each action receives the output of the
@@ -21,9 +23,15 @@ type Chain []Action
 // Apply runs the event batch through every action in sequence.
 // Each action removes the events it consumed; the final slice contains only
 // events that no action handled (passthrough).
-func (c Chain) Apply(ctx context.Context, events []*pb.Event, connGroup string) []*pb.Event {
+func (c Chain) Apply(ctx context.Context, events []*model.EventMetadata, connGroup string) []*pb.Event {
 	for _, a := range c {
 		events = a.Apply(ctx, events, connGroup)
 	}
-	return events
+
+	result := make([]*pb.Event, len(events))
+	for i, m := range events {
+		result[i] = m.Event
+	}
+
+	return result
 }

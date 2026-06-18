@@ -5,59 +5,40 @@ import (
 	"fmt"
 	"time"
 
-	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-
-	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
-	"github.com/goto/raccoon/schemaregistry"
+	"github.com/goto/raccoon/model"
 )
 
 // Drop is a policy action that drops events matching the configured rules.
 type Drop struct {
 	cache     *cache.Cache
 	evalChain Chain
-	stencil   schemaregistry.StencilClient
 }
 
 // NewDrop creates a new Drop action with the given cache and evaluator chain.
-func NewDrop(c *cache.Cache, evalChain Chain, stencil schemaregistry.StencilClient) *Drop {
+func NewDrop(c *cache.Cache, evalChain Chain) *Drop {
 	return &Drop{
 		cache:     c,
 		evalChain: evalChain,
-		stencil:   stencil,
 	}
 }
 
 // Apply evaluates every event in the batch against the drop policy rules.
 // Events whose condition is breached are dropped (removed from the returned slice).
-func (d *Drop) Apply(_ context.Context, events []*pb.Event, connGroup string) []*pb.Event {
+func (d *Drop) Apply(_ context.Context, events []*model.EventMetadata, connGroup string) []*model.EventMetadata {
 	start := time.Now()
-	filtered := make([]*pb.Event, 0, len(events))
+	filtered := make([]*model.EventMetadata, 0, len(events))
 
-	for _, event := range events {
-		meta, err := extractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, d.stencil)
-		if err != nil {
-			logger.Errorf("drop: failed to extract metadata: %v", err)
-			metrics.Increment(metricNameEventDeserializationError, fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, getErrorReason(err), event.Type, event.Product, event.EventName))
-
-			filtered = append(filtered, event)
+	for _, meta := range events {
+		if d.evalChain.Run(*meta, d.cache) {
+			logger.Debugf("[drop.Apply] dropping event: event_name=%s, product=%s, publisher=%s, topic=%s, event_timestamp=%s, event_timestamp_diff=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp, time.Since(meta.EventTimestamp))
+			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DROP_POLICY,publisher=%s,product=%s,event_name=%s", meta.Publisher, meta.Product, meta.EventName))
 			continue
-		}
+		} 
 
-		logger.Debugf("[drop.Apply] meta: event_name=%s, product=%s, publisher=%s, topic=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName)
-
-		if d.evalChain.Run(meta, d.cache) {
-			logger.Infof("[drop.Apply] dropping event: event_name=%s, product=%s, publisher=%s, topic=%s, event_timestamp=%s, event_timestamp_diff=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp, time.Since(meta.EventTimestamp))
-			metrics.Increment(metricEventLossCount, fmt.Sprintf("reason=DROP_POLICY,event_name=%s,product=%s,publisher=%s,event_type=%s", meta.EventName, meta.Product, meta.Publisher, meta.EventType))
-
-			continue
-		} else {
-			logger.Debugf("[drop.Skip] keeping event: event_name=%s, product=%s, publisher=%s, topic=%s, event_timestamp=%s, event_timestamp_diff=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp, time.Since(meta.EventTimestamp))
-		}
-
-		filtered = append(filtered, event)
+		filtered = append(filtered, meta)
 	}
 
 	metrics.Timing(MetricEvalLatency, time.Since(start).Milliseconds(), fmt.Sprintf("action=DROP,conn_group=%s", connGroup))

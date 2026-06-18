@@ -6,6 +6,7 @@ import (
 
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action/eval"
+	"github.com/goto/raccoon/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,7 +23,7 @@ func makeTopicRules(topicName string, past, future time.Duration) map[string]eva
 func TestTopicEvaluator_ApplyWhenPastThresholdBreached(t *testing.T) {
 	ev := &eval.TopicEvaluator{}
 	rules := makeTopicRules("clickstream-foo-log", time.Hour, 0)
-	meta := eval.EventMetadata{
+	meta := model.EventMetadata{
 		TopicName:      "clickstream-foo-log",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
 	}
@@ -34,7 +35,7 @@ func TestTopicEvaluator_ApplyWhenPastThresholdBreached(t *testing.T) {
 func TestTopicEvaluator_SkipWhenWithinThreshold(t *testing.T) {
 	ev := &eval.TopicEvaluator{}
 	rules := makeTopicRules("clickstream-foo-log", time.Hour, time.Hour)
-	meta := eval.EventMetadata{
+	meta := model.EventMetadata{
 		TopicName:      "clickstream-foo-log",
 		EventTimestamp: time.Now(),
 	}
@@ -46,7 +47,7 @@ func TestTopicEvaluator_SkipWhenWithinThreshold(t *testing.T) {
 func TestTopicEvaluator_NoMatchOnDifferentTopic(t *testing.T) {
 	ev := &eval.TopicEvaluator{}
 	rules := makeTopicRules("clickstream-foo-log", time.Hour, 0)
-	meta := eval.EventMetadata{
+	meta := model.EventMetadata{
 		TopicName:      "clickstream-bar-log",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
 	}
@@ -58,7 +59,7 @@ func TestTopicEvaluator_NoMatchOnDifferentTopic(t *testing.T) {
 func TestTopicEvaluator_SkipWhenMetadataIncomplete(t *testing.T) {
 	ev := &eval.TopicEvaluator{}
 	rules := makeTopicRules("clickstream-foo-log", time.Hour, 0)
-	meta := eval.EventMetadata{
+	meta := model.EventMetadata{
 		// TopicName missing
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
 	}
@@ -75,7 +76,7 @@ func TestTopicEvaluator_Resource(t *testing.T) {
 func TestTopicEvaluator_AlwaysMatchesWithNoCondition(t *testing.T) {
 	ev := &eval.TopicEvaluator{}
 	rules := map[string]eval.Condition{"clickstream-page-log": eval.NewNoCondition()}
-	meta := eval.EventMetadata{
+	meta := model.EventMetadata{
 		TopicName: "clickstream-page-log",
 		// no timestamp — NoCondition must still return true
 	}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action/eval"
+	"github.com/goto/raccoon/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,7 +23,7 @@ func makeEventRules(name, product, publisher string, past, future time.Duration)
 func TestEventEvaluator_ApplyWhenPastThresholdBreached(t *testing.T) {
 	ev := &eval.EventEvaluator{}
 	rules := makeEventRules("click", "app", "pub-a", time.Hour, 0)
-	meta := eval.EventMetadata{
+	meta := model.EventMetadata{
 		EventName:      "click",
 		Product:        "app",
 		Publisher:      "pub-a",
@@ -36,7 +37,7 @@ func TestEventEvaluator_ApplyWhenPastThresholdBreached(t *testing.T) {
 func TestEventEvaluator_SkipWhenWithinThreshold(t *testing.T) {
 	ev := &eval.EventEvaluator{}
 	rules := makeEventRules("click", "app", "pub-a", time.Hour, time.Hour)
-	meta := eval.EventMetadata{
+	meta := model.EventMetadata{
 		EventName:      "click",
 		Product:        "app",
 		Publisher:      "pub-a",
@@ -50,7 +51,7 @@ func TestEventEvaluator_SkipWhenWithinThreshold(t *testing.T) {
 func TestEventEvaluator_NoMatchOnDifferentName(t *testing.T) {
 	ev := &eval.EventEvaluator{}
 	rules := makeEventRules("click", "app", "pub-a", time.Hour, 0)
-	meta := eval.EventMetadata{
+	meta := model.EventMetadata{
 		EventName:      "scroll",
 		Product:        "app",
 		Publisher:      "pub-a",
@@ -64,7 +65,7 @@ func TestEventEvaluator_NoMatchOnDifferentName(t *testing.T) {
 func TestEventEvaluator_SkipWhenMetadataIncomplete(t *testing.T) {
 	ev := &eval.EventEvaluator{}
 	rules := makeEventRules("click", "app", "pub-a", time.Hour, 0)
-	meta := eval.EventMetadata{
+	meta := model.EventMetadata{
 		// EventName missing
 		Product:        "app",
 		Publisher:      "pub-a",
@@ -78,7 +79,7 @@ func TestEventEvaluator_SkipWhenMetadataIncomplete(t *testing.T) {
 func TestEventEvaluator_ApplyWhenFutureThresholdBreached(t *testing.T) {
 	ev := &eval.EventEvaluator{}
 	rules := makeEventRules("click", "app", "pub-a", 0, time.Minute)
-	meta := eval.EventMetadata{
+	meta := model.EventMetadata{
 		EventName:      "click",
 		Product:        "app",
 		Publisher:      "pub-a",
@@ -98,7 +99,7 @@ func TestEventEvaluator_AlwaysMatchesWithNoCondition(t *testing.T) {
 	ev := &eval.EventEvaluator{}
 	key := "click" + "app" + "pub-a"
 	rules := map[string]eval.Condition{key: eval.NewNoCondition()}
-	meta := eval.EventMetadata{
+	meta := model.EventMetadata{
 		EventName: "click",
 		Product:   "app",
 		Publisher: "pub-a",

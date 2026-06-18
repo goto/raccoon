@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
-	"github.com/goto/raccoon/schemaregistry"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
+	"github.com/goto/raccoon/model"
 )
 
 // DuplicateChecker defines the capability to verify event uniqueness.
@@ -27,22 +25,20 @@ type processState struct {
 	isValid bool
 }
 
-// Dedup is a policy action that deduplicates events using duplicate checker and schema registry.
+// Dedup is a policy action that deduplicates events using duplicate checker.
 type Dedup struct {
-	stencil schemaregistry.StencilClient
 	checker DuplicateChecker
 }
 
 // NewDedup creates a new Dedup action with the given dependencies.
-func NewDedup(stencil schemaregistry.StencilClient, checker DuplicateChecker) *Dedup {
+func NewDedup(checker DuplicateChecker) *Dedup {
 	return &Dedup{
-		stencil: stencil,
 		checker: checker,
 	}
 }
 
 // Apply performs event deduplication.
-func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string) []*pb.Event {
+func (d *Dedup) Apply(ctx context.Context, events []*model.EventMetadata, connGroup string) []*model.EventMetadata {
 	start := time.Now()
 	defer func() {
 		metrics.Timing(MetricEvalLatency, time.Since(start).Milliseconds(), fmt.Sprintf("action=DEDUP,conn_group=%s", connGroup))
@@ -59,20 +55,9 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 	states := make([]processState, len(events))
 	metadataBatch := make([]cache.EventMetadata, 0, len(events))
 
-	for i, event := range events {
-		startDeserialize := time.Now()
-		meta, err := extractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, d.stencil)
-		metrics.Timing(metricNameEventDeserializationLatency, time.Since(startDeserialize).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
-
-		if err != nil {
-			logger.Errorf("dedup: failed to extract metadata: %v", err)
-			metrics.Increment(metricNameEventDeserializationError, fmt.Sprintf("conn_group=%s,reason=%s,event_type=%s,product=%s,event_name=%s", connGroup, getErrorReason(err), event.Type, event.Product, event.EventName))
-			states[i] = processState{isValid: false}
-			continue
-		}
-
+	for i, meta := range events {
 		if meta.EventGUID == "" || meta.Publisher == "" {
-			logger.Errorf("dedup: missing metadata fields: %+v for conn_group=%s,product=%s,event_name=%s", meta, connGroup, event.Product, event.EventName)
+			logger.Errorf("dedup: missing metadata fields: %+v for conn_group=%s,product=%s,event_name=%s", meta, connGroup, meta.Event.Product, meta.Event.EventName)
 			states[i] = processState{isValid: false}
 			continue
 		}
@@ -90,18 +75,16 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 	var cacheErr error
 
 	if len(metadataBatch) > 0 {
-		startCheck := time.Now()
 		isDuplicateResults, cacheErr = d.checker.AreDuplicates(ctx, metadataBatch)
-		metrics.Timing(metricNameEventDuplicateCheckerLatency, time.Since(startCheck).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
 	}
 
-	uniqueEvents := make([]*pb.Event, 0, len(events))
+	uniqueEvents := make([]*model.EventMetadata, 0, len(events))
 	resultIdx := 0 // Tracks our position in the isDuplicateResults slice
 
 	for i, state := range states {
-		event := events[i]
+		meta := events[i]
 		if !state.isValid {
-			uniqueEvents = append(uniqueEvents, event)
+			uniqueEvents = append(uniqueEvents, meta)
 			continue
 		}
 
@@ -110,21 +93,21 @@ func (d *Dedup) Apply(ctx context.Context, events []*pb.Event, connGroup string)
 				logger.Errorf("dedup: cache batch verification failed, bypassing filter: %v", cacheErr)
 			}
 
-			uniqueEvents = append(uniqueEvents, event)
+			uniqueEvents = append(uniqueEvents, meta)
 			resultIdx++
 			continue
 		}
 
 		isDuplicate := isDuplicateResults[resultIdx]
-		meta := metadataBatch[resultIdx]
+		resMeta := metadataBatch[resultIdx]
 		resultIdx++
 
 		if isDuplicate {
-			metrics.Increment(metricEventLossCount, fmt.Sprintf("reason=DEDUP_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, connGroup, event.Type))
+			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEDUP_POLICY,publisher=%s,product=%s,event_name=%s", resMeta.Publisher, resMeta.Product, resMeta.EventName))
 			continue
 		}
 
-		uniqueEvents = append(uniqueEvents, event)
+		uniqueEvents = append(uniqueEvents, meta)
 	}
 
 	return uniqueEvents

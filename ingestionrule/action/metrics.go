@@ -4,8 +4,8 @@ package action
 // Tag action= identifies the source: "drop", "override_timestamp", or "total".
 const MetricEvalLatency = "event_policy_eval_latency_ms"
 
-// metricEventLossCount counts events permanently dropped by the DROP or DEACTIVATE action.
-const metricEventLossCount = "clickstream_data_loss"
+// MetricEventLossCount counts events permanently dropped by the DROP, DEACTIVATE, DEDUP action.
+const MetricEventLossCount = "clickstream_data_loss"
 
 // metricEventOverrideCount counts events forwarded to the override topic.
 const metricEventOverrideCount = "clickstream_data_override"

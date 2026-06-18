@@ -43,6 +43,13 @@ lint:
 		golint $$p | { grep -vwE "exported (var|function|method|type|const) \S+ should have comment" || true; } \
 	done
 
+mock:
+	@echo "🗑️  Cleaning up old mock directories..."
+	@find . -type d -name "mocks" -exec rm -rf {} +
+	@echo "⚙️  Regenerating mock files..."
+	@mockery
+	@echo "✅  Mocks generated successfully!"
+
 # Tests
 
 test: lint
@@ -65,3 +72,4 @@ docker-stop:
 
 docker-start:
 	docker-compose start
+
