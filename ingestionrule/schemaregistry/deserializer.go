@@ -11,10 +11,10 @@ import (
 
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
+	"github.com/goto/raccoon/ingestionrule/schemaregistry/protoutil"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/model"
-	"github.com/goto/raccoon/protoutil"
 )
 
 // MetricEventLossCount is the service-level alias for the shared event loss count metric.
@@ -74,7 +74,7 @@ func extractMetadata(
 		Event:     event,
 		TopicName: fmt.Sprintf(topicFormat, event.GetType()),
 		Publisher: resolvePublisher(connGroup, publisherMap),
-		Product:   event.GetProduct(),
+		Product:   strings.ReplaceAll(strings.ToLower(event.GetProduct()), "_", ""), // normalize across iOS/Android variants (e.g. "My_App" → "myapp")
 		EventName: event.GetEventName(),
 	}
 
@@ -102,7 +102,8 @@ func extractMetadata(
 		return meta, fmt.Errorf("failed to find product for publisher=%s,product=%s,event_name=%s", meta.Publisher, meta.Product, meta.EventName)
 	}
 
-	meta.Product = product
+	// normalize across iOS/Android variants (e.g. "My_App" → "myapp")
+	meta.Product = strings.ReplaceAll(strings.ToLower(product), "_", "")
 
 	ts, err := protoutil.GetTimestampFieldValue(ref, protoFieldEventTimestamp)
 	if err != nil {
