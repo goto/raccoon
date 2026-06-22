@@ -11,8 +11,6 @@ import (
 type EventWithMetadata struct {
 	// Event is the original protobuf Event
 	Event *pb.Event
-	// EventType is the protobuf Event.Type field.
-	EventType string
 	// EventName is the resolved event name, derived from the deserialized payload.
 	EventName string
 	// Product is the resolved product, derived from the deserialized payload.

@@ -119,7 +119,7 @@ func TestService_Apply_OverrideWhenNoDrop(t *testing.T) {
 	result := svc.Apply(context.Background(), events, "grp")
 	// Event stays in batch but with Type overridden to the override event type.
 	assert.Len(t, result, 1)
-	assert.Equal(t, testOverrideEventType, result[0].EventType)
+	assert.Equal(t, testOverrideEventType, result[0].Event.GetType())
 }
 
 func TestService_Apply_PassthroughWhenNoPolicy(t *testing.T) {

@@ -48,7 +48,7 @@ func DeserializeEvents(
 
 		if err != nil {
 			logger.Errorf("deserialization error: %v", err)
-			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DESERIALIZATION_ERROR,conn_group=%s,product=%s,event_name=%s,event_type=%s", connGroup, meta.Product, meta.EventName, meta.EventType))
+			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DESERIALIZATION_ERROR,conn_group=%s,product=%s,event_name=%s,event_type=%s", connGroup, meta.Product, meta.EventName, meta.Event.GetType()))
 		}
 
 		metadataBatch = append(metadataBatch, &meta)
@@ -139,7 +139,6 @@ func extractBaseMetadata(
 
 	return model.EventWithMetadata{
 		Event:          event,
-		EventType:      event.GetType(),
 		TopicName:      fmt.Sprintf(topicFormat, event.GetType()),
 		Publisher:      resolvePublisher(connGroup, publisherMap),
 		Product:        strings.ReplaceAll(strings.ToLower(event.GetProduct()), "_", ""), // normalize across iOS/Android variants (e.g. "My_App" → "myapp")
