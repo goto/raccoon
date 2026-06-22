@@ -2,6 +2,9 @@ package ingestionrule_test
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -11,6 +14,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+func TestMain(m *testing.M) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	originalCfg := config.StencilCfg
+	config.StencilCfg.URL = server.URL
+	config.StencilCfg.MaxRetry = 1
+	config.StencilCfg.MaxJitterInterval = time.Millisecond
+	config.StencilCfg.ExponentFactor = 1
+	config.StencilCfg.HTTPTimeout = 2 * time.Second
+
+	code := m.Run()
+
+	config.StencilCfg = originalCfg
+	os.Exit(code)
+}
 
 func timestampProto(t time.Time) *timestamppb.Timestamp {
 	return timestamppb.New(t)

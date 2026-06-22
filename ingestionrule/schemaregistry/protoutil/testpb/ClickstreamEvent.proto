@@ -1,0 +1,76 @@
+// ClickstreamEvent.proto
+
+// NOTE: This proto file and its generated .pb.go are strictly for UNIT TESTING.
+// Do not use this schema in production. It is used to test dynamic event
+// deserialization without depending on real production schemas.
+
+syntax = "proto3";
+
+package gojek.de.raccoon;
+
+import "google/protobuf/timestamp.proto";
+
+option java_outer_classname = "ClickstreamEvent";
+option java_multiple_files = true;
+option java_package = "com.gojek.de.raccoon";
+option go_package = "github.com/goto/raccoon/ingestionrule/schemaregistry/protoutil/testpb";
+
+// Event contains fields for all test cases.
+message Event {
+  Product product = 1;
+  string name = 2;
+  int32 id = 3;
+  string event_name = 4;
+  string user_id = 5;
+  google.protobuf.Timestamp event_timestamp = 6;
+  repeated string tags = 7;
+  map<string, string> metadata = 8;
+  map<string, int32> counters = 9;
+  NestedMessage nested = 10;
+  repeated NestedMessage nested_list = 11;
+  map<string, NestedMessage> nested_map = 12;
+  Meta meta = 13;
+}
+
+// Product is used for testing enum logic.
+enum Product {
+  Unknown = 0;
+  Generic = 1;
+}
+
+// NestedMessage for testing nested structures.
+message NestedMessage {
+  string field1 = 1;
+  int32 field2 = 2;
+  Product product = 3;
+}
+
+message Meta {
+  string event_guid = 1;
+}
+
+message InvalidProductEvent {
+  string event_name = 1;
+  string product = 2;
+}
+
+message InvalidTimestampEvent {
+  string event_name = 1;
+  Product product = 2;
+  string event_timestamp = 3;
+}
+
+message InvalidGuidEvent {
+  string event_name = 1;
+  Product product = 2;
+  google.protobuf.Timestamp event_timestamp = 3;
+  NestedInvalidMeta meta = 4;
+}
+
+message NestedInvalidMeta {
+  map<string, string> event_guid = 1;
+}
+
+message InvalidStringCastEvent {
+  repeated string event_name = 1;
+}

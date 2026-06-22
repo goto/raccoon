@@ -10,8 +10,8 @@ import (
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
-	"github.com/goto/raccoon/ingestionrule/action/dedup/schemaregistry"
 	evalcache "github.com/goto/raccoon/ingestionrule/action/eval/cache"
+	"github.com/goto/raccoon/ingestionrule/schemaregistry"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 )
@@ -24,8 +24,9 @@ const MetricEvalDuration = action.MetricEvalLatency
 // Service handlers in grpc, rest, websocket, and mqtt packages each hold a *Service
 // and call Apply to filter events before forwarding them to the buffer channel.
 type Service struct {
-	chain   Chain
-	checker action.DuplicateChecker
+	chain            Chain
+	duplicateChecker action.DuplicateChecker
+	stencil          schemaregistry.StencilClient
 }
 
 // NewService builds a fully wired Service from the given config rules.
@@ -47,22 +48,20 @@ func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventTyp
 		}
 	}
 
-	var stencil schemaregistry.StencilClient
-	var checker action.DuplicateChecker
-	var err error
+	var duplicateChecker action.DuplicateChecker
+
+	stencil, err := schemaregistry.NewStencilClient()
+	if err != nil {
+		return nil, err
+	}
 
 	if config.DedupCfg.Enabled {
-		stencil, err = schemaregistry.NewStencilClient()
-		if err != nil {
-			return nil, err
-		}
-
 		cacheClient, err := cache.NewRedisCache(ctx, config.MetricStatsd.FlushPeriodMs)
 		if err != nil {
 			return nil, err
 		}
 
-		checker, err = cache.NewStore(ctx, cacheClient)
+		duplicateChecker, err = cache.NewStore(ctx, cacheClient)
 		if err != nil {
 			return nil, err
 		}
@@ -73,9 +72,10 @@ func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventTyp
 			action.NewDeactivate(deactivateCache, action.DefaultChain()),
 			action.NewDrop(dropCache, action.DefaultChain()),
 			action.NewOverrideTimestamp(overrideCache, action.DefaultChain(), overrideEventType),
-			action.NewDedup(stencil, checker),
+			action.NewDedup(duplicateChecker),
 		},
-		checker: checker,
+		duplicateChecker: duplicateChecker,
+		stencil:          stencil,
 	}, nil
 }
 
@@ -85,8 +85,8 @@ func (s *Service) Close() {
 		return
 	}
 
-	if s.checker != nil {
-		if err := s.checker.Close(); err != nil {
+	if s.duplicateChecker != nil {
+		if err := s.duplicateChecker.Close(); err != nil {
 			logger.Errorf("failed to close duplicate checker: %v", err)
 		}
 	}
@@ -94,11 +94,11 @@ func (s *Service) Close() {
 
 // HealthCheck checks the health of the duplicate checker.
 func (s *Service) HealthCheck() error {
-	if s == nil || s.checker == nil {
+	if s == nil || s.duplicateChecker == nil {
 		return nil
 	}
 
-	return s.checker.HealthCheck()
+	return s.duplicateChecker.HealthCheck()
 }
 
 // Apply runs the event batch through the action pipeline and returns only events
@@ -109,10 +109,14 @@ func (s *Service) Apply(ctx context.Context, events []*pb.Event, connGroup strin
 	}
 
 	start := time.Now()
-	result := s.chain.Apply(ctx, events, connGroup)
+
+	metadataEvents := schemaregistry.DeserializeEvents(events, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, s.stencil)
+
+	sanitizedEvents := s.chain.Apply(ctx, metadataEvents, connGroup)
+
 	metrics.Timing(MetricEvalDuration, time.Since(start).Milliseconds(), fmt.Sprintf("action=total,conn_group=%s", connGroup))
 
-	return result
+	return sanitizedEvents
 }
 
 // rulesForAction returns the subset of rules matching the given action type.

@@ -44,7 +44,20 @@ lint:
 		golint $$p | { grep -vwE "exported (var|function|method|type|const) \S+ should have comment" || true; } \
 	done
 
+mock:
+	@echo "🗑️  Cleaning up old mock directories..."
+	@find . -type d -name "mocks" -exec rm -rf {} +
+	@echo "⚙️  Regenerating mock files..."
+	@mockery
+	@echo "✅  Mocks generated successfully!"
+
+proto:
+	@echo "⚙️  Generating protobuf files..."
+	@protoc --go_out=. --go_opt=paths=source_relative ingestionrule/schemaregistry/protoutil/testpb/ClickstreamEvent.proto
+	@echo "✅  Protobuf files generated successfully!"
+
 # Tests
+
 
 test: lint
 	ENVIRONMENT=test go test -tags $(GOTEST_TAGS) $(shell go list ./... | grep -v "vendor" | grep -v "integration") -v
@@ -70,3 +83,4 @@ docker-stop:
 
 docker-start:
 	docker-compose start
+

@@ -6,11 +6,12 @@ import (
 	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
-	"github.com/stretchr/testify/assert"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"github.com/goto/raccoon/model"
 )
 
 func buildDropCache(name, product, publisher string, past time.Duration) *cache.Cache {
@@ -27,61 +28,66 @@ func buildDropCache(name, product, publisher string, past time.Duration) *cache.
 	})
 }
 
-// newDrop is a test helper. Cache publisher must match the connGroup passed to
-// Apply because ResolvePublisher falls back to connGroup when no mapping is set.
 func newDrop(c *cache.Cache) *action.Drop {
 	return action.NewDrop(c, action.DefaultChain())
 }
 
 func TestDrop_DropsBreachedEvents(t *testing.T) {
 	c := buildDropCache("click", "app", "pub-a", time.Hour)
-	events := []*pb.Event{{
+	events := []*model.EventWithMetadata{{
 		EventName:      "click",
 		Product:        "app",
-		EventTimestamp: timestamppb.New(time.Now().Add(-2 * time.Hour)),
+		Publisher:      "pub-a",
+		EventTimestamp: time.Now().Add(-2 * time.Hour),
+		Event:          &pb.Event{},
 	}}
 	assert.Empty(t, newDrop(c).Apply(context.Background(), events, "pub-a"))
 }
 
 func TestDrop_PassthroughWhenWithinThreshold(t *testing.T) {
 	c := buildDropCache("click", "app", "pub-a", time.Hour)
-	events := []*pb.Event{{
+	events := []*model.EventWithMetadata{{
 		EventName:      "click",
 		Product:        "app",
-		EventTimestamp: timestamppb.New(time.Now()),
+		Publisher:      "pub-a",
+		EventTimestamp: time.Now(),
+		Event:          &pb.Event{},
 	}}
 	assert.Equal(t, events, newDrop(c).Apply(context.Background(), events, "pub-a"))
 }
 
 func TestDrop_PassthroughWhenNoIngestionRuleMatch(t *testing.T) {
 	c := buildDropCache("click", "app", "pub-a", time.Hour)
-	events := []*pb.Event{{
+	events := []*model.EventWithMetadata{{
 		EventName:      "scroll",
 		Product:        "app",
-		EventTimestamp: timestamppb.New(time.Now().Add(-2 * time.Hour)),
+		Publisher:      "pub-a",
+		EventTimestamp: time.Now().Add(-2 * time.Hour),
+		Event:          &pb.Event{},
 	}}
 	assert.Equal(t, events, newDrop(c).Apply(context.Background(), events, "pub-a"))
 }
 
 func TestDrop_PassthroughWhenMetadataIncomplete(t *testing.T) {
-	// Product is empty → EventEvaluator returns false → passthrough.
 	c := buildDropCache("click", "app", "pub-a", time.Hour)
-	events := []*pb.Event{{
+	events := []*model.EventWithMetadata{{
 		EventName:      "click",
-		EventTimestamp: timestamppb.New(time.Now().Add(-2 * time.Hour)),
+		Publisher:      "pub-a",
+		EventTimestamp: time.Now().Add(-2 * time.Hour),
+		Event:          &pb.Event{},
 	}}
 	assert.Equal(t, events, newDrop(c).Apply(context.Background(), events, "pub-a"))
 }
 
 func TestDrop_FiltersMixedBatch(t *testing.T) {
 	c := buildDropCache("click", "app", "pub-a", time.Hour)
-	staleTs := timestamppb.New(time.Now().Add(-2 * time.Hour))
-	events := []*pb.Event{
-		{EventName: "click", Product: "app", EventTimestamp: staleTs},
-		{EventName: "scroll", Product: "app", EventTimestamp: staleTs},
-		{EventName: "click", Product: "app", EventTimestamp: staleTs},
+	staleTs := time.Now().Add(-2 * time.Hour)
+	events := []*model.EventWithMetadata{
+		{EventName: "click", Product: "app", Publisher: "pub-a", EventTimestamp: staleTs, Event: &pb.Event{}},
+		{EventName: "scroll", Product: "app", Publisher: "pub-a", EventTimestamp: staleTs, Event: &pb.Event{}},
+		{EventName: "click", Product: "app", Publisher: "pub-a", EventTimestamp: staleTs, Event: &pb.Event{}},
 	}
 	result := newDrop(c).Apply(context.Background(), events, "pub-a")
 	assert.Len(t, result, 1)
-	assert.Equal(t, "scroll", result[0].GetEventName())
+	assert.Equal(t, "scroll", result[0].EventName)
 }

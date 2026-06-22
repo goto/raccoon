@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
+	"github.com/goto/raccoon/model"
 )
 
 // OverrideTimestamp evaluates OVERRIDE_TIMESTAMP policies. When a matching rule's
@@ -39,17 +38,14 @@ func NewOverrideTimestamp(
 // are cloned with Type set to the override topic and kept in the returned slice
 // so the worker routes them to the correction pipeline. Events that do not match
 // pass through unchanged.
-func (o *OverrideTimestamp) Apply(_ context.Context, events []*pb.Event, connGroup string) []*pb.Event {
+func (o *OverrideTimestamp) Apply(_ context.Context, events []*model.EventWithMetadata, connGroup string) []*model.EventWithMetadata {
 	start := time.Now()
 
-	for _, event := range events {
-		meta := ExtractMetadata(event, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern)
-		logger.Debugf("[override_timestamp.Apply] meta: event_name=%s, product=%s, publisher=%s, topic=%s, conn_group=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.ConnGroup)
-
-		if o.evalChain.Run(meta, o.cache) {
-			logger.Infof("[override_timestamp.Apply] overriding timestamp: event_name=%s, product=%s, publisher=%s, conn_group=%s, topic=%s, event_timestamp=%s, override_type=%s", meta.EventName, meta.Product, meta.Publisher, meta.ConnGroup, meta.TopicName, meta.EventTimestamp, o.overrideEventType)
-			event.Type = o.overrideEventType
-			metrics.Increment(metricEventOverrideCount, fmt.Sprintf("reason=OVERRIDE_TIMESTAMP,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, meta.ConnGroup, meta.EventType))
+	for _, meta := range events {
+		if o.evalChain.Run(*meta, o.cache) {
+			logger.Debugf("[override_timestamp.Apply] overriding timestamp: event_name=%s, product=%s, publisher=%s, topic=%s, event_timestamp=%s, override_type=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp, o.overrideEventType)
+			meta.Event.Type = o.overrideEventType
+			metrics.Increment(metricEventOverrideCount, fmt.Sprintf("reason=OVERRIDE_TIMESTAMP,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, connGroup, meta.EventType))
 		}
 	}
 

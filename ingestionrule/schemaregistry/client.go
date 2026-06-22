@@ -16,9 +16,11 @@ type StencilClient struct {
 	Client stencil.Client
 }
 
-const headerKeyAuthorization = "Authorization"
-
 func NewStencilClient() (StencilClient, error) {
+	if config.StencilCfg.URL == "" {
+		return StencilClient{}, fmt.Errorf("stencil URL is empty")
+	}
+
 	opts := stencil.Options{
 		AutoRefresh:     config.StencilCfg.AutoRefresh,
 		RefreshInterval: config.StencilCfg.RefreshInterval,
@@ -26,6 +28,8 @@ func NewStencilClient() (StencilClient, error) {
 			Timeout: config.StencilCfg.HTTPTimeout,
 		},
 	}
+
+	const headerKeyAuthorization = "Authorization"
 
 	token := config.StencilCfg.BearerToken
 	if token != "" {

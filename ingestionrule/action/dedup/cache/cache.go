@@ -36,10 +36,12 @@ type Store struct {
 	ctx    context.Context
 }
 
-// EventMetadata holds the unique contextual identity traits of an incoming event.
-type EventMetadata struct {
+// EventWithMetadata holds the unique contextual identity traits of an incoming event.
+type EventWithMetadata struct {
 	Publisher string
 	EventGUID string
+	EventName string
+	Product   string
 }
 
 // NewStore instantiates the unified storage framework wrapper.
@@ -52,7 +54,7 @@ func NewStore(ctx context.Context, client Client) (*Store, error) {
 
 // AreDuplicates evaluates a batch of events in a single Redis Pipeline execution.
 // It returns a slice of booleans corresponding to the input array order.
-func (r *Store) AreDuplicates(ctx context.Context, events []EventMetadata) ([]bool, error) {
+func (r *Store) AreDuplicates(ctx context.Context, events []EventWithMetadata) ([]bool, error) {
 	if len(events) == 0 {
 		return nil, nil
 	}
@@ -126,7 +128,7 @@ func (r *Store) Close() error {
 // representing the complete 128-bit signature ($16 \text{ bytes} \times 2 \text{ hex characters/byte}$):
 //   - First 16 characters: High 64 bits (`hash.Hi`) padded with leading zeros if necessary.
 //   - Last 16 characters: Low 64 bits (`hash.Lo`) padded with leading zeros if necessary.
-func (r *Store) buildDeduplicationKey(event EventMetadata) string {
+func (r *Store) buildDeduplicationKey(event EventWithMetadata) string {
 	d := xxh3.New()
 
 	const keySeparator = ":"
