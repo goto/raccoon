@@ -124,10 +124,14 @@ func TestService_Apply_OverrideWhenNoDrop(t *testing.T) {
 	// Event stays in batch but with Type overridden to the override event type.
 	assert.Len(t, result, 1)
 <<<<<<< HEAD
+<<<<<<< HEAD
 	assert.Equal(t, testOverrideEventType, result[0].Type)
 =======
 	assert.Equal(t, testOverrideEventType, result[0].EventType)
 >>>>>>> bf970e8 (chore: pass the deserialized payload)
+=======
+	assert.Equal(t, testOverrideEventType, result[0].Event.GetType())
+>>>>>>> 8f1245b (chore: adjust the event type)
 }
 
 func TestService_Apply_PassthroughWhenNoPolicy(t *testing.T) {
