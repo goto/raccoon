@@ -113,7 +113,7 @@ func (pr *Kafka) ProduceBulk(
 		event.Type = eventType
 		topic := fmt.Sprintf(pr.topicFormat[event.IsExclusive], event.Type)
 		message := &kafka.Message{
-			Value:          event.EventBytes,
+			Value:          event.Event.EventBytes,
 			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 			Opaque:         order,
 		}
@@ -140,7 +140,7 @@ func (pr *Kafka) ProduceBulk(
 			maxDeliveryChannelDepth = currentDepth
 		}
 		if err != nil {
-			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, event.Type))
+			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, event.EventType))
 			var errorTag string
 			switch err.Error() {
 			case errUnknownTopic:
@@ -156,7 +156,7 @@ func (pr *Kafka) ProduceBulk(
 			}
 
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s",
-				errorTag, event.Type, connGroup))
+				errorTag, event.EventType, connGroup))
 
 			if errorTag == "unknown" {
 				errorTag = "KAFKA_ERROR"
@@ -170,7 +170,7 @@ func (pr *Kafka) ProduceBulk(
 			continue
 		}
 
-		metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, event.Type))
+		metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, event.EventType))
 		totalProcessed++
 	}
 	metrics.Gauge("kafka_delivery_report_channel_depth", maxDeliveryChannelDepth, fmt.Sprintf("conn_group=%s", connGroup))
@@ -202,12 +202,12 @@ func (pr *Kafka) ProduceBulk(
 			startTimeEvent := startTimeEvents[order]
 
 			// granular metric, el: event level
-			metrics.Timing("el_kafka_processing_duration_milliseconds", time.Since(startTimeEvent).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))
+			metrics.Timing("el_kafka_processing_duration_milliseconds", time.Since(startTimeEvent).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.EventType))
 
 			// grouped metric, el: event level
-			metrics.Timing("el_worker_processing_duration_milliseconds", time.Since(startTimeWorker).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))
-			metrics.Timing("el_server_processing_duration_milliseconds", time.Since(startTimeServer).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))
-			metrics.Timing("el_event_processing_duration_milliseconds", time.Since(startTimeClient).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))
+			metrics.Timing("el_worker_processing_duration_milliseconds", time.Since(startTimeWorker).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.EventType))
+			metrics.Timing("el_server_processing_duration_milliseconds", time.Since(startTimeServer).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.EventType))
+			metrics.Timing("el_event_processing_duration_milliseconds", time.Since(startTimeClient).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.EventType))
 		}
 	}
 
