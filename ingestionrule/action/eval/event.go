@@ -17,7 +17,7 @@ func (e *EventEvaluator) Resource() config.PolicyResourceType {
 // Evaluate returns (false, false) when metadata is incomplete or no rule exists
 // for this event key. Returns (condition.Breached(), true) when a rule is found —
 // the chain stops here regardless of whether the condition is breached.
-func (e *EventEvaluator) Evaluate(meta model.EventMetadata, rules map[string]Condition) (bool, bool) {
+func (e *EventEvaluator) Evaluate(meta model.EventWithMetadata, rules map[string]Condition) (bool, bool) {
 	if meta.EventName == "" || meta.Product == "" || meta.Publisher == "" {
 		return false, false
 	}

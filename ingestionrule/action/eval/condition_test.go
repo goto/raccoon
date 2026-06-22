@@ -45,25 +45,25 @@ func TestWithinThreshold_TrueWhenWithinFutureBound(t *testing.T) {
 
 func TestTimestampCondition_BreachedWhenPastExceeded(t *testing.T) {
 	cond := eval.NewTimestampCondition(threshold(time.Hour, 0))
-	meta := model.EventMetadata{EventTimestamp: time.Now().Add(-2 * time.Hour)}
+	meta := model.EventWithMetadata{EventTimestamp: time.Now().Add(-2 * time.Hour)}
 	assert.True(t, cond.Breached(meta))
 }
 
 func TestTimestampCondition_NotBreachedWhenWithinPastBound(t *testing.T) {
 	cond := eval.NewTimestampCondition(threshold(time.Hour, 0))
-	meta := model.EventMetadata{EventTimestamp: time.Now().Add(-30 * time.Minute)}
+	meta := model.EventWithMetadata{EventTimestamp: time.Now().Add(-30 * time.Minute)}
 	assert.False(t, cond.Breached(meta))
 }
 
 func TestTimestampCondition_BreachedWhenFutureExceeded(t *testing.T) {
 	cond := eval.NewTimestampCondition(threshold(0, time.Minute))
-	meta := model.EventMetadata{EventTimestamp: time.Now().Add(10 * time.Minute)}
+	meta := model.EventWithMetadata{EventTimestamp: time.Now().Add(10 * time.Minute)}
 	assert.True(t, cond.Breached(meta))
 }
 
 func TestTimestampCondition_NotBreachedWhenNoBoundsSet(t *testing.T) {
 	cond := eval.NewTimestampCondition(threshold(0, 0))
-	meta := model.EventMetadata{EventTimestamp: time.Now().Add(-100 * time.Hour)}
+	meta := model.EventWithMetadata{EventTimestamp: time.Now().Add(-100 * time.Hour)}
 	assert.False(t, cond.Breached(meta))
 }
 
@@ -73,19 +73,19 @@ func TestWithinThreshold_TrueWhenTimestampZero(t *testing.T) {
 
 func TestTimestampCondition_NotBreachedWhenTimestampZero(t *testing.T) {
 	cond := eval.NewTimestampCondition(threshold(time.Hour, time.Hour))
-	assert.False(t, cond.Breached(model.EventMetadata{}))
+	assert.False(t, cond.Breached(model.EventWithMetadata{}))
 }
 
 // --- NoCondition ---
 
 func TestNoCondition_AlwaysBreached(t *testing.T) {
 	cond := eval.NewNoCondition()
-	assert.True(t, cond.Breached(model.EventMetadata{}))
+	assert.True(t, cond.Breached(model.EventWithMetadata{}))
 }
 
 func TestNoCondition_AlwaysBreachedWithAnyMetadata(t *testing.T) {
 	cond := eval.NewNoCondition()
-	meta := model.EventMetadata{
+	meta := model.EventWithMetadata{
 		EventName:      "click",
 		Product:        "app",
 		Publisher:      "gojek",

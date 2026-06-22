@@ -39,19 +39,19 @@ func (_m *Action) EXPECT() *Action_Expecter {
 }
 
 // Apply provides a mock function for the type Action
-func (_mock *Action) Apply(ctx context.Context, events []*model.EventMetadata, connGroup string) []*model.EventMetadata {
+func (_mock *Action) Apply(ctx context.Context, events []*model.EventWithMetadata, connGroup string) []*model.EventWithMetadata {
 	ret := _mock.Called(ctx, events, connGroup)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Apply")
 	}
 
-	var r0 []*model.EventMetadata
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []*model.EventMetadata, string) []*model.EventMetadata); ok {
+	var r0 []*model.EventWithMetadata
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []*model.EventWithMetadata, string) []*model.EventWithMetadata); ok {
 		r0 = returnFunc(ctx, events, connGroup)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*model.EventMetadata)
+			r0 = ret.Get(0).([]*model.EventWithMetadata)
 		}
 	}
 	return r0
@@ -64,21 +64,21 @@ type Action_Apply_Call struct {
 
 // Apply is a helper method to define mock.On call
 //   - ctx context.Context
-//   - events []*model.EventMetadata
+//   - events []*model.EventWithMetadata
 //   - connGroup string
 func (_e *Action_Expecter) Apply(ctx interface{}, events interface{}, connGroup interface{}) *Action_Apply_Call {
 	return &Action_Apply_Call{Call: _e.mock.On("Apply", ctx, events, connGroup)}
 }
 
-func (_c *Action_Apply_Call) Run(run func(ctx context.Context, events []*model.EventMetadata, connGroup string)) *Action_Apply_Call {
+func (_c *Action_Apply_Call) Run(run func(ctx context.Context, events []*model.EventWithMetadata, connGroup string)) *Action_Apply_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 []*model.EventMetadata
+		var arg1 []*model.EventWithMetadata
 		if args[1] != nil {
-			arg1 = args[1].([]*model.EventMetadata)
+			arg1 = args[1].([]*model.EventWithMetadata)
 		}
 		var arg2 string
 		if args[2] != nil {
@@ -93,12 +93,12 @@ func (_c *Action_Apply_Call) Run(run func(ctx context.Context, events []*model.E
 	return _c
 }
 
-func (_c *Action_Apply_Call) Return(eventMetadatas []*model.EventMetadata) *Action_Apply_Call {
+func (_c *Action_Apply_Call) Return(eventMetadatas []*model.EventWithMetadata) *Action_Apply_Call {
 	_c.Call.Return(eventMetadatas)
 	return _c
 }
 
-func (_c *Action_Apply_Call) RunAndReturn(run func(ctx context.Context, events []*model.EventMetadata, connGroup string) []*model.EventMetadata) *Action_Apply_Call {
+func (_c *Action_Apply_Call) RunAndReturn(run func(ctx context.Context, events []*model.EventWithMetadata, connGroup string) []*model.EventWithMetadata) *Action_Apply_Call {
 	_c.Call.Return(run)
 	return _c
 }

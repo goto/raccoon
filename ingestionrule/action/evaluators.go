@@ -16,7 +16,7 @@ import (
 // and the chain should continue to the next evaluator.
 type Evaluator interface {
 	Resource() config.PolicyResourceType
-	Evaluate(meta model.EventMetadata, rules map[string]eval.Condition) (result bool, found bool)
+	Evaluate(meta model.EventWithMetadata, rules map[string]eval.Condition) (result bool, found bool)
 }
 
 // Chain is an ordered list of evaluators. Run stops at the first evaluator that
@@ -29,7 +29,7 @@ type Chain []Evaluator
 // key (found=true) and returns the condition result. If an event-level rule is
 // found but the condition is not breached, the chain stops and returns false —
 // topic-level rules are never consulted.
-func (c Chain) Run(meta model.EventMetadata, ruleCache *cache.Cache) bool {
+func (c Chain) Run(meta model.EventWithMetadata, ruleCache *cache.Cache) bool {
 	for _, ev := range c {
 		rules := ruleCache.Get(ev.Resource())
 		result, found := ev.Evaluate(meta, rules)

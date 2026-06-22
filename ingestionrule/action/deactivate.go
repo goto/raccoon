@@ -28,14 +28,14 @@ func NewDeactivate(c *cache.Cache, evalChain Chain) *Deactivate {
 
 // Apply evaluates every event in the batch against the deactivate policy rules.
 // Matching events are dropped unconditionally (removed from the returned slice).
-func (d *Deactivate) Apply(_ context.Context, events []*model.EventMetadata, connGroup string) []*model.EventMetadata {
+func (d *Deactivate) Apply(_ context.Context, events []*model.EventWithMetadata, connGroup string) []*model.EventWithMetadata {
 	start := time.Now()
-	filtered := make([]*model.EventMetadata, 0, len(events))
+	filtered := make([]*model.EventWithMetadata, 0, len(events))
 
 	for _, meta := range events {
 		if d.evalChain.Run(*meta, d.cache) {
 			logger.Debugf("[deactivate.Apply] deactivating event: event_name=%s, product=%s, publisher=%s, topic=%s, event_timestamp=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp)
-			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_POLICY,publisher=%s,event_name=%s,product=%s", meta.Publisher, meta.EventName, meta.Product))
+			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_POLICY,conn_group=%s,event_name=%s,product=%s", connGroup, meta.EventName, meta.Product))
 			continue
 		}
 

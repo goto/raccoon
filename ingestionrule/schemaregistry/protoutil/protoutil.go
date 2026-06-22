@@ -9,64 +9,70 @@ import (
 )
 
 // GetFieldValue retrieves the value of a field from a protobuf message by its path.
-// It returns the field value and a boolean indicating whether the field was found.
-func GetFieldValue(msg protoreflect.Message, path []string) (any, bool) {
+// It returns the field value and an error if any occurs during traversal.
+func GetFieldValue(msg protoreflect.Message, path []string) (any, error) {
+	if len(path) == 0 {
+		return nil, errors.New("path cannot be empty")
+	}
+
 	currentMsg := msg
 
 	for i, fieldName := range path {
 		fieldDesc := currentMsg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
 		if fieldDesc == nil {
-			return nil, false // Path doesn't exist
+			return nil, fmt.Errorf("field %q not found in path", fieldName)
 		}
 
 		val := currentMsg.Get(fieldDesc)
 
 		if i == len(path)-1 {
 			if fieldDesc.Kind() == protoreflect.MessageKind {
-				return nil, false
+				return nil, fmt.Errorf("final field %q is a message, expected a scalar value", fieldName)
 			}
-
-			return val.Interface(), true
+			return val.Interface(), nil
 		}
 
-		if fieldDesc.Kind() != protoreflect.MessageKind || !val.Message().IsValid() {
-			return nil, false
+		if fieldDesc.Kind() != protoreflect.MessageKind {
+			return nil, fmt.Errorf("intermediate field %q is not a message", fieldName)
+		}
+
+		if !val.Message().IsValid() {
+			return nil, fmt.Errorf("intermediate message %q is not valid or not set", fieldName)
 		}
 
 		currentMsg = val.Message()
 	}
 
-	return nil, false
+	return nil, errors.New("unexpected error resolving path")
 }
 
 // GetEnumStringValue safely extracts the string name of an enum field from a dynamic message.
-// It returns an empty string if the field doesn't exist, is not an enum, or is not set.
-// If the enum number is invalid, it falls back to returning the number as a string.
-func GetEnumStringValue(msg protoreflect.Message, fieldName string) string {
-	// Get the descriptor for the field by its name.
+// It returns the string name of the enum value, or an error if the field doesn't exist, isn't an enum, or resolves to an empty string.
+// If the enum number is not defined in the schema, it falls back to returning the number as a string with no error.
+func GetEnumStringValue(msg protoreflect.Message, fieldName string) (string, error) {
 	fieldDesc := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
 	if fieldDesc == nil {
-		// Field does not exist in the proto definition.
-		return ""
+		return "", fmt.Errorf("field %q does not exist", fieldName)
 	}
 
-	// Verify that the field is actually an enum.
 	if fieldDesc.Kind() != protoreflect.EnumKind {
-		// The field is not an enum type.
-		return ""
+		return "", fmt.Errorf("field %q is not an enum type (got %s)", fieldName, fieldDesc.Kind().String())
 	}
 
-	// Get the value and look up its string name.
 	value := msg.Get(fieldDesc)
 	enumNumber := value.Enum()
 
 	valueDescriptor := fieldDesc.Enum().Values().ByNumber(enumNumber)
 	if valueDescriptor == nil {
-		// The number is not valid for this enum. Fall back to the number.
-		return fmt.Sprintf("%d", enumNumber)
+		return fmt.Sprintf("%d", enumNumber), nil
 	}
 
-	return string(valueDescriptor.Name())
+	result := string(valueDescriptor.Name())
+	if result == "" {
+		return "", fmt.Errorf("resolved string value for enum field %q is empty", fieldName)
+	}
+
+	return result, nil
 }
 
 // GetTimestampFieldValue safely extracts a time.Time from a dynamic message field representing a google.protobuf.Timestamp.
@@ -77,7 +83,6 @@ func GetTimestampFieldValue(msg protoreflect.Message, fieldName string) (time.Ti
 	}
 
 	val := msg.Get(fieldDesc)
-	// Ensure the value is a valid message and is of the expected type.
 	if !val.IsValid() || fieldDesc.Kind() != protoreflect.MessageKind || val.Message().Descriptor().FullName() != "google.protobuf.Timestamp" {
 		return time.Time{}, fmt.Errorf("field %q is not a valid google.protobuf.Timestamp", fieldName)
 	}

@@ -15,7 +15,7 @@ func TestStore_AreDuplicates(t *testing.T) {
 	ctx := context.Background()
 
 	s := &Store{}
-	events := []EventMetadata{
+	events := []EventWithMetadata{
 		{Publisher: "pub-1", EventGUID: "guid-1"},
 		{Publisher: "pub-2", EventGUID: "guid-2"},
 	}
@@ -31,7 +31,7 @@ func TestStore_AreDuplicates(t *testing.T) {
 
 	t.Run("Three Elements Two Duplicates", func(t *testing.T) {
 		s := &Store{}
-		batchEvents := []EventMetadata{
+		batchEvents := []EventWithMetadata{
 			{Publisher: "pub-1", EventGUID: "guid-1"},
 			{Publisher: "pub-2", EventGUID: "guid-2"},
 			{Publisher: "pub-3", EventGUID: "guid-3"},

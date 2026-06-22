@@ -17,8 +17,8 @@ type stubAction struct {
 	dropNames map[string]bool
 }
 
-func (s *stubAction) Apply(_ context.Context, events []*model.EventMetadata, _ string) []*model.EventMetadata {
-	var out []*model.EventMetadata
+func (s *stubAction) Apply(_ context.Context, events []*model.EventWithMetadata, _ string) []*model.EventWithMetadata {
+	var out []*model.EventWithMetadata
 	for _, e := range events {
 		if !s.dropNames[e.EventName] {
 			out = append(out, e)
@@ -36,7 +36,7 @@ func TestPolicyChain_Apply_FiltersAcrossActions(t *testing.T) {
 	pbScroll := &pb.Event{EventName: "scroll"}
 	pbView := &pb.Event{EventName: "view"}
 
-	events := []*model.EventMetadata{
+	events := []*model.EventWithMetadata{
 		{EventName: "click", Event: pbClick},
 		{EventName: "scroll", Event: pbScroll},
 		{EventName: "view", Event: pbView},
@@ -54,7 +54,7 @@ func TestPolicyChain_Apply_PassthroughWhenNoActionFilters(t *testing.T) {
 	pbClick := &pb.Event{EventName: "click"}
 	pbScroll := &pb.Event{EventName: "scroll"}
 
-	events := []*model.EventMetadata{
+	events := []*model.EventWithMetadata{
 		{EventName: "click", Event: pbClick},
 		{EventName: "scroll", Event: pbScroll},
 	}
@@ -64,7 +64,7 @@ func TestPolicyChain_Apply_PassthroughWhenNoActionFilters(t *testing.T) {
 
 func TestPolicyChain_Apply_PassthroughWhenEmpty(t *testing.T) {
 	pbClick := &pb.Event{EventName: "click"}
-	events := []*model.EventMetadata{
+	events := []*model.EventWithMetadata{
 		{EventName: "click", Event: pbClick},
 	}
 	assert.Equal(t, []*pb.Event{pbClick}, ingestionrule.Chain{}.Apply(context.Background(), events, "grp"))
@@ -78,7 +78,7 @@ func TestPolicyChain_Apply_FirstActionRemovesEvents(t *testing.T) {
 	pbClick := &pb.Event{EventName: "click"}
 	pbView := &pb.Event{EventName: "view"}
 
-	events := []*model.EventMetadata{
+	events := []*model.EventWithMetadata{
 		{EventName: "click", Event: pbClick},
 		{EventName: "view", Event: pbView},
 	}

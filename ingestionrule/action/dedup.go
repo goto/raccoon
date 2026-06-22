@@ -14,7 +14,7 @@ import (
 
 // DuplicateChecker defines the capability to verify event uniqueness.
 type DuplicateChecker interface {
-	AreDuplicates(ctx context.Context, events []cache.EventMetadata) ([]bool, error)
+	AreDuplicates(ctx context.Context, events []cache.EventWithMetadata) ([]bool, error)
 	HealthCheck() error
 	Close() error
 }
@@ -38,7 +38,7 @@ func NewDedup(checker DuplicateChecker) *Dedup {
 }
 
 // Apply performs event deduplication.
-func (d *Dedup) Apply(ctx context.Context, events []*model.EventMetadata, connGroup string) []*model.EventMetadata {
+func (d *Dedup) Apply(ctx context.Context, events []*model.EventWithMetadata, connGroup string) []*model.EventWithMetadata {
 	start := time.Now()
 	defer func() {
 		metrics.Timing(MetricEvalLatency, time.Since(start).Milliseconds(), fmt.Sprintf("action=DEDUP,conn_group=%s", connGroup))
@@ -53,7 +53,7 @@ func (d *Dedup) Apply(ctx context.Context, events []*model.EventMetadata, connGr
 	}
 
 	states := make([]processState, len(events))
-	metadataBatch := make([]cache.EventMetadata, 0, len(events))
+	metadataBatch := make([]cache.EventWithMetadata, 0, len(events))
 
 	for i, meta := range events {
 		if meta.EventGUID == "" || meta.Publisher == "" {
@@ -63,7 +63,7 @@ func (d *Dedup) Apply(ctx context.Context, events []*model.EventMetadata, connGr
 		}
 
 		states[i] = processState{isValid: true}
-		metadataBatch = append(metadataBatch, cache.EventMetadata{
+		metadataBatch = append(metadataBatch, cache.EventWithMetadata{
 			Publisher: meta.Publisher,
 			EventGUID: meta.EventGUID,
 			EventName: meta.EventName,
@@ -78,7 +78,7 @@ func (d *Dedup) Apply(ctx context.Context, events []*model.EventMetadata, connGr
 		isDuplicateResults, cacheErr = d.checker.AreDuplicates(ctx, metadataBatch)
 	}
 
-	uniqueEvents := make([]*model.EventMetadata, 0, len(events))
+	uniqueEvents := make([]*model.EventWithMetadata, 0, len(events))
 	resultIdx := 0 // Tracks our position in the isDuplicateResults slice
 
 	for i, state := range states {

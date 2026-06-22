@@ -34,7 +34,7 @@ func newDrop(c *cache.Cache) *action.Drop {
 
 func TestDrop_DropsBreachedEvents(t *testing.T) {
 	c := buildDropCache("click", "app", "pub-a", time.Hour)
-	events := []*model.EventMetadata{{
+	events := []*model.EventWithMetadata{{
 		EventName:      "click",
 		Product:        "app",
 		Publisher:      "pub-a",
@@ -46,7 +46,7 @@ func TestDrop_DropsBreachedEvents(t *testing.T) {
 
 func TestDrop_PassthroughWhenWithinThreshold(t *testing.T) {
 	c := buildDropCache("click", "app", "pub-a", time.Hour)
-	events := []*model.EventMetadata{{
+	events := []*model.EventWithMetadata{{
 		EventName:      "click",
 		Product:        "app",
 		Publisher:      "pub-a",
@@ -58,7 +58,7 @@ func TestDrop_PassthroughWhenWithinThreshold(t *testing.T) {
 
 func TestDrop_PassthroughWhenNoIngestionRuleMatch(t *testing.T) {
 	c := buildDropCache("click", "app", "pub-a", time.Hour)
-	events := []*model.EventMetadata{{
+	events := []*model.EventWithMetadata{{
 		EventName:      "scroll",
 		Product:        "app",
 		Publisher:      "pub-a",
@@ -70,7 +70,7 @@ func TestDrop_PassthroughWhenNoIngestionRuleMatch(t *testing.T) {
 
 func TestDrop_PassthroughWhenMetadataIncomplete(t *testing.T) {
 	c := buildDropCache("click", "app", "pub-a", time.Hour)
-	events := []*model.EventMetadata{{
+	events := []*model.EventWithMetadata{{
 		EventName:      "click",
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
@@ -82,7 +82,7 @@ func TestDrop_PassthroughWhenMetadataIncomplete(t *testing.T) {
 func TestDrop_FiltersMixedBatch(t *testing.T) {
 	c := buildDropCache("click", "app", "pub-a", time.Hour)
 	staleTs := time.Now().Add(-2 * time.Hour)
-	events := []*model.EventMetadata{
+	events := []*model.EventWithMetadata{
 		{EventName: "click", Product: "app", Publisher: "pub-a", EventTimestamp: staleTs, Event: &pb.Event{}},
 		{EventName: "scroll", Product: "app", Publisher: "pub-a", EventTimestamp: staleTs, Event: &pb.Event{}},
 		{EventName: "click", Product: "app", Publisher: "pub-a", EventTimestamp: staleTs, Event: &pb.Event{}},

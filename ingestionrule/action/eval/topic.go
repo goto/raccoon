@@ -17,7 +17,7 @@ func (t *TopicEvaluator) Resource() config.PolicyResourceType {
 // Evaluate returns (false, false) when the topic name is absent or no rule exists
 // for this topic key. Returns (condition.Breached(), true) when a rule is found —
 // the chain stops here regardless of whether the condition is breached.
-func (t *TopicEvaluator) Evaluate(meta model.EventMetadata, rules map[string]Condition) (bool, bool) {
+func (t *TopicEvaluator) Evaluate(meta model.EventWithMetadata, rules map[string]Condition) (bool, bool) {
 	if meta.TopicName == "" {
 		return false, false
 	}

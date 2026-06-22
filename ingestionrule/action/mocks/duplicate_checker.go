@@ -39,7 +39,7 @@ func (_m *DuplicateChecker) EXPECT() *DuplicateChecker_Expecter {
 }
 
 // AreDuplicates provides a mock function for the type DuplicateChecker
-func (_mock *DuplicateChecker) AreDuplicates(ctx context.Context, events []cache.EventMetadata) ([]bool, error) {
+func (_mock *DuplicateChecker) AreDuplicates(ctx context.Context, events []cache.EventWithMetadata) ([]bool, error) {
 	ret := _mock.Called(ctx, events)
 
 	if len(ret) == 0 {
@@ -48,17 +48,17 @@ func (_mock *DuplicateChecker) AreDuplicates(ctx context.Context, events []cache
 
 	var r0 []bool
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []cache.EventMetadata) ([]bool, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []cache.EventWithMetadata) ([]bool, error)); ok {
 		return returnFunc(ctx, events)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []cache.EventMetadata) []bool); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []cache.EventWithMetadata) []bool); ok {
 		r0 = returnFunc(ctx, events)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]bool)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, []cache.EventMetadata) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, []cache.EventWithMetadata) error); ok {
 		r1 = returnFunc(ctx, events)
 	} else {
 		r1 = ret.Error(1)
@@ -73,20 +73,20 @@ type DuplicateChecker_AreDuplicates_Call struct {
 
 // AreDuplicates is a helper method to define mock.On call
 //   - ctx context.Context
-//   - events []cache.EventMetadata
+//   - events []cache.EventWithMetadata
 func (_e *DuplicateChecker_Expecter) AreDuplicates(ctx interface{}, events interface{}) *DuplicateChecker_AreDuplicates_Call {
 	return &DuplicateChecker_AreDuplicates_Call{Call: _e.mock.On("AreDuplicates", ctx, events)}
 }
 
-func (_c *DuplicateChecker_AreDuplicates_Call) Run(run func(ctx context.Context, events []cache.EventMetadata)) *DuplicateChecker_AreDuplicates_Call {
+func (_c *DuplicateChecker_AreDuplicates_Call) Run(run func(ctx context.Context, events []cache.EventWithMetadata)) *DuplicateChecker_AreDuplicates_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 []cache.EventMetadata
+		var arg1 []cache.EventWithMetadata
 		if args[1] != nil {
-			arg1 = args[1].([]cache.EventMetadata)
+			arg1 = args[1].([]cache.EventWithMetadata)
 		}
 		run(
 			arg0,
@@ -101,7 +101,7 @@ func (_c *DuplicateChecker_AreDuplicates_Call) Return(bools []bool, err error) *
 	return _c
 }
 
-func (_c *DuplicateChecker_AreDuplicates_Call) RunAndReturn(run func(ctx context.Context, events []cache.EventMetadata) ([]bool, error)) *DuplicateChecker_AreDuplicates_Call {
+func (_c *DuplicateChecker_AreDuplicates_Call) RunAndReturn(run func(ctx context.Context, events []cache.EventWithMetadata) ([]bool, error)) *DuplicateChecker_AreDuplicates_Call {
 	_c.Call.Return(run)
 	return _c
 }

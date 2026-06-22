@@ -39,7 +39,7 @@ func (_m *Evaluator) EXPECT() *Evaluator_Expecter {
 }
 
 // Evaluate provides a mock function for the type Evaluator
-func (_mock *Evaluator) Evaluate(meta model.EventMetadata, rules map[string]eval.Condition) (bool, bool) {
+func (_mock *Evaluator) Evaluate(meta model.EventWithMetadata, rules map[string]eval.Condition) (bool, bool) {
 	ret := _mock.Called(meta, rules)
 
 	if len(ret) == 0 {
@@ -48,15 +48,15 @@ func (_mock *Evaluator) Evaluate(meta model.EventMetadata, rules map[string]eval
 
 	var r0 bool
 	var r1 bool
-	if returnFunc, ok := ret.Get(0).(func(model.EventMetadata, map[string]eval.Condition) (bool, bool)); ok {
+	if returnFunc, ok := ret.Get(0).(func(model.EventWithMetadata, map[string]eval.Condition) (bool, bool)); ok {
 		return returnFunc(meta, rules)
 	}
-	if returnFunc, ok := ret.Get(0).(func(model.EventMetadata, map[string]eval.Condition) bool); ok {
+	if returnFunc, ok := ret.Get(0).(func(model.EventWithMetadata, map[string]eval.Condition) bool); ok {
 		r0 = returnFunc(meta, rules)
 	} else {
 		r0 = ret.Get(0).(bool)
 	}
-	if returnFunc, ok := ret.Get(1).(func(model.EventMetadata, map[string]eval.Condition) bool); ok {
+	if returnFunc, ok := ret.Get(1).(func(model.EventWithMetadata, map[string]eval.Condition) bool); ok {
 		r1 = returnFunc(meta, rules)
 	} else {
 		r1 = ret.Get(1).(bool)
@@ -70,17 +70,17 @@ type Evaluator_Evaluate_Call struct {
 }
 
 // Evaluate is a helper method to define mock.On call
-//   - meta model.EventMetadata
+//   - meta model.EventWithMetadata
 //   - rules map[string]eval.Condition
 func (_e *Evaluator_Expecter) Evaluate(meta interface{}, rules interface{}) *Evaluator_Evaluate_Call {
 	return &Evaluator_Evaluate_Call{Call: _e.mock.On("Evaluate", meta, rules)}
 }
 
-func (_c *Evaluator_Evaluate_Call) Run(run func(meta model.EventMetadata, rules map[string]eval.Condition)) *Evaluator_Evaluate_Call {
+func (_c *Evaluator_Evaluate_Call) Run(run func(meta model.EventWithMetadata, rules map[string]eval.Condition)) *Evaluator_Evaluate_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 model.EventMetadata
+		var arg0 model.EventWithMetadata
 		if args[0] != nil {
-			arg0 = args[0].(model.EventMetadata)
+			arg0 = args[0].(model.EventWithMetadata)
 		}
 		var arg1 map[string]eval.Condition
 		if args[1] != nil {
@@ -99,7 +99,7 @@ func (_c *Evaluator_Evaluate_Call) Return(result bool, found bool) *Evaluator_Ev
 	return _c
 }
 
-func (_c *Evaluator_Evaluate_Call) RunAndReturn(run func(meta model.EventMetadata, rules map[string]eval.Condition) (bool, bool)) *Evaluator_Evaluate_Call {
+func (_c *Evaluator_Evaluate_Call) RunAndReturn(run func(meta model.EventWithMetadata, rules map[string]eval.Condition) (bool, bool)) *Evaluator_Evaluate_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -38,12 +38,12 @@ func DeserializeEvents(
 	publisherMap map[string]string,
 	topicFormat string,
 	stencil StencilClient,
-) []*model.EventMetadata {
-	metadataBatch := make([]*model.EventMetadata, 0, len(events))
+) []*model.EventWithMetadata {
+	metadataBatch := make([]*model.EventWithMetadata, 0, len(events))
 
 	for _, event := range events {
 		startDeserialize := time.Now()
-		meta, err := extractMetadata(event, connGroup, publisherMap, topicFormat, stencil)
+		meta, err := enrichEventMetadata(event, connGroup, publisherMap, topicFormat, stencil)
 		metrics.Timing(metricNameEventDeserializationLatency, time.Since(startDeserialize).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
 
 		if err != nil {
@@ -57,26 +57,26 @@ func DeserializeEvents(
 	return metadataBatch
 }
 
-// extractMetadata builds an EventMetadata for an event.
-// It extracts event_name, product, and event_timestamp from the event's payload by parsing it with Stencil.
+// enrichEventMetadata builds a complete EventWithMetadata for an event.
+// It initializes base metadata from the event envelope and enriches it by
+// parsing the inner payload (event_name, product, timestamp, and GUID) using Stencil.
 //
 // Returns:
-//   - eval.EventMetadata: An EventMetadata struct containing the extracted metadata.
+//   - model.EventWithMetadata: An EventWithMetadata struct containing the extracted metadata.
 //   - error: An error if any occurs during metadata extraction (e.g., proto class not found, payload parsing failure).
-func extractMetadata(
+func enrichEventMetadata(
 	event *pb.Event,
 	connGroup string,
 	publisherMap map[string]string,
 	topicFormat string,
 	stencil StencilClient,
-) (model.EventMetadata, error) {
-	meta := model.EventMetadata{
-		Event:     event,
-		TopicName: fmt.Sprintf(topicFormat, event.GetType()),
-		Publisher: resolvePublisher(connGroup, publisherMap),
-		Product:   strings.ReplaceAll(strings.ToLower(event.GetProduct()), "_", ""), // normalize across iOS/Android variants (e.g. "My_App" → "myapp")
-		EventName: event.GetEventName(),
-	}
+) (model.EventWithMetadata, error) {
+	meta := extractBaseMetadata(
+		event,
+		connGroup,
+		publisherMap,
+		topicFormat,
+	)
 
 	protoClass, ok := config.DedupCfg.ProtoClassNameMapping[event.Type]
 	if !ok {
@@ -97,9 +97,9 @@ func extractMetadata(
 
 	meta.EventName = eventName
 
-	product := protoutil.GetEnumStringValue(ref, protoFieldEventProduct)
-	if product == "" {
-		return meta, fmt.Errorf("failed to find product for publisher=%s,product=%s,event_name=%s", meta.Publisher, meta.Product, meta.EventName)
+	product, err := protoutil.GetEnumStringValue(ref, protoFieldEventProduct)
+	if err != nil {
+		return meta, fmt.Errorf("failed to extract %q value for publisher=%s,product=%s,event_name=%s: %w", protoFieldEventProduct, meta.Publisher, meta.Product, meta.EventName, err)
 	}
 
 	// normalize across iOS/Android variants (e.g. "My_App" → "myapp")
@@ -122,21 +122,42 @@ func extractMetadata(
 	return meta, nil
 }
 
+// extractBaseMetadata extracts base metadata from an event.
+func extractBaseMetadata(
+	event *pb.Event,
+	connGroup string,
+	publisherMap map[string]string,
+	topicFormat string) model.EventWithMetadata {
+	var ts time.Time
+	if event.GetEventTimestamp() != nil {
+		ts = event.GetEventTimestamp().AsTime()
+	}
+
+	return model.EventWithMetadata{
+		Event:          event,
+		TopicName:      fmt.Sprintf(topicFormat, event.GetType()),
+		Publisher:      resolvePublisher(connGroup, publisherMap),
+		Product:        strings.ReplaceAll(strings.ToLower(event.GetProduct()), "_", ""), // normalize across iOS/Android variants (e.g. "My_App" → "myapp")
+		EventName:      event.GetEventName(),
+		EventTimestamp: ts,
+	}
+}
+
 // getStringField is a helper function to safely extract and convert to string.
 func getStringField(
 	ref protoreflect.Message,
 	path string,
 	fieldName string,
-	meta model.EventMetadata,
+	meta model.EventWithMetadata,
 ) (string, error) {
-	rawVal, ok := protoutil.GetFieldValue(ref, strings.Split(path, "."))
-	if !ok {
-		return "", fmt.Errorf("failed to find %q for publisher=%s,product=%s,event_name=%s", fieldName, meta.Publisher, meta.Product, meta.EventName)
+	rawVal, err := protoutil.GetFieldValue(ref, strings.Split(path, "."))
+	if err != nil {
+		return "", fmt.Errorf("failed to extract %q value for publisher=%s,product=%s,event_name=%s: %w", fieldName, meta.Publisher, meta.Product, meta.EventName, err)
 	}
 
 	val, err := cast.ToStringE(rawVal)
 	if err != nil {
-		return "", fmt.Errorf("%q field type is not convertible to string for publisher=%s,product=%s,event_name=%s: %w", fieldName, meta.Publisher, meta.Product, meta.EventName, err)
+		return "", fmt.Errorf("failed to convert %q value to string for publisher=%s,product=%s,event_name=%s: %w", fieldName, meta.Publisher, meta.Product, meta.EventName, err)
 	}
 
 	return val, nil

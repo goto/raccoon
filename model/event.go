@@ -6,9 +6,9 @@ import (
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 )
 
-// EventMetadata holds the attributes extracted from an incoming event and its
+// EventWithMetadata holds the attributes extracted from an incoming event and its
 // connection context. It is the primary input to the policy evaluation chain.
-type EventMetadata struct {
+type EventWithMetadata struct {
 	// Event is the original protobuf Event
 	Event *pb.Event
 	// EventName is the protobuf Event.EventName field.

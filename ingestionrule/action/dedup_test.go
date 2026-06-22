@@ -19,7 +19,7 @@ import (
 func TestDedup_Apply_NilChecker(t *testing.T) {
 	// Case 1: d is nil
 	var d *action.Dedup
-	events := []*model.EventMetadata{{Event: &pb.Event{Type: "click"}}}
+	events := []*model.EventWithMetadata{{Event: &pb.Event{Type: "click"}}}
 	assert.Equal(t, events, d.Apply(context.Background(), events, "group-1"))
 
 	// Case 2: d is not nil, but checker is nil
@@ -35,7 +35,7 @@ func TestDedup_Apply_BypassDeduplicationWhenNotWhitelisted(t *testing.T) {
 
 	mc := mocks.NewDuplicateChecker(t)
 	d := action.NewDedup(mc)
-	events := []*model.EventMetadata{{Event: &pb.Event{Type: "click"}}}
+	events := []*model.EventWithMetadata{{Event: &pb.Event{Type: "click"}}}
 	assert.Equal(t, events, d.Apply(context.Background(), events, "group-1"))
 }
 
@@ -47,7 +47,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 	// 1. Success case: event is not a duplicate.
 	t.Run("EventNotDuplicate", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
-		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventWithMetadata{
 			{
 				Publisher: "customer-publisher",
 				EventGUID: "guid-1",
@@ -58,7 +58,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 
 		d := action.NewDedup(mc)
 
-		events := []*model.EventMetadata{
+		events := []*model.EventWithMetadata{
 			{
 				Publisher: "customer-publisher",
 				EventGUID: "guid-1",
@@ -75,7 +75,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 	// 2. Duplicate case: event is already in cache.
 	t.Run("EventDuplicate", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
-		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventWithMetadata{
 			{
 				Publisher: "customer-publisher",
 				EventGUID: "guid-1",
@@ -86,7 +86,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 
 		d := action.NewDedup(mc)
 
-		events := []*model.EventMetadata{
+		events := []*model.EventWithMetadata{
 			{
 				Publisher: "customer-publisher",
 				EventGUID: "guid-1",
@@ -104,7 +104,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 	t.Run("BatchWithMultipleDuplicates", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 
-		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventWithMetadata{
 			{Publisher: "customer-publisher", EventGUID: "guid-1", EventName: "click", Product: "clickstream"},
 			{Publisher: "customer-publisher", EventGUID: "guid-2", EventName: "click", Product: "clickstream"},
 			{Publisher: "customer-publisher", EventGUID: "guid-3", EventName: "click", Product: "clickstream"},
@@ -112,7 +112,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 
 		d := action.NewDedup(mc)
 
-		events := []*model.EventMetadata{
+		events := []*model.EventWithMetadata{
 			{
 				Publisher: "customer-publisher",
 				EventGUID: "guid-1",
@@ -147,7 +147,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 	// 4. Redis error case: fails open.
 	t.Run("RedisErrorFailsOpen", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
-		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventWithMetadata{
 			{
 				Publisher: "customer-publisher",
 				EventGUID: "guid-1",
@@ -158,7 +158,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 
 		d := action.NewDedup(mc)
 
-		events := []*model.EventMetadata{
+		events := []*model.EventWithMetadata{
 			{
 				Publisher: "customer-publisher",
 				EventGUID: "guid-1",
@@ -183,7 +183,7 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 		d := action.NewDedup(mc)
 
-		events := []*model.EventMetadata{
+		events := []*model.EventWithMetadata{
 			{
 				Publisher: "customer-publisher",
 				EventGUID: "",
@@ -202,7 +202,7 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 		d := action.NewDedup(mc)
 
-		events := []*model.EventMetadata{
+		events := []*model.EventWithMetadata{
 			{
 				Publisher: "",
 				EventGUID: "guid-1",

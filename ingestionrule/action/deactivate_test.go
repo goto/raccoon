@@ -30,7 +30,7 @@ func newDeactivate(c *cache.Cache) *action.Deactivate {
 
 func TestDeactivate_DropsMatchingEvent(t *testing.T) {
 	c := buildDeactivateEventCache("click", "app", "pub-a")
-	events := []*model.EventMetadata{{
+	events := []*model.EventWithMetadata{{
 		EventName:      "click",
 		Product:        "app",
 		Publisher:      "pub-a",
@@ -42,7 +42,7 @@ func TestDeactivate_DropsMatchingEvent(t *testing.T) {
 
 func TestDeactivate_PassthroughWhenNoIngestionRuleMatch(t *testing.T) {
 	c := buildDeactivateEventCache("click", "app", "pub-a")
-	events := []*model.EventMetadata{{
+	events := []*model.EventWithMetadata{{
 		EventName:      "scroll",
 		Product:        "app",
 		Publisher:      "pub-a",
@@ -54,7 +54,7 @@ func TestDeactivate_PassthroughWhenNoIngestionRuleMatch(t *testing.T) {
 
 func TestDeactivate_DropsAlwaysRegardlessOfTimestamp(t *testing.T) {
 	c := buildDeactivateEventCache("click", "app", "pub-a")
-	events := []*model.EventMetadata{
+	events := []*model.EventWithMetadata{
 		{EventName: "click", Product: "app", Publisher: "pub-a", EventTimestamp: time.Now(), Event: &pb.Event{}},
 		{EventName: "click", Product: "app", Publisher: "pub-a", EventTimestamp: time.Now().Add(-365 * 24 * time.Hour), Event: &pb.Event{}},
 	}
@@ -63,7 +63,7 @@ func TestDeactivate_DropsAlwaysRegardlessOfTimestamp(t *testing.T) {
 
 func TestDeactivate_FiltersMixedBatch(t *testing.T) {
 	c := buildDeactivateEventCache("click", "app", "pub-a")
-	events := []*model.EventMetadata{
+	events := []*model.EventWithMetadata{
 		{EventName: "click", Product: "app", Publisher: "pub-a", EventTimestamp: time.Now(), Event: &pb.Event{}},
 		{EventName: "scroll", Product: "app", Publisher: "pub-a", EventTimestamp: time.Now(), Event: &pb.Event{}},
 		{EventName: "click", Product: "app", Publisher: "pub-a", EventTimestamp: time.Now(), Event: &pb.Event{}},
@@ -75,7 +75,7 @@ func TestDeactivate_FiltersMixedBatch(t *testing.T) {
 
 func TestDeactivate_PassthroughWhenEmptyRules(t *testing.T) {
 	c := cache.NewCache(nil)
-	events := []*model.EventMetadata{{EventName: "click", Product: "app", Publisher: "pub-a", EventTimestamp: time.Now(), Event: &pb.Event{}}}
+	events := []*model.EventWithMetadata{{EventName: "click", Product: "app", Publisher: "pub-a", EventTimestamp: time.Now(), Event: &pb.Event{}}}
 	assert.Equal(t, events, newDeactivate(c).Apply(context.Background(), events, "pub-a"))
 }
 
@@ -87,7 +87,7 @@ func TestDeactivate_DropsMatchingTopicRule(t *testing.T) {
 			Action:   config.PolicyActionConfig{Type: config.PolicyActionDeactivate},
 		},
 	})
-	events := []*model.EventMetadata{{
+	events := []*model.EventWithMetadata{{
 		TopicName:      "clickstream-page-log",
 		EventName:      "click",
 		Product:        "app",

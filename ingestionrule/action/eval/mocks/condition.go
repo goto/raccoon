@@ -37,7 +37,7 @@ func (_m *Condition) EXPECT() *Condition_Expecter {
 }
 
 // Breached provides a mock function for the type Condition
-func (_mock *Condition) Breached(meta model.EventMetadata) bool {
+func (_mock *Condition) Breached(meta model.EventWithMetadata) bool {
 	ret := _mock.Called(meta)
 
 	if len(ret) == 0 {
@@ -45,7 +45,7 @@ func (_mock *Condition) Breached(meta model.EventMetadata) bool {
 	}
 
 	var r0 bool
-	if returnFunc, ok := ret.Get(0).(func(model.EventMetadata) bool); ok {
+	if returnFunc, ok := ret.Get(0).(func(model.EventWithMetadata) bool); ok {
 		r0 = returnFunc(meta)
 	} else {
 		r0 = ret.Get(0).(bool)
@@ -59,16 +59,16 @@ type Condition_Breached_Call struct {
 }
 
 // Breached is a helper method to define mock.On call
-//   - meta model.EventMetadata
+//   - meta model.EventWithMetadata
 func (_e *Condition_Expecter) Breached(meta interface{}) *Condition_Breached_Call {
 	return &Condition_Breached_Call{Call: _e.mock.On("Breached", meta)}
 }
 
-func (_c *Condition_Breached_Call) Run(run func(meta model.EventMetadata)) *Condition_Breached_Call {
+func (_c *Condition_Breached_Call) Run(run func(meta model.EventWithMetadata)) *Condition_Breached_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 model.EventMetadata
+		var arg0 model.EventWithMetadata
 		if args[0] != nil {
-			arg0 = args[0].(model.EventMetadata)
+			arg0 = args[0].(model.EventWithMetadata)
 		}
 		run(
 			arg0,
@@ -82,7 +82,7 @@ func (_c *Condition_Breached_Call) Return(b bool) *Condition_Breached_Call {
 	return _c
 }
 
-func (_c *Condition_Breached_Call) RunAndReturn(run func(meta model.EventMetadata) bool) *Condition_Breached_Call {
+func (_c *Condition_Breached_Call) RunAndReturn(run func(meta model.EventWithMetadata) bool) *Condition_Breached_Call {
 	_c.Call.Return(run)
 	return _c
 }

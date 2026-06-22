@@ -36,8 +36,8 @@ func newOverrideAct(t *testing.T) *action.OverrideTimestamp {
 	return action.NewOverrideTimestamp(c, action.DefaultChain(), overrideEventType)
 }
 
-func staleEvent(name string) *model.EventMetadata {
-	return &model.EventMetadata{
+func staleEvent(name string) *model.EventWithMetadata {
+	return &model.EventWithMetadata{
 		EventName:      name,
 		Product:        "app",
 		Publisher:      "pub-a",
@@ -47,7 +47,7 @@ func staleEvent(name string) *model.EventMetadata {
 }
 
 func TestOverrideTimestamp_OverridesTypeOnBreachedEvent(t *testing.T) {
-	result := newOverrideAct(t).Apply(context.Background(), []*model.EventMetadata{staleEvent("click")}, "pub-a")
+	result := newOverrideAct(t).Apply(context.Background(), []*model.EventWithMetadata{staleEvent("click")}, "pub-a")
 
 	assert.Len(t, result, 1)
 	assert.Equal(t, overrideEventType, result[0].Event.GetType())
@@ -55,7 +55,7 @@ func TestOverrideTimestamp_OverridesTypeOnBreachedEvent(t *testing.T) {
 }
 
 func TestOverrideTimestamp_PassthroughWhenWithinThreshold(t *testing.T) {
-	events := []*model.EventMetadata{{
+	events := []*model.EventWithMetadata{{
 		EventName:      "click",
 		Product:        "app",
 		Publisher:      "pub-a",
@@ -69,7 +69,7 @@ func TestOverrideTimestamp_PassthroughWhenWithinThreshold(t *testing.T) {
 }
 
 func TestOverrideTimestamp_PassthroughWhenNoIngestionRuleMatch(t *testing.T) {
-	events := []*model.EventMetadata{staleEvent("scroll")}
+	events := []*model.EventWithMetadata{staleEvent("scroll")}
 	result := newOverrideAct(t).Apply(context.Background(), events, "pub-a")
 
 	assert.Equal(t, events, result)
@@ -77,7 +77,7 @@ func TestOverrideTimestamp_PassthroughWhenNoIngestionRuleMatch(t *testing.T) {
 }
 
 func TestOverrideTimestamp_MixedBatch(t *testing.T) {
-	events := []*model.EventMetadata{staleEvent("click"), staleEvent("scroll"), staleEvent("click")}
+	events := []*model.EventWithMetadata{staleEvent("click"), staleEvent("scroll"), staleEvent("click")}
 	result := newOverrideAct(t).Apply(context.Background(), events, "pub-a")
 
 	assert.Len(t, result, 3)
