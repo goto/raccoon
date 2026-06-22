@@ -5,6 +5,7 @@ networks:
 
 services:
   zookeeper:
+    platform: linux/amd64
     image: confluentinc/cp-zookeeper:5.1.2
     hostname: zookeeper
     container_name: zookeeper
@@ -17,6 +18,7 @@ services:
       - cs-network
 
   kafka:
+    platform: linux/amd64
     image: confluentinc/cp-kafka:5.1.2
     hostname: kafka
     container_name: kafka
