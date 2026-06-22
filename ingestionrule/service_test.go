@@ -79,17 +79,6 @@ func buildRules(pastDrop, pastOverride time.Duration, withDeactivate bool) []con
 	return rules
 }
 
-<<<<<<< HEAD
-=======
-func TestService_Apply_NilIsPassthrough(t *testing.T) {
-	var svc *ingestionrule.Service
-	events := []*pb.Event{{EventName: "click"}}
-	result := svc.Apply(context.Background(), events, "grp")
-	assert.Len(t, result, 1)
-	assert.Equal(t, "click", result[0].EventName)
-}
-
->>>>>>> bf970e8 (chore: pass the deserialized payload)
 func TestService_Apply_DropTakesPriorityOverOverride(t *testing.T) {
 	rules := buildRules(time.Hour, time.Hour, false)
 	svc, err := ingestionrule.NewService(context.Background(), rules, testOverrideEventType)
@@ -123,15 +112,7 @@ func TestService_Apply_OverrideWhenNoDrop(t *testing.T) {
 	result := svc.Apply(context.Background(), events, "grp")
 	// Event stays in batch but with Type overridden to the override event type.
 	assert.Len(t, result, 1)
-<<<<<<< HEAD
-<<<<<<< HEAD
 	assert.Equal(t, testOverrideEventType, result[0].Type)
-=======
-	assert.Equal(t, testOverrideEventType, result[0].EventType)
->>>>>>> bf970e8 (chore: pass the deserialized payload)
-=======
-	assert.Equal(t, testOverrideEventType, result[0].Event.GetType())
->>>>>>> 8f1245b (chore: adjust the event type)
 }
 
 func TestService_Apply_PassthroughWhenNoPolicy(t *testing.T) {
@@ -153,11 +134,7 @@ func TestService_Apply_MixedBatch(t *testing.T) {
 	stale := &pb.Event{EventName: "click", Product: "app", EventTimestamp: timestampProto(time.Now().Add(-2 * time.Hour))}
 	result := svc.Apply(context.Background(), []*pb.Event{stale, clean}, "grp")
 	assert.Len(t, result, 1)
-<<<<<<< HEAD
 	assert.Equal(t, "other", result[0].EventName)
-=======
-	assert.Equal(t, clean, result[0].Event)
->>>>>>> bf970e8 (chore: pass the deserialized payload)
 }
 
 func TestService_Apply_DeactivateDropsEvent(t *testing.T) {
@@ -192,11 +169,7 @@ func TestService_Apply_DeactivatePassthroughWhenNoMatch(t *testing.T) {
 	}
 	result := svc.Apply(context.Background(), events, "grp")
 	assert.Len(t, result, 1)
-<<<<<<< HEAD
 	assert.Equal(t, "scroll", result[0].EventName)
-=======
-	assert.Equal(t, events[0], result[0].Event)
->>>>>>> bf970e8 (chore: pass the deserialized payload)
 }
 
 func TestService_Apply_UnknownActionTypeSkipped(t *testing.T) {
@@ -213,7 +186,6 @@ func TestService_Apply_UnknownActionTypeSkipped(t *testing.T) {
 	events := []*pb.Event{{EventName: "click", Product: "app"}}
 	result := svc.Apply(context.Background(), events, "grp")
 	assert.Len(t, result, 1)
-<<<<<<< HEAD
 	assert.Equal(t, "click", result[0].EventName)
 }
 
@@ -302,7 +274,4 @@ func TestService_NewService_PolicyDisabled(t *testing.T) {
 	result := svc.Apply(context.Background(), events, "grp")
 	assert.Len(t, result, 1)
 	assert.Equal(t, "click", result[0].EventName)
-=======
-	assert.Equal(t, events[0], result[0].Event)
->>>>>>> bf970e8 (chore: pass the deserialized payload)
 }

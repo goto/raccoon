@@ -35,11 +35,7 @@ func (d *Deactivate) Apply(_ context.Context, events []*model.EventWithMetadata,
 	for _, meta := range events {
 		if d.evalChain.Run(*meta, d.cache) {
 			logger.Debugf("[deactivate.Apply] deactivating event: event_name=%s, product=%s, publisher=%s, topic=%s, event_timestamp=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp)
-<<<<<<< HEAD
 			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, connGroup, meta.Type))
-=======
-			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, connGroup, meta.Event.GetType()))
->>>>>>> 8f1245b (chore: adjust the event type)
 			continue
 		}
 

@@ -95,8 +95,8 @@ func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices
 						event.EventName,
 						event.Product,
 						req.ConnectionIdentifier,
-						event.Event.AppVersion,
-						event.Event.Platform,
+						event.AppVersion,
+						event.Platform,
 					)
 
 					metrics.Increment("clickstream_data_loss", tags)
