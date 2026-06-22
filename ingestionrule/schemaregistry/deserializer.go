@@ -48,7 +48,7 @@ func DeserializeEvents(
 
 		if err != nil {
 			logger.Errorf("deserialization error: %v", err)
-			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DESERIALIZATION_ERROR,publisher=%s,product=%s,event_name=%s", meta.Publisher, meta.Product, meta.EventName))
+			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DESERIALIZATION_ERROR,conn_group=%s,product=%s,event_name=%s,event_type=%s", connGroup, meta.Product, meta.EventName, meta.EventType))
 		}
 
 		metadataBatch = append(metadataBatch, &meta)

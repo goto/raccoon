@@ -103,7 +103,7 @@ func (d *Dedup) Apply(ctx context.Context, events []*model.EventWithMetadata, co
 		resultIdx++
 
 		if isDuplicate {
-			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEDUP_POLICY,publisher=%s,product=%s,event_name=%s", resMeta.Publisher, resMeta.Product, resMeta.EventName))
+			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEDUP_POLICY,conn_group=%s,product=%s,event_name=%s", connGroup, resMeta.Product, resMeta.EventName))
 			continue
 		}
 

@@ -1,4 +1,9 @@
 // ClickstreamEvent.proto
+
+// NOTE: This proto file and its generated .pb.go are strictly for UNIT TESTING.
+// Do not use this schema in production. It is used to test dynamic event
+// deserialization without depending on real production schemas.
+
 syntax = "proto3";
 
 package gojek.de.raccoon;
