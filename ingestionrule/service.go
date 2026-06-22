@@ -9,12 +9,15 @@ import (
 
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
+	checkregistration "github.com/goto/raccoon/ingestionrule/action/checkregistration"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/schemaregistry"
 	evalcache "github.com/goto/raccoon/ingestionrule/action/eval/cache"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 )
+
+var NewRegistrationStore = checkregistration.NewStore
 
 // MetricEvalDuration is the service-level alias for the shared latency metric.
 // Use the action-level metric (action.MetricEvalLatency) for per-action breakdown.
@@ -68,13 +71,25 @@ func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventTyp
 		}
 	}
 
+	store, err := NewRegistrationStore(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	actions := []Action{
+		action.NewDeactivate(deactivateCache, action.DefaultChain()),
+		action.NewDrop(dropCache, action.DefaultChain()),
+		action.NewOverrideTimestamp(overrideCache, action.DefaultChain(), overrideEventType),
+		action.NewDedup(stencil, checker),
+	}
+	if store != nil {
+		actions = append([]Action{action.NewCheckRegistration(store)}, actions...)
+		store.Refresh(ctx)
+	}
+
 	return &Service{
-		chain: Chain{
-			action.NewDeactivate(deactivateCache, action.DefaultChain()),
-			action.NewDrop(dropCache, action.DefaultChain()),
-			action.NewOverrideTimestamp(overrideCache, action.DefaultChain(), overrideEventType),
-			action.NewDedup(stencil, checker),
-		},
+		chain:   actions,
 		checker: checker,
 	}, nil
 }
