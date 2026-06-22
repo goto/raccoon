@@ -93,8 +93,8 @@ func (_c *Action_Apply_Call) Run(run func(ctx context.Context, events []*model.E
 	return _c
 }
 
-func (_c *Action_Apply_Call) Return(eventMetadatas []*model.EventWithMetadata) *Action_Apply_Call {
-	_c.Call.Return(eventMetadatas)
+func (_c *Action_Apply_Call) Return(eventWithMetadatas []*model.EventWithMetadata) *Action_Apply_Call {
+	_c.Call.Return(eventWithMetadatas)
 	return _c
 }
 

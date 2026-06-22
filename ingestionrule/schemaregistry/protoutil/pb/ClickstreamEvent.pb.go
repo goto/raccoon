@@ -86,6 +86,7 @@ type Event struct {
 	Nested         *NestedMessage            `protobuf:"bytes,10,opt,name=nested,proto3" json:"nested,omitempty"`
 	NestedList     []*NestedMessage          `protobuf:"bytes,11,rep,name=nested_list,json=nestedList,proto3" json:"nested_list,omitempty"`
 	NestedMap      map[string]*NestedMessage `protobuf:"bytes,12,rep,name=nested_map,json=nestedMap,proto3" json:"nested_map,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Meta           *Meta                     `protobuf:"bytes,13,opt,name=meta,proto3" json:"meta,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -204,6 +205,13 @@ func (x *Event) GetNestedMap() map[string]*NestedMessage {
 	return nil
 }
 
+func (x *Event) GetMeta() *Meta {
+	if x != nil {
+		return x.Meta
+	}
+	return nil
+}
+
 // NestedMessage for testing nested structures.
 type NestedMessage struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -265,11 +273,323 @@ func (x *NestedMessage) GetProduct() Product {
 	return Product_Unknown
 }
 
+type Meta struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EventGuid     string                 `protobuf:"bytes,1,opt,name=event_guid,json=eventGuid,proto3" json:"event_guid,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Meta) Reset() {
+	*x = Meta{}
+	mi := &file_ClickstreamEvent_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Meta) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Meta) ProtoMessage() {}
+
+func (x *Meta) ProtoReflect() protoreflect.Message {
+	mi := &file_ClickstreamEvent_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Meta.ProtoReflect.Descriptor instead.
+func (*Meta) Descriptor() ([]byte, []int) {
+	return file_ClickstreamEvent_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Meta) GetEventGuid() string {
+	if x != nil {
+		return x.EventGuid
+	}
+	return ""
+}
+
+type InvalidProductEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EventName     string                 `protobuf:"bytes,1,opt,name=event_name,json=eventName,proto3" json:"event_name,omitempty"`
+	Product       string                 `protobuf:"bytes,2,opt,name=product,proto3" json:"product,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InvalidProductEvent) Reset() {
+	*x = InvalidProductEvent{}
+	mi := &file_ClickstreamEvent_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InvalidProductEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InvalidProductEvent) ProtoMessage() {}
+
+func (x *InvalidProductEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_ClickstreamEvent_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InvalidProductEvent.ProtoReflect.Descriptor instead.
+func (*InvalidProductEvent) Descriptor() ([]byte, []int) {
+	return file_ClickstreamEvent_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *InvalidProductEvent) GetEventName() string {
+	if x != nil {
+		return x.EventName
+	}
+	return ""
+}
+
+func (x *InvalidProductEvent) GetProduct() string {
+	if x != nil {
+		return x.Product
+	}
+	return ""
+}
+
+type InvalidTimestampEvent struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	EventName      string                 `protobuf:"bytes,1,opt,name=event_name,json=eventName,proto3" json:"event_name,omitempty"`
+	Product        Product                `protobuf:"varint,2,opt,name=product,proto3,enum=gojek.de.raccoon.Product" json:"product,omitempty"`
+	EventTimestamp string                 `protobuf:"bytes,3,opt,name=event_timestamp,json=eventTimestamp,proto3" json:"event_timestamp,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *InvalidTimestampEvent) Reset() {
+	*x = InvalidTimestampEvent{}
+	mi := &file_ClickstreamEvent_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InvalidTimestampEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InvalidTimestampEvent) ProtoMessage() {}
+
+func (x *InvalidTimestampEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_ClickstreamEvent_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InvalidTimestampEvent.ProtoReflect.Descriptor instead.
+func (*InvalidTimestampEvent) Descriptor() ([]byte, []int) {
+	return file_ClickstreamEvent_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *InvalidTimestampEvent) GetEventName() string {
+	if x != nil {
+		return x.EventName
+	}
+	return ""
+}
+
+func (x *InvalidTimestampEvent) GetProduct() Product {
+	if x != nil {
+		return x.Product
+	}
+	return Product_Unknown
+}
+
+func (x *InvalidTimestampEvent) GetEventTimestamp() string {
+	if x != nil {
+		return x.EventTimestamp
+	}
+	return ""
+}
+
+type InvalidGuidEvent struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	EventName      string                 `protobuf:"bytes,1,opt,name=event_name,json=eventName,proto3" json:"event_name,omitempty"`
+	Product        Product                `protobuf:"varint,2,opt,name=product,proto3,enum=gojek.de.raccoon.Product" json:"product,omitempty"`
+	EventTimestamp *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=event_timestamp,json=eventTimestamp,proto3" json:"event_timestamp,omitempty"`
+	Meta           *NestedInvalidMeta     `protobuf:"bytes,4,opt,name=meta,proto3" json:"meta,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *InvalidGuidEvent) Reset() {
+	*x = InvalidGuidEvent{}
+	mi := &file_ClickstreamEvent_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InvalidGuidEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InvalidGuidEvent) ProtoMessage() {}
+
+func (x *InvalidGuidEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_ClickstreamEvent_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InvalidGuidEvent.ProtoReflect.Descriptor instead.
+func (*InvalidGuidEvent) Descriptor() ([]byte, []int) {
+	return file_ClickstreamEvent_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *InvalidGuidEvent) GetEventName() string {
+	if x != nil {
+		return x.EventName
+	}
+	return ""
+}
+
+func (x *InvalidGuidEvent) GetProduct() Product {
+	if x != nil {
+		return x.Product
+	}
+	return Product_Unknown
+}
+
+func (x *InvalidGuidEvent) GetEventTimestamp() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EventTimestamp
+	}
+	return nil
+}
+
+func (x *InvalidGuidEvent) GetMeta() *NestedInvalidMeta {
+	if x != nil {
+		return x.Meta
+	}
+	return nil
+}
+
+type NestedInvalidMeta struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EventGuid     map[string]string      `protobuf:"bytes,1,rep,name=event_guid,json=eventGuid,proto3" json:"event_guid,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NestedInvalidMeta) Reset() {
+	*x = NestedInvalidMeta{}
+	mi := &file_ClickstreamEvent_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NestedInvalidMeta) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NestedInvalidMeta) ProtoMessage() {}
+
+func (x *NestedInvalidMeta) ProtoReflect() protoreflect.Message {
+	mi := &file_ClickstreamEvent_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NestedInvalidMeta.ProtoReflect.Descriptor instead.
+func (*NestedInvalidMeta) Descriptor() ([]byte, []int) {
+	return file_ClickstreamEvent_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *NestedInvalidMeta) GetEventGuid() map[string]string {
+	if x != nil {
+		return x.EventGuid
+	}
+	return nil
+}
+
+type InvalidStringCastEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EventName     []string               `protobuf:"bytes,1,rep,name=event_name,json=eventName,proto3" json:"event_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InvalidStringCastEvent) Reset() {
+	*x = InvalidStringCastEvent{}
+	mi := &file_ClickstreamEvent_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InvalidStringCastEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InvalidStringCastEvent) ProtoMessage() {}
+
+func (x *InvalidStringCastEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_ClickstreamEvent_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InvalidStringCastEvent.ProtoReflect.Descriptor instead.
+func (*InvalidStringCastEvent) Descriptor() ([]byte, []int) {
+	return file_ClickstreamEvent_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *InvalidStringCastEvent) GetEventName() []string {
+	if x != nil {
+		return x.EventName
+	}
+	return nil
+}
+
 var File_ClickstreamEvent_proto protoreflect.FileDescriptor
 
 const file_ClickstreamEvent_proto_rawDesc = "" +
 	"\n" +
-	"\x16ClickstreamEvent.proto\x12\x10gojek.de.raccoon\x1a\x1fgoogle/protobuf/timestamp.proto\"\x92\x06\n" +
+	"\x16ClickstreamEvent.proto\x12\x10gojek.de.raccoon\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbe\x06\n" +
 	"\x05Event\x123\n" +
 	"\aproduct\x18\x01 \x01(\x0e2\x19.gojek.de.raccoon.ProductR\aproduct\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x0e\n" +
@@ -286,7 +606,8 @@ const file_ClickstreamEvent_proto_rawDesc = "" +
 	"\vnested_list\x18\v \x03(\v2\x1f.gojek.de.raccoon.NestedMessageR\n" +
 	"nestedList\x12E\n" +
 	"\n" +
-	"nested_map\x18\f \x03(\v2&.gojek.de.raccoon.Event.NestedMapEntryR\tnestedMap\x1a;\n" +
+	"nested_map\x18\f \x03(\v2&.gojek.de.raccoon.Event.NestedMapEntryR\tnestedMap\x12*\n" +
+	"\x04meta\x18\r \x01(\v2\x16.gojek.de.raccoon.MetaR\x04meta\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a;\n" +
@@ -299,7 +620,34 @@ const file_ClickstreamEvent_proto_rawDesc = "" +
 	"\rNestedMessage\x12\x16\n" +
 	"\x06field1\x18\x01 \x01(\tR\x06field1\x12\x16\n" +
 	"\x06field2\x18\x02 \x01(\x05R\x06field2\x123\n" +
-	"\aproduct\x18\x03 \x01(\x0e2\x19.gojek.de.raccoon.ProductR\aproduct*#\n" +
+	"\aproduct\x18\x03 \x01(\x0e2\x19.gojek.de.raccoon.ProductR\aproduct\"%\n" +
+	"\x04Meta\x12\x1d\n" +
+	"\n" +
+	"event_guid\x18\x01 \x01(\tR\teventGuid\"N\n" +
+	"\x13InvalidProductEvent\x12\x1d\n" +
+	"\n" +
+	"event_name\x18\x01 \x01(\tR\teventName\x12\x18\n" +
+	"\aproduct\x18\x02 \x01(\tR\aproduct\"\x94\x01\n" +
+	"\x15InvalidTimestampEvent\x12\x1d\n" +
+	"\n" +
+	"event_name\x18\x01 \x01(\tR\teventName\x123\n" +
+	"\aproduct\x18\x02 \x01(\x0e2\x19.gojek.de.raccoon.ProductR\aproduct\x12'\n" +
+	"\x0fevent_timestamp\x18\x03 \x01(\tR\x0eeventTimestamp\"\xe4\x01\n" +
+	"\x10InvalidGuidEvent\x12\x1d\n" +
+	"\n" +
+	"event_name\x18\x01 \x01(\tR\teventName\x123\n" +
+	"\aproduct\x18\x02 \x01(\x0e2\x19.gojek.de.raccoon.ProductR\aproduct\x12C\n" +
+	"\x0fevent_timestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x0eeventTimestamp\x127\n" +
+	"\x04meta\x18\x04 \x01(\v2#.gojek.de.raccoon.NestedInvalidMetaR\x04meta\"\xa4\x01\n" +
+	"\x11NestedInvalidMeta\x12Q\n" +
+	"\n" +
+	"event_guid\x18\x01 \x03(\v22.gojek.de.raccoon.NestedInvalidMeta.EventGuidEntryR\teventGuid\x1a<\n" +
+	"\x0eEventGuidEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"7\n" +
+	"\x16InvalidStringCastEvent\x12\x1d\n" +
+	"\n" +
+	"event_name\x18\x01 \x03(\tR\teventName*#\n" +
 	"\aProduct\x12\v\n" +
 	"\aUnknown\x10\x00\x12\v\n" +
 	"\aGeneric\x10\x01BX\n" +
@@ -318,31 +666,44 @@ func file_ClickstreamEvent_proto_rawDescGZIP() []byte {
 }
 
 var file_ClickstreamEvent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_ClickstreamEvent_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_ClickstreamEvent_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_ClickstreamEvent_proto_goTypes = []any{
-	(Product)(0),                  // 0: gojek.de.raccoon.Product
-	(*Event)(nil),                 // 1: gojek.de.raccoon.Event
-	(*NestedMessage)(nil),         // 2: gojek.de.raccoon.NestedMessage
-	nil,                           // 3: gojek.de.raccoon.Event.MetadataEntry
-	nil,                           // 4: gojek.de.raccoon.Event.CountersEntry
-	nil,                           // 5: gojek.de.raccoon.Event.NestedMapEntry
-	(*timestamppb.Timestamp)(nil), // 6: google.protobuf.Timestamp
+	(Product)(0),                   // 0: gojek.de.raccoon.Product
+	(*Event)(nil),                  // 1: gojek.de.raccoon.Event
+	(*NestedMessage)(nil),          // 2: gojek.de.raccoon.NestedMessage
+	(*Meta)(nil),                   // 3: gojek.de.raccoon.Meta
+	(*InvalidProductEvent)(nil),    // 4: gojek.de.raccoon.InvalidProductEvent
+	(*InvalidTimestampEvent)(nil),  // 5: gojek.de.raccoon.InvalidTimestampEvent
+	(*InvalidGuidEvent)(nil),       // 6: gojek.de.raccoon.InvalidGuidEvent
+	(*NestedInvalidMeta)(nil),      // 7: gojek.de.raccoon.NestedInvalidMeta
+	(*InvalidStringCastEvent)(nil), // 8: gojek.de.raccoon.InvalidStringCastEvent
+	nil,                            // 9: gojek.de.raccoon.Event.MetadataEntry
+	nil,                            // 10: gojek.de.raccoon.Event.CountersEntry
+	nil,                            // 11: gojek.de.raccoon.Event.NestedMapEntry
+	nil,                            // 12: gojek.de.raccoon.NestedInvalidMeta.EventGuidEntry
+	(*timestamppb.Timestamp)(nil),  // 13: google.protobuf.Timestamp
 }
 var file_ClickstreamEvent_proto_depIdxs = []int32{
-	0, // 0: gojek.de.raccoon.Event.product:type_name -> gojek.de.raccoon.Product
-	6, // 1: gojek.de.raccoon.Event.event_timestamp:type_name -> google.protobuf.Timestamp
-	3, // 2: gojek.de.raccoon.Event.metadata:type_name -> gojek.de.raccoon.Event.MetadataEntry
-	4, // 3: gojek.de.raccoon.Event.counters:type_name -> gojek.de.raccoon.Event.CountersEntry
-	2, // 4: gojek.de.raccoon.Event.nested:type_name -> gojek.de.raccoon.NestedMessage
-	2, // 5: gojek.de.raccoon.Event.nested_list:type_name -> gojek.de.raccoon.NestedMessage
-	5, // 6: gojek.de.raccoon.Event.nested_map:type_name -> gojek.de.raccoon.Event.NestedMapEntry
-	0, // 7: gojek.de.raccoon.NestedMessage.product:type_name -> gojek.de.raccoon.Product
-	2, // 8: gojek.de.raccoon.Event.NestedMapEntry.value:type_name -> gojek.de.raccoon.NestedMessage
-	9, // [9:9] is the sub-list for method output_type
-	9, // [9:9] is the sub-list for method input_type
-	9, // [9:9] is the sub-list for extension type_name
-	9, // [9:9] is the sub-list for extension extendee
-	0, // [0:9] is the sub-list for field type_name
+	0,  // 0: gojek.de.raccoon.Event.product:type_name -> gojek.de.raccoon.Product
+	13, // 1: gojek.de.raccoon.Event.event_timestamp:type_name -> google.protobuf.Timestamp
+	9,  // 2: gojek.de.raccoon.Event.metadata:type_name -> gojek.de.raccoon.Event.MetadataEntry
+	10, // 3: gojek.de.raccoon.Event.counters:type_name -> gojek.de.raccoon.Event.CountersEntry
+	2,  // 4: gojek.de.raccoon.Event.nested:type_name -> gojek.de.raccoon.NestedMessage
+	2,  // 5: gojek.de.raccoon.Event.nested_list:type_name -> gojek.de.raccoon.NestedMessage
+	11, // 6: gojek.de.raccoon.Event.nested_map:type_name -> gojek.de.raccoon.Event.NestedMapEntry
+	3,  // 7: gojek.de.raccoon.Event.meta:type_name -> gojek.de.raccoon.Meta
+	0,  // 8: gojek.de.raccoon.NestedMessage.product:type_name -> gojek.de.raccoon.Product
+	0,  // 9: gojek.de.raccoon.InvalidTimestampEvent.product:type_name -> gojek.de.raccoon.Product
+	0,  // 10: gojek.de.raccoon.InvalidGuidEvent.product:type_name -> gojek.de.raccoon.Product
+	13, // 11: gojek.de.raccoon.InvalidGuidEvent.event_timestamp:type_name -> google.protobuf.Timestamp
+	7,  // 12: gojek.de.raccoon.InvalidGuidEvent.meta:type_name -> gojek.de.raccoon.NestedInvalidMeta
+	12, // 13: gojek.de.raccoon.NestedInvalidMeta.event_guid:type_name -> gojek.de.raccoon.NestedInvalidMeta.EventGuidEntry
+	2,  // 14: gojek.de.raccoon.Event.NestedMapEntry.value:type_name -> gojek.de.raccoon.NestedMessage
+	15, // [15:15] is the sub-list for method output_type
+	15, // [15:15] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_ClickstreamEvent_proto_init() }
@@ -356,7 +717,7 @@ func file_ClickstreamEvent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ClickstreamEvent_proto_rawDesc), len(file_ClickstreamEvent_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   5,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
