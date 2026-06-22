@@ -14,6 +14,7 @@ import (
 	"github.com/goto/raccoon/ingestionrule/schemaregistry"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
+	"github.com/goto/raccoon/model"
 )
 
 // MetricEvalDuration is the service-level alias for the shared latency metric.
@@ -103,16 +104,21 @@ func (s *Service) HealthCheck() error {
 
 // Apply runs the event batch through the action pipeline and returns only events
 // that no action consumed (passthrough)
-func (s *Service) Apply(ctx context.Context, events []*pb.Event, connGroup string) []*pb.Event {
+func (s *Service) Apply(ctx context.Context, events []*pb.Event, connGroup string) []*model.EventWithMetadata {
 	if s == nil {
-		return events
+		return schemaregistry.DeserializeEvents(events, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, schemaregistry.StencilClient{})
 	}
 
 	start := time.Now()
 
 	metadataEvents := schemaregistry.DeserializeEvents(events, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, s.stencil)
 
-	sanitizedEvents := s.chain.Apply(ctx, metadataEvents, connGroup)
+	var sanitizedEvents []*model.EventWithMetadata
+	if config.PolicyCfg.Enabled {
+		sanitizedEvents = s.chain.Apply(ctx, metadataEvents, connGroup)
+	} else {
+		sanitizedEvents = metadataEvents
+	}
 
 	metrics.Timing(MetricEvalDuration, time.Since(start).Milliseconds(), fmt.Sprintf("action=total,conn_group=%s", connGroup))
 

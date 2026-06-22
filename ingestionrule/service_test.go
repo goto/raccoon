@@ -28,9 +28,13 @@ func TestMain(m *testing.M) {
 	config.StencilCfg.ExponentFactor = 1
 	config.StencilCfg.HTTPTimeout = 2 * time.Second
 
+	originalPolicyCfgEnabled := config.PolicyCfg.Enabled
+	config.PolicyCfg.Enabled = true
+
 	code := m.Run()
 
 	config.StencilCfg = originalCfg
+	config.PolicyCfg.Enabled = originalPolicyCfgEnabled
 	os.Exit(code)
 }
 
@@ -77,7 +81,9 @@ func buildRules(pastDrop, pastOverride time.Duration, withDeactivate bool) []con
 func TestService_Apply_NilIsPassthrough(t *testing.T) {
 	var svc *ingestionrule.Service
 	events := []*pb.Event{{EventName: "click"}}
-	assert.Equal(t, events, svc.Apply(context.Background(), events, "grp"))
+	result := svc.Apply(context.Background(), events, "grp")
+	assert.Len(t, result, 1)
+	assert.Equal(t, "click", result[0].EventName)
 }
 
 func TestService_Apply_DropTakesPriorityOverOverride(t *testing.T) {
@@ -113,7 +119,7 @@ func TestService_Apply_OverrideWhenNoDrop(t *testing.T) {
 	result := svc.Apply(context.Background(), events, "grp")
 	// Event stays in batch but with Type overridden to the override event type.
 	assert.Len(t, result, 1)
-	assert.Equal(t, testOverrideEventType, result[0].GetType())
+	assert.Equal(t, testOverrideEventType, result[0].EventType)
 }
 
 func TestService_Apply_PassthroughWhenNoPolicy(t *testing.T) {
@@ -122,7 +128,8 @@ func TestService_Apply_PassthroughWhenNoPolicy(t *testing.T) {
 
 	events := []*pb.Event{{EventName: "click"}}
 	result := svc.Apply(context.Background(), events, "grp")
-	assert.Equal(t, events, result)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "click", result[0].EventName)
 }
 
 func TestService_Apply_MixedBatch(t *testing.T) {
@@ -133,7 +140,8 @@ func TestService_Apply_MixedBatch(t *testing.T) {
 	clean := &pb.Event{EventName: "other", Product: "app"}
 	stale := &pb.Event{EventName: "click", Product: "app", EventTimestamp: timestampProto(time.Now().Add(-2 * time.Hour))}
 	result := svc.Apply(context.Background(), []*pb.Event{stale, clean}, "grp")
-	assert.Equal(t, []*pb.Event{clean}, result)
+	assert.Len(t, result, 1)
+	assert.Equal(t, clean, result[0].Event)
 }
 
 func TestService_Apply_DeactivateDropsEvent(t *testing.T) {
@@ -166,7 +174,9 @@ func TestService_Apply_DeactivatePassthroughWhenNoMatch(t *testing.T) {
 	events := []*pb.Event{
 		{EventName: "scroll", Product: "app", EventTimestamp: timestampProto(time.Now())},
 	}
-	assert.Equal(t, events, svc.Apply(context.Background(), events, "grp"))
+	result := svc.Apply(context.Background(), events, "grp")
+	assert.Len(t, result, 1)
+	assert.Equal(t, events[0], result[0].Event)
 }
 
 func TestService_Apply_UnknownActionTypeSkipped(t *testing.T) {
@@ -181,5 +191,7 @@ func TestService_Apply_UnknownActionTypeSkipped(t *testing.T) {
 	svc, err := ingestionrule.NewService(context.Background(), rules, testOverrideEventType)
 	assert.NoError(t, err)
 	events := []*pb.Event{{EventName: "click", Product: "app"}}
-	assert.Equal(t, events, svc.Apply(context.Background(), events, "grp"))
+	result := svc.Apply(context.Background(), events, "grp")
+	assert.Len(t, result, 1)
+	assert.Equal(t, events[0], result[0].Event)
 }

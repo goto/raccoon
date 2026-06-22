@@ -4,8 +4,10 @@ import (
 	"context"
 	"time"
 
-	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/goto/raccoon/identification"
+	"github.com/goto/raccoon/model"
 )
 
 type AckFunc func(err error)
@@ -15,7 +17,8 @@ type CollectRequest struct {
 	TimeConsumed         time.Time
 	TimePushed           time.Time
 	AckFunc
-	*pb.SendEventRequest
+	SentTime *timestamppb.Timestamp
+	Events   []*model.EventWithMetadata
 }
 
 type Collector interface {

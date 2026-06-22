@@ -11,15 +11,16 @@ import (
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
-	"github.com/goto/raccoon/collection"
-	"github.com/goto/raccoon/logger"
-	"github.com/goto/raccoon/metrics"
-	"github.com/goto/raccoon/services/rest/websocket/connection"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/goto/raccoon/collection"
+	"github.com/goto/raccoon/logger"
+	"github.com/goto/raccoon/metrics"
+	"github.com/goto/raccoon/services/rest/websocket/connection"
 )
 
 type void struct{}

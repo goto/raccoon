@@ -7,14 +7,14 @@ import (
 	"io"
 	"testing"
 
+	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+	"github.com/gojek/courier-go"
 	"github.com/gojekfarm/xtools/xproto"
-	"github.com/goto/raccoon/serialization"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-	"github.com/gojek/courier-go"
 	"github.com/goto/raccoon/collection"
+	"github.com/goto/raccoon/serialization"
 )
 
 func TestHandler_MQTTHandler(t *testing.T) {
@@ -72,7 +72,7 @@ func TestHandler_MQTTHandler(t *testing.T) {
 			if tt.expectCollectCall {
 				mockCollector.
 					On("Collect", mock.Anything, mock.MatchedBy(func(r *collection.CollectRequest) bool {
-						if r == nil || r.SendEventRequest == nil {
+						if r == nil {
 							return false
 						}
 						return r.ConnectionIdentifier.Group == tt.expectedGroup

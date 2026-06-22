@@ -43,7 +43,7 @@ func TestPolicyChain_Apply_FiltersAcrossActions(t *testing.T) {
 	}
 	result := chain.Apply(context.Background(), events, "grp")
 	assert.Len(t, result, 1)
-	assert.Equal(t, "view", result[0].GetEventName())
+	assert.Equal(t, "view", result[0].EventName)
 }
 
 func TestPolicyChain_Apply_PassthroughWhenNoActionFilters(t *testing.T) {
@@ -59,7 +59,9 @@ func TestPolicyChain_Apply_PassthroughWhenNoActionFilters(t *testing.T) {
 		{EventName: "scroll", Event: pbScroll},
 	}
 	result := chain.Apply(context.Background(), events, "grp")
-	assert.Equal(t, []*pb.Event{pbClick, pbScroll}, result)
+	assert.Len(t, result, 2)
+	assert.Equal(t, pbClick, result[0].Event)
+	assert.Equal(t, pbScroll, result[1].Event)
 }
 
 func TestPolicyChain_Apply_PassthroughWhenEmpty(t *testing.T) {
@@ -67,7 +69,9 @@ func TestPolicyChain_Apply_PassthroughWhenEmpty(t *testing.T) {
 	events := []*model.EventWithMetadata{
 		{EventName: "click", Event: pbClick},
 	}
-	assert.Equal(t, []*pb.Event{pbClick}, ingestionrule.Chain{}.Apply(context.Background(), events, "grp"))
+	res := ingestionrule.Chain{}.Apply(context.Background(), events, "grp")
+	assert.Len(t, res, 1)
+	assert.Equal(t, pbClick, res[0].Event)
 }
 
 func TestPolicyChain_Apply_FirstActionRemovesEvents(t *testing.T) {
@@ -84,5 +88,5 @@ func TestPolicyChain_Apply_FirstActionRemovesEvents(t *testing.T) {
 	}
 	result := chain.Apply(context.Background(), events, "grp")
 	assert.Len(t, result, 1)
-	assert.Equal(t, "view", result[0].GetEventName())
+	assert.Equal(t, "view", result[0].EventName)
 }

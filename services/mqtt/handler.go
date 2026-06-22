@@ -7,15 +7,15 @@ import (
 	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-
 	"github.com/gojek/courier-go"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/identification"
+	policypkg "github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
-	policypkg "github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/serialization"
-	"google.golang.org/protobuf/proto"
 )
 
 // Handler processes MQTT messages and passes them to the Collector.
@@ -60,7 +60,7 @@ func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *co
 		logger.Debugf("[mqtt.MQTTHandler] event: event_name=%s, product=%s, type=%s, event_timestamp=%s, req_guid=%s, conn_group=%s", e.EventName, e.Product, e.Type, e.GetEventTimestamp().AsTime(), req.ReqGuid, connGroup)
 	}
 
-	req.Events = h.policy.Apply(ctx, req.Events, connGroup)
+	eventsWithMetadata := h.policy.Apply(ctx, req.Events, connGroup)
 
 	timing_event_received := start.Sub(req.GetSentTime().AsTime()).Milliseconds()
 	metrics.Timing("event_received_duration_milliseconds", timing_event_received, fmt.Sprintf("conn_group=%s", connGroup))
@@ -68,7 +68,8 @@ func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *co
 	h.Collector.Collect(ctx, &collection.CollectRequest{
 		ConnectionIdentifier: identification.Identifier{Group: connGroup},
 		TimeConsumed:         start,
-		SendEventRequest:     &req,
+		SentTime:             req.SentTime,
+		Events:               eventsWithMetadata,
 		AckFunc:              nil,
 	})
 }

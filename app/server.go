@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"strings"
 	"syscall"
 	"time"
 
@@ -94,10 +93,10 @@ func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices
 					tags := fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s,app_version=%s,platform=%s",
 						"INTERNAL_SERVER_ERROR",
 						event.EventName,
-						strings.ReplaceAll(strings.ToLower(event.Product), "_", ""),
+						event.Product,
 						req.ConnectionIdentifier,
-						event.AppVersion,
-						event.Platform,
+						event.Event.AppVersion,
+						event.Event.Platform,
 					)
 
 					metrics.Increment("clickstream_data_loss", tags)
@@ -133,12 +132,12 @@ func reportProcMetrics() {
 	}
 }
 
-// initIngestionRule builds a *ingestionrule.Service when POLICY_ENABLED=true.
-// Returns nil when policy is disabled; a nil *ingestionrule.Service is safe (Apply is a no-op).
+// initIngestionRule builds a *ingestionrule.Service.
 func initIngestionRule(ctx context.Context) (*ingestionrule.Service, error) {
-	if !config.PolicyCfg.Enabled {
-		logger.Info("ingestionRule enforcement disabled")
-		return nil, nil
+	if config.PolicyCfg.Enabled {
+		logger.Infof("ingestionRule enforcement enabled: loaded %d rules", len(config.PolicyCfg.Rules))
+	} else {
+		logger.Info("ingestionRule enforcement disabled (deserialization only)")
 	}
 
 	svc, err := ingestionrule.NewService(
@@ -149,8 +148,6 @@ func initIngestionRule(ctx context.Context) (*ingestionrule.Service, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	logger.Infof("ingestionRule enforcement enabled: loaded %d rules, override event type=%s", len(config.PolicyCfg.Rules), config.PolicyCfg.OverrideEventType)
 
 	return svc, nil
 }
