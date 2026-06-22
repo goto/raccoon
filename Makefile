@@ -20,7 +20,7 @@ copy-config:
 
 # Build Lifecycle
 compile:
-	go build -o $(APP_EXECUTABLE)
+	go build -tags $(GOTEST_TAGS) -o $(APP_EXECUTABLE)
 
 build: copy-config update-deps compile
 
