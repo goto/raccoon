@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/goto/raccoon/config"
@@ -39,7 +38,6 @@ func TestDrop_DropsBreachedEvents(t *testing.T) {
 		Product:        "app",
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
-		Event:          &pb.Event{},
 	}}
 	assert.Empty(t, newDrop(c).Apply(context.Background(), events, "pub-a"))
 }
@@ -51,7 +49,6 @@ func TestDrop_PassthroughWhenWithinThreshold(t *testing.T) {
 		Product:        "app",
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now(),
-		Event:          &pb.Event{},
 	}}
 	assert.Equal(t, events, newDrop(c).Apply(context.Background(), events, "pub-a"))
 }
@@ -63,7 +60,6 @@ func TestDrop_PassthroughWhenNoIngestionRuleMatch(t *testing.T) {
 		Product:        "app",
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
-		Event:          &pb.Event{},
 	}}
 	assert.Equal(t, events, newDrop(c).Apply(context.Background(), events, "pub-a"))
 }
@@ -74,7 +70,6 @@ func TestDrop_PassthroughWhenMetadataIncomplete(t *testing.T) {
 		EventName:      "click",
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
-		Event:          &pb.Event{},
 	}}
 	assert.Equal(t, events, newDrop(c).Apply(context.Background(), events, "pub-a"))
 }
@@ -83,9 +78,9 @@ func TestDrop_FiltersMixedBatch(t *testing.T) {
 	c := buildDropCache("click", "app", "pub-a", time.Hour)
 	staleTs := time.Now().Add(-2 * time.Hour)
 	events := []*model.EventWithMetadata{
-		{EventName: "click", Product: "app", Publisher: "pub-a", EventTimestamp: staleTs, Event: &pb.Event{}},
-		{EventName: "scroll", Product: "app", Publisher: "pub-a", EventTimestamp: staleTs, Event: &pb.Event{}},
-		{EventName: "click", Product: "app", Publisher: "pub-a", EventTimestamp: staleTs, Event: &pb.Event{}},
+		{EventName: "click", Product: "app", Publisher: "pub-a", EventTimestamp: staleTs},
+		{EventName: "scroll", Product: "app", Publisher: "pub-a", EventTimestamp: staleTs},
+		{EventName: "click", Product: "app", Publisher: "pub-a", EventTimestamp: staleTs},
 	}
 	result := newDrop(c).Apply(context.Background(), events, "pub-a")
 	assert.Len(t, result, 1)

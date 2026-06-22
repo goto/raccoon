@@ -37,9 +37,9 @@ func TestPolicyChain_Apply_FiltersAcrossActions(t *testing.T) {
 	pbView := &pb.Event{EventName: "view"}
 
 	events := []*model.EventWithMetadata{
-		{EventName: "click", Event: pbClick},
-		{EventName: "scroll", Event: pbScroll},
-		{EventName: "view", Event: pbView},
+		{EventName: "click", Type: pbClick.GetType(), Platform: pbClick.GetPlatform(), AppVersion: pbClick.GetAppVersion(), IsExclusive: pbClick.GetIsExclusive(), EventBytes: pbClick.GetEventBytes()},
+		{EventName: "scroll", Type: pbScroll.GetType(), Platform: pbScroll.GetPlatform(), AppVersion: pbScroll.GetAppVersion(), IsExclusive: pbScroll.GetIsExclusive(), EventBytes: pbScroll.GetEventBytes()},
+		{EventName: "view", Type: pbView.GetType(), Platform: pbView.GetPlatform(), AppVersion: pbView.GetAppVersion(), IsExclusive: pbView.GetIsExclusive(), EventBytes: pbView.GetEventBytes()},
 	}
 	result := chain.Apply(context.Background(), events, "grp")
 	assert.Len(t, result, 1)
@@ -55,23 +55,23 @@ func TestPolicyChain_Apply_PassthroughWhenNoActionFilters(t *testing.T) {
 	pbScroll := &pb.Event{EventName: "scroll"}
 
 	events := []*model.EventWithMetadata{
-		{EventName: "click", Event: pbClick},
-		{EventName: "scroll", Event: pbScroll},
+		{EventName: "click", Type: pbClick.GetType(), Platform: pbClick.GetPlatform(), AppVersion: pbClick.GetAppVersion(), IsExclusive: pbClick.GetIsExclusive(), EventBytes: pbClick.GetEventBytes()},
+		{EventName: "scroll", Type: pbScroll.GetType(), Platform: pbScroll.GetPlatform(), AppVersion: pbScroll.GetAppVersion(), IsExclusive: pbScroll.GetIsExclusive(), EventBytes: pbScroll.GetEventBytes()},
 	}
 	result := chain.Apply(context.Background(), events, "grp")
 	assert.Len(t, result, 2)
-	assert.Equal(t, pbClick, result[0].Event)
-	assert.Equal(t, pbScroll, result[1].Event)
+	assert.Equal(t, "click", result[0].EventName)
+	assert.Equal(t, "scroll", result[1].EventName)
 }
 
 func TestPolicyChain_Apply_PassthroughWhenEmpty(t *testing.T) {
 	pbClick := &pb.Event{EventName: "click"}
 	events := []*model.EventWithMetadata{
-		{EventName: "click", Event: pbClick},
+		{EventName: "click", Type: pbClick.GetType(), Platform: pbClick.GetPlatform(), AppVersion: pbClick.GetAppVersion(), IsExclusive: pbClick.GetIsExclusive(), EventBytes: pbClick.GetEventBytes()},
 	}
 	res := ingestionrule.Chain{}.Apply(context.Background(), events, "grp")
 	assert.Len(t, res, 1)
-	assert.Equal(t, pbClick, res[0].Event)
+	assert.Equal(t, "click", res[0].EventName)
 }
 
 func TestPolicyChain_Apply_FirstActionRemovesEvents(t *testing.T) {
@@ -83,8 +83,8 @@ func TestPolicyChain_Apply_FirstActionRemovesEvents(t *testing.T) {
 	pbView := &pb.Event{EventName: "view"}
 
 	events := []*model.EventWithMetadata{
-		{EventName: "click", Event: pbClick},
-		{EventName: "view", Event: pbView},
+		{EventName: "click", Type: pbClick.GetType(), Platform: pbClick.GetPlatform(), AppVersion: pbClick.GetAppVersion(), IsExclusive: pbClick.GetIsExclusive(), EventBytes: pbClick.GetEventBytes()},
+		{EventName: "view", Type: pbView.GetType(), Platform: pbView.GetPlatform(), AppVersion: pbView.GetAppVersion(), IsExclusive: pbView.GetIsExclusive(), EventBytes: pbView.GetEventBytes()},
 	}
 	result := chain.Apply(context.Background(), events, "grp")
 	assert.Len(t, result, 1)

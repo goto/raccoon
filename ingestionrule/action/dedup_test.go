@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -19,7 +18,7 @@ import (
 func TestDedup_Apply_NilChecker(t *testing.T) {
 	// Case 1: d is nil
 	var d *action.Dedup
-	events := []*model.EventWithMetadata{{Event: &pb.Event{Type: "click"}}}
+	events := []*model.EventWithMetadata{{Type: "click"}}
 	assert.Equal(t, events, d.Apply(context.Background(), events, "group-1"))
 
 	// Case 2: d is not nil, but checker is nil
@@ -35,7 +34,7 @@ func TestDedup_Apply_BypassDeduplicationWhenNotWhitelisted(t *testing.T) {
 
 	mc := mocks.NewDuplicateChecker(t)
 	d := action.NewDedup(mc)
-	events := []*model.EventWithMetadata{{Event: &pb.Event{Type: "click"}}}
+	events := []*model.EventWithMetadata{{Type: "click"}}
 	assert.Equal(t, events, d.Apply(context.Background(), events, "group-1"))
 }
 
@@ -64,7 +63,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 				EventGUID: "guid-1",
 				EventName: "click",
 				Product:   "clickstream",
-				Event:     &pb.Event{Type: "component"},
+				Type:      "component",
 			},
 		}
 
@@ -92,7 +91,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 				EventGUID: "guid-1",
 				EventName: "click",
 				Product:   "clickstream",
-				Event:     &pb.Event{Type: "component"},
+				Type:      "component",
 			},
 		}
 
@@ -114,25 +113,28 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 
 		events := []*model.EventWithMetadata{
 			{
-				Publisher: "customer-publisher",
-				EventGUID: "guid-1",
-				EventName: "click",
-				Product:   "clickstream",
-				Event:     &pb.Event{Type: "component", EventBytes: []byte("1")},
+				Publisher:  "customer-publisher",
+				EventGUID:  "guid-1",
+				EventName:  "click",
+				Product:    "clickstream",
+				Type:       "component",
+				EventBytes: []byte("1"),
 			},
 			{
-				Publisher: "customer-publisher",
-				EventGUID: "guid-2",
-				EventName: "click",
-				Product:   "clickstream",
-				Event:     &pb.Event{Type: "component", EventBytes: []byte("2")},
+				Publisher:  "customer-publisher",
+				EventGUID:  "guid-2",
+				EventName:  "click",
+				Product:    "clickstream",
+				Type:       "component",
+				EventBytes: []byte("2"),
 			},
 			{
-				Publisher: "customer-publisher",
-				EventGUID: "guid-3",
-				EventName: "click",
-				Product:   "clickstream",
-				Event:     &pb.Event{Type: "component", EventBytes: []byte("3")},
+				Publisher:  "customer-publisher",
+				EventGUID:  "guid-3",
+				EventName:  "click",
+				Product:    "clickstream",
+				Type:       "component",
+				EventBytes: []byte("3"),
 			},
 		}
 
@@ -141,7 +143,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		// Assert that the 2 duplicates were dropped, leaving exactly 1 event
 		assert.Len(t, res, 1)
 		// Assert that the surviving event is the correct one (the first one)
-		assert.Equal(t, []byte("1"), res[0].Event.EventBytes)
+		assert.Equal(t, []byte("1"), res[0].EventBytes)
 	})
 
 	// 4. Redis error case: fails open.
@@ -164,7 +166,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 				EventGUID: "guid-1",
 				EventName: "click",
 				Product:   "clickstream",
-				Event:     &pb.Event{Type: "component"},
+				Type:      "component",
 			},
 		}
 
@@ -189,7 +191,7 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 				EventGUID: "",
 				EventName: "click",
 				Product:   "clickstream",
-				Event:     &pb.Event{Type: "component"},
+				Type:      "component",
 			},
 		}
 
@@ -208,7 +210,7 @@ func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 				EventGUID: "guid-1",
 				EventName: "click",
 				Product:   "clickstream",
-				Event:     &pb.Event{Type: "component"},
+				Type:      "component",
 			},
 		}
 

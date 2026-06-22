@@ -44,9 +44,13 @@ func toEventsWithMetadata(events []*pb.Event) []*model.EventWithMetadata {
 	res := make([]*model.EventWithMetadata, len(events))
 	for i, e := range events {
 		res[i] = &model.EventWithMetadata{
-			Event:     e,
-			EventName: e.EventName,
-			Product:   e.Product,
+			EventName:   e.EventName,
+			Product:     e.Product,
+			Type:        e.Type,
+			Platform:    e.Platform,
+			AppVersion:  e.AppVersion,
+			IsExclusive: e.IsExclusive,
+			EventBytes:  e.EventBytes,
 		}
 	}
 	return res
@@ -106,7 +110,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 			err := kp.ProduceBulk(eventsWithMetadata, group1, make(chan kafka.Event, 1), now, now, now)
 
 			assert.NoError(t, err)
-			assert.Equal(t, "gobiz-apihealth", eventsWithMetadata[0].Event.GetType())
+			assert.Equal(t, "gobiz-apihealth", eventsWithMetadata[0].Type)
 		})
 
 		t.Run("Should leave event type unchanged when mapping key does not match extracted prefix", func(t *testing.T) {
@@ -133,7 +137,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 			err := kp.ProduceBulk(eventsWithMetadata, group1, make(chan kafka.Event, 1), now, now, now)
 
 			assert.NoError(t, err)
-			assert.Equal(t, "CS_APP_PREFIX-apihealth", eventsWithMetadata[0].Event.GetType())
+			assert.Equal(t, "CS_APP_PREFIX-apihealth", eventsWithMetadata[0].Type)
 		})
 
 		t.Run("Should leave plain event type unchanged when incoming type is page", func(t *testing.T) {
@@ -160,7 +164,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 			err := kp.ProduceBulk(eventsWithMetadata, group1, make(chan kafka.Event, 1), now, now, now)
 
 			assert.NoError(t, err)
-			assert.Equal(t, "page", eventsWithMetadata[0].Event.GetType())
+			assert.Equal(t, "page", eventsWithMetadata[0].Type)
 		})
 
 		t.Run("Should leave event type unchanged when incoming type is CS_APP without delimiter", func(t *testing.T) {
@@ -187,7 +191,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 			err := kp.ProduceBulk(eventsWithMetadata, group1, make(chan kafka.Event, 1), now, now, now)
 
 			assert.NoError(t, err)
-			assert.Equal(t, "CS_APP", eventsWithMetadata[0].Event.GetType())
+			assert.Equal(t, "CS_APP", eventsWithMetadata[0].Type)
 		})
 
 		t.Run("Should leave event type unchanged when prefix mapping is nil", func(t *testing.T) {
@@ -214,7 +218,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 			err := kp.ProduceBulk(eventsWithMetadata, group1, make(chan kafka.Event, 1), now, now, now)
 
 			assert.NoError(t, err)
-			assert.Equal(t, "CS_APP_PREFIX-apihealth", eventsWithMetadata[0].Event.GetType())
+			assert.Equal(t, "CS_APP_PREFIX-apihealth", eventsWithMetadata[0].Type)
 		})
 	})
 
