@@ -4,9 +4,9 @@
 // versions:
 // 	protoc-gen-go v1.36.10
 // 	protoc        v6.32.1
-// source: ClickstreamEvent.proto
+// source: ingestionrule/schemaregistry/protoutil/testpb/ClickstreamEvent.proto
 
-package raccoon
+package testpb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -55,11 +55,11 @@ func (x Product) String() string {
 }
 
 func (Product) Descriptor() protoreflect.EnumDescriptor {
-	return file_ClickstreamEvent_proto_enumTypes[0].Descriptor()
+	return file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_enumTypes[0].Descriptor()
 }
 
 func (Product) Type() protoreflect.EnumType {
-	return &file_ClickstreamEvent_proto_enumTypes[0]
+	return &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_enumTypes[0]
 }
 
 func (x Product) Number() protoreflect.EnumNumber {
@@ -68,7 +68,7 @@ func (x Product) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Product.Descriptor instead.
 func (Product) EnumDescriptor() ([]byte, []int) {
-	return file_ClickstreamEvent_proto_rawDescGZIP(), []int{0}
+	return file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDescGZIP(), []int{0}
 }
 
 // Event contains fields for all test cases.
@@ -93,7 +93,7 @@ type Event struct {
 
 func (x *Event) Reset() {
 	*x = Event{}
-	mi := &file_ClickstreamEvent_proto_msgTypes[0]
+	mi := &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -105,7 +105,7 @@ func (x *Event) String() string {
 func (*Event) ProtoMessage() {}
 
 func (x *Event) ProtoReflect() protoreflect.Message {
-	mi := &file_ClickstreamEvent_proto_msgTypes[0]
+	mi := &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -118,7 +118,7 @@ func (x *Event) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Event.ProtoReflect.Descriptor instead.
 func (*Event) Descriptor() ([]byte, []int) {
-	return file_ClickstreamEvent_proto_rawDescGZIP(), []int{0}
+	return file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Event) GetProduct() Product {
@@ -224,7 +224,7 @@ type NestedMessage struct {
 
 func (x *NestedMessage) Reset() {
 	*x = NestedMessage{}
-	mi := &file_ClickstreamEvent_proto_msgTypes[1]
+	mi := &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -236,7 +236,7 @@ func (x *NestedMessage) String() string {
 func (*NestedMessage) ProtoMessage() {}
 
 func (x *NestedMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_ClickstreamEvent_proto_msgTypes[1]
+	mi := &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -249,7 +249,7 @@ func (x *NestedMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NestedMessage.ProtoReflect.Descriptor instead.
 func (*NestedMessage) Descriptor() ([]byte, []int) {
-	return file_ClickstreamEvent_proto_rawDescGZIP(), []int{1}
+	return file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *NestedMessage) GetField1() string {
@@ -282,7 +282,7 @@ type Meta struct {
 
 func (x *Meta) Reset() {
 	*x = Meta{}
-	mi := &file_ClickstreamEvent_proto_msgTypes[2]
+	mi := &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -294,7 +294,7 @@ func (x *Meta) String() string {
 func (*Meta) ProtoMessage() {}
 
 func (x *Meta) ProtoReflect() protoreflect.Message {
-	mi := &file_ClickstreamEvent_proto_msgTypes[2]
+	mi := &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -307,7 +307,7 @@ func (x *Meta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Meta.ProtoReflect.Descriptor instead.
 func (*Meta) Descriptor() ([]byte, []int) {
-	return file_ClickstreamEvent_proto_rawDescGZIP(), []int{2}
+	return file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Meta) GetEventGuid() string {
@@ -327,7 +327,7 @@ type InvalidProductEvent struct {
 
 func (x *InvalidProductEvent) Reset() {
 	*x = InvalidProductEvent{}
-	mi := &file_ClickstreamEvent_proto_msgTypes[3]
+	mi := &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -339,7 +339,7 @@ func (x *InvalidProductEvent) String() string {
 func (*InvalidProductEvent) ProtoMessage() {}
 
 func (x *InvalidProductEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_ClickstreamEvent_proto_msgTypes[3]
+	mi := &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -352,7 +352,7 @@ func (x *InvalidProductEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InvalidProductEvent.ProtoReflect.Descriptor instead.
 func (*InvalidProductEvent) Descriptor() ([]byte, []int) {
-	return file_ClickstreamEvent_proto_rawDescGZIP(), []int{3}
+	return file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *InvalidProductEvent) GetEventName() string {
@@ -380,7 +380,7 @@ type InvalidTimestampEvent struct {
 
 func (x *InvalidTimestampEvent) Reset() {
 	*x = InvalidTimestampEvent{}
-	mi := &file_ClickstreamEvent_proto_msgTypes[4]
+	mi := &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -392,7 +392,7 @@ func (x *InvalidTimestampEvent) String() string {
 func (*InvalidTimestampEvent) ProtoMessage() {}
 
 func (x *InvalidTimestampEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_ClickstreamEvent_proto_msgTypes[4]
+	mi := &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -405,7 +405,7 @@ func (x *InvalidTimestampEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InvalidTimestampEvent.ProtoReflect.Descriptor instead.
 func (*InvalidTimestampEvent) Descriptor() ([]byte, []int) {
-	return file_ClickstreamEvent_proto_rawDescGZIP(), []int{4}
+	return file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *InvalidTimestampEvent) GetEventName() string {
@@ -441,7 +441,7 @@ type InvalidGuidEvent struct {
 
 func (x *InvalidGuidEvent) Reset() {
 	*x = InvalidGuidEvent{}
-	mi := &file_ClickstreamEvent_proto_msgTypes[5]
+	mi := &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -453,7 +453,7 @@ func (x *InvalidGuidEvent) String() string {
 func (*InvalidGuidEvent) ProtoMessage() {}
 
 func (x *InvalidGuidEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_ClickstreamEvent_proto_msgTypes[5]
+	mi := &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -466,7 +466,7 @@ func (x *InvalidGuidEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InvalidGuidEvent.ProtoReflect.Descriptor instead.
 func (*InvalidGuidEvent) Descriptor() ([]byte, []int) {
-	return file_ClickstreamEvent_proto_rawDescGZIP(), []int{5}
+	return file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *InvalidGuidEvent) GetEventName() string {
@@ -506,7 +506,7 @@ type NestedInvalidMeta struct {
 
 func (x *NestedInvalidMeta) Reset() {
 	*x = NestedInvalidMeta{}
-	mi := &file_ClickstreamEvent_proto_msgTypes[6]
+	mi := &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -518,7 +518,7 @@ func (x *NestedInvalidMeta) String() string {
 func (*NestedInvalidMeta) ProtoMessage() {}
 
 func (x *NestedInvalidMeta) ProtoReflect() protoreflect.Message {
-	mi := &file_ClickstreamEvent_proto_msgTypes[6]
+	mi := &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -531,7 +531,7 @@ func (x *NestedInvalidMeta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NestedInvalidMeta.ProtoReflect.Descriptor instead.
 func (*NestedInvalidMeta) Descriptor() ([]byte, []int) {
-	return file_ClickstreamEvent_proto_rawDescGZIP(), []int{6}
+	return file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *NestedInvalidMeta) GetEventGuid() map[string]string {
@@ -550,7 +550,7 @@ type InvalidStringCastEvent struct {
 
 func (x *InvalidStringCastEvent) Reset() {
 	*x = InvalidStringCastEvent{}
-	mi := &file_ClickstreamEvent_proto_msgTypes[7]
+	mi := &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -562,7 +562,7 @@ func (x *InvalidStringCastEvent) String() string {
 func (*InvalidStringCastEvent) ProtoMessage() {}
 
 func (x *InvalidStringCastEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_ClickstreamEvent_proto_msgTypes[7]
+	mi := &file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -575,7 +575,7 @@ func (x *InvalidStringCastEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InvalidStringCastEvent.ProtoReflect.Descriptor instead.
 func (*InvalidStringCastEvent) Descriptor() ([]byte, []int) {
-	return file_ClickstreamEvent_proto_rawDescGZIP(), []int{7}
+	return file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *InvalidStringCastEvent) GetEventName() []string {
@@ -585,11 +585,11 @@ func (x *InvalidStringCastEvent) GetEventName() []string {
 	return nil
 }
 
-var File_ClickstreamEvent_proto protoreflect.FileDescriptor
+var File_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto protoreflect.FileDescriptor
 
-const file_ClickstreamEvent_proto_rawDesc = "" +
+const file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDesc = "" +
 	"\n" +
-	"\x16ClickstreamEvent.proto\x12\x10gojek.de.raccoon\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbe\x06\n" +
+	"Dingestionrule/schemaregistry/protoutil/testpb/ClickstreamEvent.proto\x12\x10gojek.de.raccoon\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbe\x06\n" +
 	"\x05Event\x123\n" +
 	"\aproduct\x18\x01 \x01(\x0e2\x19.gojek.de.raccoon.ProductR\aproduct\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x0e\n" +
@@ -650,24 +650,24 @@ const file_ClickstreamEvent_proto_rawDesc = "" +
 	"event_name\x18\x01 \x03(\tR\teventName*#\n" +
 	"\aProduct\x12\v\n" +
 	"\aUnknown\x10\x00\x12\v\n" +
-	"\aGeneric\x10\x01BX\n" +
-	"\x14com.gojek.de.raccoonB\x10ClickstreamEventP\x01Z,source.golabs.io/asgard/proton-go/de/raccoonb\x06proto3"
+	"\aGeneric\x10\x01Bq\n" +
+	"\x14com.gojek.de.raccoonB\x10ClickstreamEventP\x01ZEgithub.com/goto/raccoon/ingestionrule/schemaregistry/protoutil/testpbb\x06proto3"
 
 var (
-	file_ClickstreamEvent_proto_rawDescOnce sync.Once
-	file_ClickstreamEvent_proto_rawDescData []byte
+	file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDescOnce sync.Once
+	file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDescData []byte
 )
 
-func file_ClickstreamEvent_proto_rawDescGZIP() []byte {
-	file_ClickstreamEvent_proto_rawDescOnce.Do(func() {
-		file_ClickstreamEvent_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_ClickstreamEvent_proto_rawDesc), len(file_ClickstreamEvent_proto_rawDesc)))
+func file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDescGZIP() []byte {
+	file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDescOnce.Do(func() {
+		file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDesc), len(file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDesc)))
 	})
-	return file_ClickstreamEvent_proto_rawDescData
+	return file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDescData
 }
 
-var file_ClickstreamEvent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_ClickstreamEvent_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
-var file_ClickstreamEvent_proto_goTypes = []any{
+var file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_goTypes = []any{
 	(Product)(0),                   // 0: gojek.de.raccoon.Product
 	(*Event)(nil),                  // 1: gojek.de.raccoon.Event
 	(*NestedMessage)(nil),          // 2: gojek.de.raccoon.NestedMessage
@@ -683,7 +683,7 @@ var file_ClickstreamEvent_proto_goTypes = []any{
 	nil,                            // 12: gojek.de.raccoon.NestedInvalidMeta.EventGuidEntry
 	(*timestamppb.Timestamp)(nil),  // 13: google.protobuf.Timestamp
 }
-var file_ClickstreamEvent_proto_depIdxs = []int32{
+var file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_depIdxs = []int32{
 	0,  // 0: gojek.de.raccoon.Event.product:type_name -> gojek.de.raccoon.Product
 	13, // 1: gojek.de.raccoon.Event.event_timestamp:type_name -> google.protobuf.Timestamp
 	9,  // 2: gojek.de.raccoon.Event.metadata:type_name -> gojek.de.raccoon.Event.MetadataEntry
@@ -706,27 +706,27 @@ var file_ClickstreamEvent_proto_depIdxs = []int32{
 	0,  // [0:15] is the sub-list for field type_name
 }
 
-func init() { file_ClickstreamEvent_proto_init() }
-func file_ClickstreamEvent_proto_init() {
-	if File_ClickstreamEvent_proto != nil {
+func init() { file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_init() }
+func file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_init() {
+	if File_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ClickstreamEvent_proto_rawDesc), len(file_ClickstreamEvent_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDesc), len(file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_ClickstreamEvent_proto_goTypes,
-		DependencyIndexes: file_ClickstreamEvent_proto_depIdxs,
-		EnumInfos:         file_ClickstreamEvent_proto_enumTypes,
-		MessageInfos:      file_ClickstreamEvent_proto_msgTypes,
+		GoTypes:           file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_goTypes,
+		DependencyIndexes: file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_depIdxs,
+		EnumInfos:         file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_enumTypes,
+		MessageInfos:      file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_msgTypes,
 	}.Build()
-	File_ClickstreamEvent_proto = out.File
-	file_ClickstreamEvent_proto_goTypes = nil
-	file_ClickstreamEvent_proto_depIdxs = nil
+	File_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto = out.File
+	file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_goTypes = nil
+	file_ingestionrule_schemaregistry_protoutil_testpb_ClickstreamEvent_proto_depIdxs = nil
 }

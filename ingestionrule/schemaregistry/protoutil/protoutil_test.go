@@ -8,7 +8,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	pb "github.com/goto/raccoon/ingestionrule/schemaregistry/protoutil/pb"
+	pb "github.com/goto/raccoon/ingestionrule/schemaregistry/protoutil/testpb"
 )
 
 func TestGetFieldValue(t *testing.T) {

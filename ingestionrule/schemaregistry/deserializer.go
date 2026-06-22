@@ -135,6 +135,7 @@ func extractBaseMetadata(
 
 	return model.EventWithMetadata{
 		Event:          event,
+		EventType:      event.GetType(),
 		TopicName:      fmt.Sprintf(topicFormat, event.GetType()),
 		Publisher:      resolvePublisher(connGroup, publisherMap),
 		Product:        strings.ReplaceAll(strings.ToLower(event.GetProduct()), "_", ""), // normalize across iOS/Android variants (e.g. "My_App" → "myapp")

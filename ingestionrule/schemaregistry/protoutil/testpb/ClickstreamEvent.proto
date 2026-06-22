@@ -8,7 +8,7 @@ import "google/protobuf/timestamp.proto";
 option java_outer_classname = "ClickstreamEvent";
 option java_multiple_files = true;
 option java_package = "com.gojek.de.raccoon";
-option go_package = "source.golabs.io/asgard/proton-go/de/raccoon";
+option go_package = "github.com/goto/raccoon/ingestionrule/schemaregistry/protoutil/testpb";
 
 // Event contains fields for all test cases.
 message Event {

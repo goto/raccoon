@@ -12,7 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/goto/raccoon/config"
-	testpb "github.com/goto/raccoon/ingestionrule/schemaregistry/protoutil/pb"
+	testpb "github.com/goto/raccoon/ingestionrule/schemaregistry/protoutil/testpb"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/model"
 )

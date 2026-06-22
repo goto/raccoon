@@ -51,7 +51,13 @@ mock:
 	@mockery
 	@echo "✅  Mocks generated successfully!"
 
+proto:
+	@echo "⚙️  Generating protobuf files..."
+	@protoc --go_out=. --go_opt=paths=source_relative ingestionrule/schemaregistry/protoutil/testpb/ClickstreamEvent.proto
+	@echo "✅  Protobuf files generated successfully!"
+
 # Tests
+
 
 test: lint
 	ENVIRONMENT=test go test -tags $(GOTEST_TAGS) $(shell go list ./... | grep -v "vendor" | grep -v "integration") -v
