@@ -128,12 +128,7 @@ func (s *Service) Apply(ctx context.Context, events []*pb.Event, connGroup strin
 
 	metadataEvents := schemaregistry.DeserializeEvents(events, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, s.stencil)
 
-	var sanitizedEvents []*model.EventWithMetadata
-	if config.PolicyCfg.Enabled {
-		sanitizedEvents = s.chain.Apply(ctx, metadataEvents, connGroup)
-	} else {
-		sanitizedEvents = metadataEvents
-	}
+	sanitizedEvents := s.chain.Apply(ctx, metadataEvents, connGroup)
 
 	return sanitizedEvents
 }
