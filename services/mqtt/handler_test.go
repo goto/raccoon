@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/goto/raccoon/collection"
+	"github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/serialization"
 )
 
@@ -65,8 +66,10 @@ func TestHandler_MQTTHandler(t *testing.T) {
 			mockCollector := new(collection.MockCollector)
 			ctx := context.Background()
 
+			svc, _ := ingestionrule.NewService(context.Background(), nil, "")
 			h := &Handler{
 				Collector: mockCollector,
+				policy:    svc,
 			}
 
 			if tt.expectCollectCall {

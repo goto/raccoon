@@ -78,7 +78,7 @@ func enrichEventMetadata(
 		topicFormat,
 	)
 
-	if stencil.Client == nil {
+	if !config.DeserializationCfg.Enabled {
 		return meta, nil
 	}
 

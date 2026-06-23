@@ -9,10 +9,11 @@ import (
 	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-	"github.com/goto/raccoon/config"
-	"github.com/goto/raccoon/ingestionrule"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/ingestionrule"
 )
 
 func TestMain(m *testing.M) {
@@ -76,14 +77,6 @@ func buildRules(pastDrop, pastOverride time.Duration, withDeactivate bool) []con
 		})
 	}
 	return rules
-}
-
-func TestService_Apply_NilIsPassthrough(t *testing.T) {
-	var svc *ingestionrule.Service
-	events := []*pb.Event{{EventName: "click"}}
-	result := svc.Apply(context.Background(), events, "grp")
-	assert.Len(t, result, 1)
-	assert.Equal(t, "click", result[0].EventName)
 }
 
 func TestService_Apply_DropTakesPriorityOverOverride(t *testing.T) {
@@ -191,6 +184,70 @@ func TestService_Apply_UnknownActionTypeSkipped(t *testing.T) {
 	svc, err := ingestionrule.NewService(context.Background(), rules, testOverrideEventType)
 	assert.NoError(t, err)
 	events := []*pb.Event{{EventName: "click", Product: "app"}}
+	result := svc.Apply(context.Background(), events, "grp")
+	assert.Len(t, result, 1)
+	assert.Equal(t, "click", result[0].EventName)
+}
+
+func TestService_NewService_DeserializationDisabled(t *testing.T) {
+	origEnabled := config.DeserializationCfg.Enabled
+	origStencilURL := config.StencilCfg.URL
+	defer func() {
+		config.DeserializationCfg.Enabled = origEnabled
+		config.StencilCfg.URL = origStencilURL
+	}()
+
+	config.DeserializationCfg.Enabled = false
+	// Set Stencil URL to empty/invalid, which would normally fail initialization
+	config.StencilCfg.URL = ""
+
+	svc, err := ingestionrule.NewService(context.Background(), nil, testOverrideEventType)
+	assert.NoError(t, err)
+	assert.NotNil(t, svc)
+}
+
+func TestService_NewService_DeserializationEnabled(t *testing.T) {
+	origEnabled := config.DeserializationCfg.Enabled
+	origStencilURL := config.StencilCfg.URL
+	defer func() {
+		config.DeserializationCfg.Enabled = origEnabled
+		config.StencilCfg.URL = origStencilURL
+	}()
+
+	config.DeserializationCfg.Enabled = true
+	// Set Stencil URL to empty/invalid, which must fail initialization
+	config.StencilCfg.URL = ""
+
+	svc, err := ingestionrule.NewService(context.Background(), nil, testOverrideEventType)
+	assert.Error(t, err)
+	assert.Nil(t, svc)
+}
+
+func TestService_NewService_PolicyDisabled(t *testing.T) {
+	origEnabled := config.PolicyCfg.Enabled
+	defer func() {
+		config.PolicyCfg.Enabled = origEnabled
+	}()
+
+	config.PolicyCfg.Enabled = false
+
+	// A rule that should normally deactivate/drop the event
+	rules := []config.PolicyRule{
+		{
+			Resource: config.PolicyResourceEvent,
+			Details:  config.PolicyDetails{Name: "click", Product: "app", Publisher: "grp"},
+			Action:   config.PolicyActionConfig{Type: config.PolicyActionDeactivate},
+		},
+	}
+
+	svc, err := ingestionrule.NewService(context.Background(), rules, testOverrideEventType)
+	assert.NoError(t, err)
+	assert.NotNil(t, svc)
+
+	events := []*pb.Event{
+		{EventName: "click", Product: "app", EventTimestamp: timestampProto(time.Now())},
+	}
+	// The event should pass through because policy enforcement is disabled
 	result := svc.Apply(context.Background(), events, "grp")
 	assert.Len(t, result, 1)
 	assert.Equal(t, "click", result[0].EventName)

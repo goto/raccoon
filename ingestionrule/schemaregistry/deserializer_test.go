@@ -38,13 +38,16 @@ func TestDeserializeEvents(t *testing.T) {
 
 	// Save original config to restore later
 	origProtoMapping := config.DedupCfg.ProtoClassNameMapping
+	origDeserializationEnabled := config.DeserializationCfg.Enabled
 	defer func() {
 		config.DedupCfg.ProtoClassNameMapping = origProtoMapping
+		config.DeserializationCfg.Enabled = origDeserializationEnabled
 	}()
 
 	config.DedupCfg.ProtoClassNameMapping = map[string]string{
 		"click_event": "gojek.de.raccoon.Event",
 	}
+	config.DeserializationCfg.Enabled = true
 
 	publisherMap := map[string]string{
 		"group-1": "publisher-1",

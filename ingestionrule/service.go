@@ -34,47 +34,59 @@ type Service struct {
 // It partitions the rules by action type, creates an eval.Cache per action,
 // and assembles the action chain in priority order: Deactivate → Drop → OverrideTimestamp → Dedup.
 func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventType string) (*Service, error) {
-	dropCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionDrop))
-	overrideCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionOverrideTimestamp))
-	deactivateCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionDeactivate))
+	var stencil schemaregistry.StencilClient
+	var err error
 
-	known := map[config.PolicyActionType]bool{
-		config.PolicyActionDrop:              true,
-		config.PolicyActionOverrideTimestamp: true,
-		config.PolicyActionDeactivate:        true,
-	}
-	for _, r := range rules {
-		if !known[r.Action.Type] {
-			logger.Errorf("policy: rule skipped — unknown action type %q for resource %q, details %+v", r.Action.Type, r.Resource, r.Details)
+	if config.DeserializationCfg.Enabled {
+		stencil, err = schemaregistry.NewStencilClient()
+		if err != nil {
+			return nil, err
 		}
 	}
 
+	var chain Chain
 	var duplicateChecker action.DuplicateChecker
 
-	stencil, err := schemaregistry.NewStencilClient()
-	if err != nil {
-		return nil, err
-	}
+	if config.PolicyCfg.Enabled {
+		dropCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionDrop))
+		overrideCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionOverrideTimestamp))
+		deactivateCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionDeactivate))
 
-	if config.DedupCfg.Enabled {
-		cacheClient, err := cache.NewRedisCache(ctx, config.MetricStatsd.FlushPeriodMs)
-		if err != nil {
-			return nil, err
+		known := map[config.PolicyActionType]bool{
+			config.PolicyActionDrop:              true,
+			config.PolicyActionOverrideTimestamp: true,
+			config.PolicyActionDeactivate:        true,
 		}
 
-		duplicateChecker, err = cache.NewStore(ctx, cacheClient)
-		if err != nil {
-			return nil, err
+		for _, r := range rules {
+			if !known[r.Action.Type] {
+				logger.Errorf("policy: rule skipped — unknown action type %q for resource %q, details %+v", r.Action.Type, r.Resource, r.Details)
+			}
+		}
+
+		chain = Chain{
+			action.NewDeactivate(deactivateCache, action.DefaultChain()),
+			action.NewDrop(dropCache, action.DefaultChain()),
+			action.NewOverrideTimestamp(overrideCache, action.DefaultChain(), overrideEventType),
+		}
+
+		if config.DedupCfg.Enabled {
+			cacheClient, err := cache.NewRedisCache(ctx, config.MetricStatsd.FlushPeriodMs)
+			if err != nil {
+				return nil, err
+			}
+
+			duplicateChecker, err = cache.NewStore(ctx, cacheClient)
+			if err != nil {
+				return nil, err
+			}
+
+			chain = append(chain, action.NewDedup(duplicateChecker))
 		}
 	}
 
 	return &Service{
-		chain: Chain{
-			action.NewDeactivate(deactivateCache, action.DefaultChain()),
-			action.NewDrop(dropCache, action.DefaultChain()),
-			action.NewOverrideTimestamp(overrideCache, action.DefaultChain(), overrideEventType),
-			action.NewDedup(duplicateChecker),
-		},
+		chain:            chain,
 		duplicateChecker: duplicateChecker,
 		stencil:          stencil,
 	}, nil
@@ -105,10 +117,6 @@ func (s *Service) HealthCheck() error {
 // Apply runs the event batch through the action pipeline and returns only events
 // that no action consumed (passthrough)
 func (s *Service) Apply(ctx context.Context, events []*pb.Event, connGroup string) []*model.EventWithMetadata {
-	if s == nil {
-		return schemaregistry.DeserializeEvents(events, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, schemaregistry.StencilClient{})
-	}
-
 	start := time.Now()
 
 	metadataEvents := schemaregistry.DeserializeEvents(events, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, s.stencil)

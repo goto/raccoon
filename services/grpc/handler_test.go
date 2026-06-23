@@ -9,6 +9,7 @@ import (
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/stretchr/testify/mock"
@@ -99,8 +100,10 @@ func TestHandler_SendEvent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			svc, _ := ingestionrule.NewService(context.Background(), nil, "")
 			h := &Handler{
-				C: tt.fields.C,
+				C:             tt.fields.C,
+				ingestionrule: svc,
 			}
 			got, err := h.SendEvent(tt.args.ctx, tt.args.req)
 			if (err != nil) != tt.wantErr {
