@@ -117,10 +117,6 @@ func (s *Service) HealthCheck() error {
 // Apply runs the event batch through the action pipeline and returns only events
 // that no action consumed (passthrough)
 func (s *Service) Apply(ctx context.Context, events []*pb.Event, connGroup string) []*model.EventWithMetadata {
-	if s == nil {
-		return schemaregistry.DeserializeEvents(events, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, schemaregistry.StencilClient{})
-	}
-
 	start := time.Now()
 	defer func() {
 		metrics.Timing(MetricEvalDuration, time.Since(start).Milliseconds(), fmt.Sprintf("action=total,conn_group=%s", connGroup))
