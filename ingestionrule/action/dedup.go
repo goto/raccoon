@@ -57,7 +57,7 @@ func (d *Dedup) Apply(ctx context.Context, events []*model.EventWithMetadata, co
 
 	for i, meta := range events {
 		if meta.EventGUID == "" || meta.Publisher == "" {
-			logger.Errorf("dedup: missing metadata fields: %+v for conn_group=%s,product=%s,event_name=%s", meta, connGroup, meta.Product, meta.EventName)
+			logger.Errorf("dedup: missing metadata fields: %+v for publisher=%s,product=%s,event_name=%s,event_type=%s", meta, meta.Publisher, meta.Product, meta.EventName, meta.Type)
 			states[i] = processState{isValid: false}
 			continue
 		}
@@ -103,7 +103,7 @@ func (d *Dedup) Apply(ctx context.Context, events []*model.EventWithMetadata, co
 		resultIdx++
 
 		if isDuplicate {
-			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEDUP_POLICY,conn_group=%s,product=%s,event_name=%s", connGroup, resMeta.Product, resMeta.EventName))
+			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEDUP_POLICY,conn_group=%s,product=%s,event_name=%s,event_type=%s", connGroup, resMeta.Product, resMeta.EventName, meta.Type))
 			continue
 		}
 

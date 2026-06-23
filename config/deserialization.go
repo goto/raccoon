@@ -14,7 +14,13 @@ type deserializationConfig struct {
 	// Enabled controls whether deserialization is active.
 	// Set DESERIALIZATION_ENABLED=true to enable.
 	Enabled                        bool
+	// AppVersionPublisherWhitelist controls the publisher list that is allowed to 
+	// pass event that has app_version in metadata.
+	// If the list is empty, it means all publishers are allowed.
 	AppVersionPublisherWhitelist   []string
+	// PlatformPublisherWhitelist controls the publisher list that is allowed to 
+	// pass event that has platform in metadata.
+	// If the list is empty, it means all publishers are allowed.
 	PlatformPublisherWhitelist     []string
 }
 
