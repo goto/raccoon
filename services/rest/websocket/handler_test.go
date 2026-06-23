@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -11,15 +12,17 @@ import (
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
-	"github.com/goto/raccoon/collection"
-	"github.com/goto/raccoon/logger"
-	"github.com/goto/raccoon/metrics"
-	"github.com/goto/raccoon/services/rest/websocket/connection"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/goto/raccoon/collection"
+	"github.com/goto/raccoon/ingestionrule"
+	"github.com/goto/raccoon/logger"
+	"github.com/goto/raccoon/metrics"
+	"github.com/goto/raccoon/services/rest/websocket/connection"
 )
 
 type void struct{}
@@ -119,10 +122,11 @@ func TestHandler_GETHandlerWSEvents(t *testing.T) {
 		ConnIDHeader:      "X-User-ID",
 		ConnGroupHeader:   "string",
 	})
+	svc, _ := ingestionrule.NewService(context.Background(), nil, "")
 	hlr := &Handler{
-		upgrader: upgrader,
-
-		PingChannel: make(chan connection.Conn, 100),
+		upgrader:      upgrader,
+		ingestionrule: svc,
+		PingChannel:   make(chan connection.Conn, 100),
 	}
 	ts := httptest.NewServer(getRouter(hlr))
 	defer ts.Close()

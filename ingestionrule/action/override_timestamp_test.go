@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/goto/raccoon/config"
@@ -42,7 +41,6 @@ func staleEvent(name string) *model.EventWithMetadata {
 		Product:        "app",
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now().Add(-2 * time.Hour),
-		Event:          &pb.Event{},
 	}
 }
 
@@ -50,7 +48,7 @@ func TestOverrideTimestamp_OverridesTypeOnBreachedEvent(t *testing.T) {
 	result := newOverrideAct(t).Apply(context.Background(), []*model.EventWithMetadata{staleEvent("click")}, "pub-a")
 
 	assert.Len(t, result, 1)
-	assert.Equal(t, overrideEventType, result[0].Event.GetType())
+	assert.Equal(t, overrideEventType, result[0].Type)
 	assert.Equal(t, "click", result[0].EventName)
 }
 
@@ -60,12 +58,11 @@ func TestOverrideTimestamp_PassthroughWhenWithinThreshold(t *testing.T) {
 		Product:        "app",
 		Publisher:      "pub-a",
 		EventTimestamp: time.Now(),
-		Event:          &pb.Event{},
 	}}
 	result := newOverrideAct(t).Apply(context.Background(), events, "pub-a")
 
 	assert.Equal(t, events, result)
-	assert.Empty(t, result[0].Event.GetType()) // Type not overridden
+	assert.Empty(t, result[0].Type) // Type not overridden
 }
 
 func TestOverrideTimestamp_PassthroughWhenNoIngestionRuleMatch(t *testing.T) {
@@ -73,7 +70,7 @@ func TestOverrideTimestamp_PassthroughWhenNoIngestionRuleMatch(t *testing.T) {
 	result := newOverrideAct(t).Apply(context.Background(), events, "pub-a")
 
 	assert.Equal(t, events, result)
-	assert.Empty(t, result[0].Event.GetType())
+	assert.Empty(t, result[0].Type)
 }
 
 func TestOverrideTimestamp_MixedBatch(t *testing.T) {
@@ -81,7 +78,7 @@ func TestOverrideTimestamp_MixedBatch(t *testing.T) {
 	result := newOverrideAct(t).Apply(context.Background(), events, "pub-a")
 
 	assert.Len(t, result, 3)
-	assert.Equal(t, overrideEventType, result[0].Event.GetType())
-	assert.Empty(t, result[1].Event.GetType()) // scroll: no policy match
-	assert.Equal(t, overrideEventType, result[2].Event.GetType())
+	assert.Equal(t, overrideEventType, result[0].Type)
+	assert.Empty(t, result[1].Type) // scroll: no policy match
+	assert.Equal(t, overrideEventType, result[2].Type)
 }

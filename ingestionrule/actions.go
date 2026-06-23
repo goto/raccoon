@@ -3,8 +3,6 @@ package ingestionrule
 import (
 	"context"
 
-	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-
 	"github.com/goto/raccoon/model"
 )
 
@@ -23,15 +21,10 @@ type Chain []Action
 // Apply runs the event batch through every action in sequence.
 // Each action removes the events it consumed; the final slice contains only
 // events that no action handled (passthrough).
-func (c Chain) Apply(ctx context.Context, events []*model.EventWithMetadata, connGroup string) []*pb.Event {
+func (c Chain) Apply(ctx context.Context, events []*model.EventWithMetadata, connGroup string) []*model.EventWithMetadata {
 	for _, a := range c {
 		events = a.Apply(ctx, events, connGroup)
 	}
 
-	result := make([]*pb.Event, len(events))
-	for i, m := range events {
-		result[i] = m.Event
-	}
-
-	return result
+	return events
 }

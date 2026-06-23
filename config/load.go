@@ -34,4 +34,5 @@ func Load() {
 	redisConfigLoader()
 	dedupConfigLoader()
 	stencilConfigLoader()
+	deserializationConfigLoader()
 }

@@ -2,6 +2,7 @@ package schemaregistry
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -29,6 +30,8 @@ const (
 	protoFieldEventName      = "event_name"
 	protoFieldEventProduct   = "product"
 	protoFieldEventTimestamp = "event_timestamp"
+	protoFieldPlatform       = "meta.device.operating_system"
+	protoFieldAppVersion     = "meta.app.version"
 )
 
 // DeserializeEvents extracts metadata for the entire batch of events and tracks error and latency metrics.
@@ -48,7 +51,7 @@ func DeserializeEvents(
 
 		if err != nil {
 			logger.Errorf("deserialization error: %v", err)
-			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DESERIALIZATION_ERROR,conn_group=%s,product=%s,event_name=%s,event_type=%s", connGroup, meta.Product, meta.EventName, meta.EventType))
+			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DESERIALIZATION_ERROR,conn_group=%s,product=%s,event_name=%s,event_type=%s", connGroup, meta.Product, meta.EventName, meta.Type))
 		}
 
 		metadataBatch = append(metadataBatch, &meta)
@@ -78,17 +81,48 @@ func enrichEventMetadata(
 		topicFormat,
 	)
 
+	if stencil.Client == nil {
+		return meta, nil
+	}
+
 	protoClass, ok := config.DedupCfg.ProtoClassNameMapping[event.Type]
 	if !ok {
-		return meta, fmt.Errorf("failed to find proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
+		return meta, fmt.Errorf(
+			"failed to find proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
+			connGroup,
+			event.Type,
+			event.Product,
+			event.EventName,
+			meta.Platform,
+			meta.AppVersion,
+		)
 	}
 
 	parsedMsg, err := stencil.Client.Parse(protoClass, event.EventBytes)
 	if err != nil {
-		return meta, fmt.Errorf("failed to publisher for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
+		return meta, fmt.Errorf(
+			"failed to publisher for conn_group=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
+			connGroup,
+			event.Type,
+			event.Product,
+			event.EventName,
+			meta.Platform,
+			meta.AppVersion,
+		)
 	}
 
 	ref := parsedMsg.ProtoReflect()
+
+	eventGUID, err := getStringField(ref, protoFieldEventGUID, protoFieldEventGUID, meta)
+	if err != nil {
+		return meta, err
+	}
+
+	meta.EventGUID = eventGUID
+
+	if !config.DeserializationCfg.Enabled {
+		return meta, nil
+	}
 
 	eventName, err := getStringField(ref, protoFieldEventName, protoFieldEventName, meta)
 	if err != nil {
@@ -99,7 +133,16 @@ func enrichEventMetadata(
 
 	product, err := protoutil.GetEnumStringValue(ref, protoFieldEventProduct)
 	if err != nil {
-		return meta, fmt.Errorf("failed to extract %q value for publisher=%s,product=%s,event_name=%s: %w", protoFieldEventProduct, meta.Publisher, meta.Product, meta.EventName, err)
+		return meta, fmt.Errorf(
+			"failed to extract %q value for publisher=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
+			protoFieldEventProduct,
+			meta.Publisher,
+			meta.Product,
+			meta.EventName,
+			meta.Platform,
+			meta.AppVersion,
+			err,
+		)
 	}
 
 	// normalize across iOS/Android variants (e.g. "My_App" → "myapp")
@@ -112,12 +155,23 @@ func enrichEventMetadata(
 
 	meta.EventTimestamp = ts
 
-	eventGUID, err := getStringField(ref, protoFieldEventGUID, protoFieldEventGUID, meta)
-	if err != nil {
-		return meta, err
+	if isPublisherWhitelisted(config.DeserializationCfg.PlatformPublisherWhitelist, meta.Publisher) {
+		platform, err := getStringField(ref, protoFieldPlatform, protoFieldPlatform, meta)
+		if err != nil {
+			return meta, err
+		}
+
+		meta.Platform = platform
 	}
 
-	meta.EventGUID = eventGUID
+	if isPublisherWhitelisted(config.DeserializationCfg.AppVersionPublisherWhitelist, meta.Publisher) {
+		appVersion, err := getStringField(ref, protoFieldAppVersion, protoFieldAppVersion, meta)
+		if err != nil {
+			return meta, err
+		}
+
+		meta.AppVersion = appVersion
+	}
 
 	return meta, nil
 }
@@ -134,14 +188,26 @@ func extractBaseMetadata(
 	}
 
 	return model.EventWithMetadata{
-		Event:          event,
-		EventType:      event.GetType(),
 		TopicName:      fmt.Sprintf(topicFormat, event.GetType()),
 		Publisher:      resolvePublisher(connGroup, publisherMap),
 		Product:        strings.ReplaceAll(strings.ToLower(event.GetProduct()), "_", ""), // normalize across iOS/Android variants (e.g. "My_App" → "myapp")
 		EventName:      event.GetEventName(),
 		EventTimestamp: ts,
+		Type:           event.GetType(),
+		Platform:       event.GetPlatform().String(),
+		AppVersion:     event.GetAppVersion(),
+		IsExclusive:    event.GetIsExclusive(),
+		EventBytes:     event.GetEventBytes(),
 	}
+}
+
+// isPublisherWhitelisted checks if the publisher is whitelisted for the given config.
+func isPublisherWhitelisted(whitelist []string, publisher string) bool {
+	if len(whitelist) == 0 {
+		return true
+	}
+
+	return slices.Contains(whitelist, publisher)
 }
 
 // getStringField is a helper function to safely extract and convert to string.
@@ -153,12 +219,30 @@ func getStringField(
 ) (string, error) {
 	rawVal, err := protoutil.GetFieldValue(ref, strings.Split(path, "."))
 	if err != nil {
-		return "", fmt.Errorf("failed to extract %q value for publisher=%s,product=%s,event_name=%s: %w", fieldName, meta.Publisher, meta.Product, meta.EventName, err)
+		return "", fmt.Errorf(
+			"failed to extract %q value for publisher=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
+			fieldName,
+			meta.Publisher,
+			meta.Product,
+			meta.EventName,
+			meta.Platform,
+			meta.AppVersion,
+			err,
+		)
 	}
 
 	val, err := cast.ToStringE(rawVal)
 	if err != nil {
-		return "", fmt.Errorf("failed to convert %q value to string for publisher=%s,product=%s,event_name=%s: %w", fieldName, meta.Publisher, meta.Product, meta.EventName, err)
+		return "", fmt.Errorf(
+			"failed to convert %q value to string for publisher=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
+			fieldName,
+			meta.Publisher,
+			meta.Product,
+			meta.EventName,
+			meta.Platform,
+			meta.AppVersion,
+			err,
+		)
 	}
 
 	return val, nil

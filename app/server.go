@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"strings"
 	"syscall"
 	"time"
 
@@ -25,7 +24,7 @@ import (
 func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
 
-	ingestionRuleSvc, err := initIngestionRule(ctx)
+	ingestionRuleSvc, err := ingestionrule.NewService(ctx, config.PolicyCfg.Rules, config.PolicyCfg.OverrideEventType)
 	if err != nil {
 		panic("error creating ingestion rule service: " + err.Error())
 	}
@@ -94,7 +93,7 @@ func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices
 					tags := fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s,app_version=%s,platform=%s",
 						"INTERNAL_SERVER_ERROR",
 						event.EventName,
-						strings.ReplaceAll(strings.ToLower(event.Product), "_", ""),
+						event.Product,
 						req.ConnectionIdentifier,
 						event.AppVersion,
 						event.Platform,
@@ -131,28 +130,6 @@ func reportProcMetrics() {
 		metrics.Gauge("server_mem_gc_count_current", m.NumGC, "")
 		metrics.Gauge("server_mem_gc_pauseTotalNs_current", m.PauseTotalNs, "")
 	}
-}
-
-// initIngestionRule builds a *ingestionrule.Service when POLICY_ENABLED=true.
-// Returns nil when policy is disabled; a nil *ingestionrule.Service is safe (Apply is a no-op).
-func initIngestionRule(ctx context.Context) (*ingestionrule.Service, error) {
-	if !config.PolicyCfg.Enabled {
-		logger.Info("ingestionRule enforcement disabled")
-		return nil, nil
-	}
-
-	svc, err := ingestionrule.NewService(
-		ctx,
-		config.PolicyCfg.Rules,
-		config.PolicyCfg.OverrideEventType,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	logger.Infof("ingestionRule enforcement enabled: loaded %d rules, override event type=%s", len(config.PolicyCfg.Rules), config.PolicyCfg.OverrideEventType)
-
-	return svc, nil
 }
 
 func registerHealthCheck(svcs services.Services, kafka *publisher.Kafka, ingestionRuleSvc *ingestionrule.Service) {

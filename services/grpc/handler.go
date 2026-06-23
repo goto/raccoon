@@ -62,13 +62,14 @@ func (h *Handler) SendEvent(ctx context.Context, req *pb.SendEventRequest) (*pb.
 		logger.Debugf("[grpc.SendEvent] event: event_name=%s, product=%s, type=%s, event_timestamp=%s, req_guid=%s, conn_group=%s", e.EventName, e.Product, e.Type, e.GetEventTimestamp().AsTime(), req.ReqGuid, identifier.Group)
 	}
 
-	req.Events = h.ingestionrule.Apply(ctx, req.Events, identifier.Group)
+	eventsWithMetadata := h.ingestionrule.Apply(ctx, req.Events, identifier.Group)
 
 	responseChannel := make(chan *pb.SendEventResponse, 1)
 	h.C.Collect(ctx, &collection.CollectRequest{
 		ConnectionIdentifier: identifier,
 		TimeConsumed:         timeConsumed,
-		SendEventRequest:     req,
+		SentTime:             req.SentTime,
+		Events:               eventsWithMetadata,
 		AckFunc:              h.Ack(responseChannel, req.ReqGuid, identifier.Group),
 	})
 	return <-responseChannel, nil
