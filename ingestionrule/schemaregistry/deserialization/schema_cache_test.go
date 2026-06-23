@@ -110,4 +110,5 @@ func TestSchemaCache_FetchSchemaMap_NonJSON(t *testing.T) {
 	err := cache.sync()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "received non-json response type: \"text/plain\"")
+	assert.Contains(t, err.Error(), "some plain text")
 }

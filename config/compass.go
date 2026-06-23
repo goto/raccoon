@@ -18,6 +18,8 @@ type compassConfig struct {
 	SyncInterval time.Duration
 	// HTTPRequestTimeout is the timeout for HTTP requests to the Compass API.
 	HTTPRequestTimeout time.Duration
+	// ProjectIDLocation is the project location for the Compass API.
+	ProjectIDLocation string
 }
 
 func compassConfigLoader() {
@@ -25,11 +27,13 @@ func compassConfigLoader() {
 	viper.SetDefault("COMPASS_AUTH_EMAIL", "")
 	viper.SetDefault("COMPASS_SYNC_INTERVAL", "1h")
 	viper.SetDefault("COMPASS_HTTP_REQUEST_TIMEOUT", "5s")
+	viper.SetDefault("COMPASS_PROJECT_ID_LOCATION", "")
 
 	CompassCfg = compassConfig{
 		HTTPHost:           viper.GetString("COMPASS_HTTP_HOST"),
 		AuthEmail:          viper.GetString("COMPASS_AUTH_EMAIL"),
 		SyncInterval:       viper.GetDuration("COMPASS_SYNC_INTERVAL"),
 		HTTPRequestTimeout: viper.GetDuration("COMPASS_HTTP_REQUEST_TIMEOUT"),
+		ProjectIDLocation:  viper.GetString("COMPASS_PROJECT_ID_LOCATION"),
 	}
 }

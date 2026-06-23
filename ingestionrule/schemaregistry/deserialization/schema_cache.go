@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 )
@@ -84,12 +85,15 @@ func (c *SchemaCache) worker() {
 	ticker := time.NewTicker(c.syncInterval)
 	defer ticker.Stop()
 
+	const metricNameSchemaSyncFailureCount = "schema_sync_failure_count"
+
 	for {
 		select {
 		case <-c.ctx.Done():
 			return
 		case <-ticker.C:
 			if err := c.sync(); err != nil {
+				metrics.Increment(metricNameSchemaSyncFailureCount, "")
 				logger.Errorf("schema cache sync failed: %v", err)
 			}
 		}
@@ -104,8 +108,6 @@ func (c *SchemaCache) sync() error {
 	}
 
 	c.schemaMap.Store(newMap)
-
-	metrics.Gauge("compass_schema_cache_last_sync_timestamp_seconds", time.Now().Unix(), "")
 
 	return nil
 }
@@ -127,7 +129,7 @@ func (c *SchemaCache) fetchSchemaMap() (map[string]string, error) {
 	params := url.Values{}
 	params.Add(queryParamsText, "clickstream--log")
 	params.Add(queryParamsDisableFuzzy, "true")
-	params.Add(queryParamsProjectID, "al-gtdp-id-p")
+	params.Add(queryParamsProjectID, config.CompassCfg.ProjectIDLocation)
 	params.Add(queryParamsStreamName, "extstream")
 	params.Add(queryParamsTypeFilter, "topic")
 
@@ -152,14 +154,12 @@ func (c *SchemaCache) fetchSchemaMap() (map[string]string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		limitReader := io.LimitReader(resp.Body, 1024)
-		bodyBytes, _ := io.ReadAll(limitReader)
-		return nil, fmt.Errorf("received non-200 status code: %d, body: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("received non-200 status code: %d, body: %s", resp.StatusCode, readResponseBodySnippet(resp.Body))
 	}
 
 	contentType := resp.Header.Get("Content-Type")
 	if !strings.HasPrefix(strings.ToLower(contentType), "application/json") {
-		return nil, fmt.Errorf("received non-json response type: %q", contentType)
+		return nil, fmt.Errorf("received non-json response type: %q, body: %s", contentType, readResponseBodySnippet(resp.Body))
 	}
 
 	var parsedResp compassResponse
@@ -175,4 +175,12 @@ func (c *SchemaCache) fetchSchemaMap() (map[string]string, error) {
 	}
 
 	return newMap, nil
+}
+
+// readResponseBodySnippet reads the first 1024 bytes from the response body and returns it as a string.
+func readResponseBodySnippet(body io.Reader) string {
+	limitReader := io.LimitReader(body, 1024)
+	bodyBytes, _ := io.ReadAll(limitReader)
+
+	return string(bodyBytes)
 }
