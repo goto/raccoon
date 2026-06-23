@@ -1,4 +1,4 @@
-package schemaregistry
+package deserialization
 
 import (
 	"errors"
@@ -12,6 +12,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/ingestionrule/schemaregistry"
+	"github.com/goto/raccoon/ingestionrule/schemaregistry/deserialization/mocks"
 	testpb "github.com/goto/raccoon/ingestionrule/schemaregistry/protoutil/testpb"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/model"
@@ -28,10 +30,10 @@ func (m *mockStencilClient) Parse(className string, data []byte) (protoreflect.P
 	return nil, errors.New("parse not implemented")
 }
 
-func (m *mockStencilClient) Serialize(string, interface{}) ([]byte, error) { return nil, nil }
+func (m *mockStencilClient) Serialize(string, interface{}) ([]byte, error)             { return nil, nil }
 func (m *mockStencilClient) GetDescriptor(string) (protoreflect.MessageDescriptor, error) { return nil, nil }
-func (m *mockStencilClient) Close()                                                        {}
-func (m *mockStencilClient) Refresh()                                                      {}
+func (m *mockStencilClient) Close()                                                      {}
+func (m *mockStencilClient) Refresh()                                                    {}
 
 func TestDeserializeEvents(t *testing.T) {
 	metrics.SetVoid()
@@ -199,10 +201,6 @@ func TestDeserializeEvents(t *testing.T) {
 			topicFormat:  "topic-%s",
 			parseFunc: func(class string, data []byte) (protoreflect.ProtoMessage, error) {
 				// Return a message structure that causes getStringField to fail
-				// testpb.Event has EventName (string) - so if we don't set it, it's just empty string which is fine, but to trigger error,
-				// wait, let's see if we can trigger getStringField error.
-				// In deserializer.go: getStringField gets "event_name" from message.
-				// We can return a message type that does not have "event_name" field, like testpb.Meta
 				return &testpb.Meta{EventGuid: "some-guid"}, nil
 			},
 			verify: func(t *testing.T, results []*model.EventWithMetadata) {
@@ -349,7 +347,6 @@ func TestDeserializeEvents(t *testing.T) {
 			verify: func(t *testing.T, results []*model.EventWithMetadata) {
 				require.Len(t, results, 1)
 				res := results[0]
-				// Since they are not whitelisted, they must keep the base envelope values and not try to deserialize from Stencil (which would fail anyway since testpb.Event doesn't have operating_system or app version)
 				assert.Equal(t, pb.Platform_PLATFORM_ANDROID.String(), res.Platform)
 				assert.Equal(t, "1.0.0-envelope", res.AppVersion)
 			},
@@ -385,7 +382,6 @@ func TestDeserializeEvents(t *testing.T) {
 			verify: func(t *testing.T, results []*model.EventWithMetadata) {
 				require.Len(t, results, 1)
 				res := results[0]
-				// Since platform is whitelisted, it tries to deserialize and fails (due to missing field in testpb.Event), but app_version is NOT whitelisted so it is skipped.
 				assert.Equal(t, "1.0.0-envelope", res.AppVersion)
 			},
 		},
@@ -396,10 +392,98 @@ func TestDeserializeEvents(t *testing.T) {
 			config.DeserializationCfg.PlatformPublisherWhitelist = tt.platformWhitelist
 			config.DeserializationCfg.AppVersionPublisherWhitelist = tt.appVersionWhitelist
 			clientMock := &mockStencilClient{parseFunc: tt.parseFunc}
-			stencilClient := StencilClient{Client: clientMock}
+			stencilClient := schemaregistry.StencilClient{Client: clientMock}
 
-			results := DeserializeEvents(tt.events, tt.connGroup, tt.publisherMap, tt.topicFormat, stencilClient)
+			d := NewDeserializer(stencilClient, nil)
+			results := d.Deserialize(tt.events, tt.connGroup, tt.publisherMap, tt.topicFormat)
 			tt.verify(t, results)
 		})
 	}
+}
+
+func TestDeserializer_FallbackOrder(t *testing.T) {
+	metrics.SetVoid()
+
+	// Save original config to restore later
+	origProtoMapping := config.DedupCfg.ProtoClassNameMapping
+	origDeserializationEnabled := config.DeserializationCfg.Enabled
+	defer func() {
+		config.DedupCfg.ProtoClassNameMapping = origProtoMapping
+		config.DeserializationCfg.Enabled = origDeserializationEnabled
+	}()
+
+	config.DeserializationCfg.Enabled = true
+
+	now := time.Now().Truncate(time.Microsecond)
+	tsProto := timestamppb.New(now)
+
+	event := &pb.Event{
+		Type:           "click_event",
+		Product:        "my_product",
+		EventName:      "test_event",
+		EventBytes:     []byte("event-bytes-data"),
+		EventTimestamp: tsProto,
+	}
+
+	t.Run("1. found in cache", func(t *testing.T) {
+		config.DedupCfg.ProtoClassNameMapping = map[string]string{} // empty static config
+
+		mockCache := mocks.NewSchemaRegistryCache(t)
+		mockCache.EXPECT().Get("topic-click_event").Return("class.from.Cache", true)
+
+		clientMock := &mockStencilClient{
+			parseFunc: func(class string, data []byte) (protoreflect.ProtoMessage, error) {
+				assert.Equal(t, "class.from.Cache", class)
+				return &testpb.Event{
+					EventName:      "inner_event",
+					Product:        testpb.Product_Generic,
+					EventTimestamp: tsProto,
+					Meta:           &testpb.Meta{EventGuid: "guid-1"},
+				}, nil
+			},
+		}
+
+		d := NewDeserializer(schemaregistry.StencilClient{Client: clientMock}, mockCache)
+		results := d.Deserialize([]*pb.Event{event}, "group-1", map[string]string{}, "topic-%s")
+		require.Len(t, results, 1)
+		assert.Equal(t, "guid-1", results[0].EventGUID)
+	})
+
+	t.Run("2. fallback to static mapping when not in cache", func(t *testing.T) {
+		config.DedupCfg.ProtoClassNameMapping = map[string]string{
+			"click_event": "class.from.Static",
+		}
+
+		mockCache := mocks.NewSchemaRegistryCache(t)
+		mockCache.EXPECT().Get("topic-click_event").Return("", false)
+
+		clientMock := &mockStencilClient{
+			parseFunc: func(class string, data []byte) (protoreflect.ProtoMessage, error) {
+				assert.Equal(t, "class.from.Static", class)
+				return &testpb.Event{
+					EventName:      "inner_event",
+					Product:        testpb.Product_Generic,
+					EventTimestamp: tsProto,
+					Meta:           &testpb.Meta{EventGuid: "guid-2"},
+				}, nil
+			},
+		}
+
+		d := NewDeserializer(schemaregistry.StencilClient{Client: clientMock}, mockCache)
+		results := d.Deserialize([]*pb.Event{event}, "group-1", map[string]string{}, "topic-%s")
+		require.Len(t, results, 1)
+		assert.Equal(t, "guid-2", results[0].EventGUID)
+	})
+
+	t.Run("3. error when found in neither cache nor static mapping", func(t *testing.T) {
+		config.DedupCfg.ProtoClassNameMapping = map[string]string{}
+
+		mockCache := mocks.NewSchemaRegistryCache(t)
+		mockCache.EXPECT().Get("topic-click_event").Return("", false)
+
+		d := NewDeserializer(schemaregistry.StencilClient{Client: &mockStencilClient{}}, mockCache)
+		results := d.Deserialize([]*pb.Event{event}, "group-1", map[string]string{}, "topic-%s")
+		require.Len(t, results, 1)
+		assert.Empty(t, results[0].EventGUID)
+	})
 }

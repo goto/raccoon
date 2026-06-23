@@ -1,4 +1,4 @@
-package schemaregistry
+package deserialization
 
 import (
 	"fmt"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
+	"github.com/goto/raccoon/ingestionrule/schemaregistry"
 	"github.com/goto/raccoon/ingestionrule/schemaregistry/protoutil"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
@@ -34,19 +35,38 @@ const (
 	protoFieldAppVersion     = "meta.app.version"
 )
 
-// DeserializeEvents extracts metadata for the entire batch of events and tracks error and latency metrics.
-func DeserializeEvents(
+// SchemaRegistryCache is an interface for retrieving proto class names for topics.
+type SchemaRegistryCache interface {
+	// Get retrieve proto class name for a given topic
+	Get(topic string) (string, bool)
+	// Close closes the schema cache
+	Close()
+}
+
+type Deserializer struct {
+	stencil schemaregistry.StencilClient
+	cache   SchemaRegistryCache
+}
+
+func NewDeserializer(stencil schemaregistry.StencilClient, cache SchemaRegistryCache) *Deserializer {
+	return &Deserializer{
+		stencil: stencil,
+		cache:   cache,
+	}
+}
+
+// Deserialize extracts metadata for the entire batch of events and tracks error and latency metrics.
+func (d *Deserializer) Deserialize(
 	events []*pb.Event,
 	connGroup string,
 	publisherMap map[string]string,
 	topicFormat string,
-	stencil StencilClient,
 ) []*model.EventWithMetadata {
 	metadataBatch := make([]*model.EventWithMetadata, 0, len(events))
 
 	for _, event := range events {
 		startDeserialize := time.Now()
-		meta, err := enrichEventMetadata(event, connGroup, publisherMap, topicFormat, stencil)
+		meta, err := d.enrichEventMetadata(event, connGroup, publisherMap, topicFormat)
 		metrics.Timing(metricNameEventDeserializationLatency, time.Since(startDeserialize).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
 
 		if err != nil {
@@ -60,6 +80,13 @@ func DeserializeEvents(
 	return metadataBatch
 }
 
+// Close closes the schema cache used by the deserializer.
+func (d *Deserializer) Close() {
+	if d != nil && d.cache != nil {
+		d.cache.Close()
+	}
+}
+
 // enrichEventMetadata builds a complete EventWithMetadata for an event.
 // It initializes base metadata from the event envelope and enriches it by
 // parsing the inner payload (event_name, product, timestamp, and GUID) using Stencil.
@@ -67,12 +94,11 @@ func DeserializeEvents(
 // Returns:
 //   - model.EventWithMetadata: An EventWithMetadata struct containing the extracted metadata.
 //   - error: An error if any occurs during metadata extraction (e.g., proto class not found, payload parsing failure).
-func enrichEventMetadata(
+func (d *Deserializer) enrichEventMetadata(
 	event *pb.Event,
 	connGroup string,
 	publisherMap map[string]string,
 	topicFormat string,
-	stencil StencilClient,
 ) (model.EventWithMetadata, error) {
 	meta := extractBaseMetadata(
 		event,
@@ -81,11 +107,20 @@ func enrichEventMetadata(
 		topicFormat,
 	)
 
-	if stencil.Client == nil {
+	if d == nil || d.stencil.Client == nil {
 		return meta, nil
 	}
 
-	protoClass, ok := config.DedupCfg.ProtoClassNameMapping[event.Type]
+	var protoClass string
+	var ok bool
+	if d.cache != nil {
+		protoClass, ok = d.cache.Get(meta.TopicName)
+	}
+
+	if !ok {
+		protoClass, ok = config.DedupCfg.ProtoClassNameMapping[event.Type]
+	}
+
 	if !ok {
 		return meta, fmt.Errorf(
 			"failed to find proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
@@ -98,7 +133,7 @@ func enrichEventMetadata(
 		)
 	}
 
-	parsedMsg, err := stencil.Client.Parse(protoClass, event.EventBytes)
+	parsedMsg, err := d.stencil.Client.Parse(protoClass, event.EventBytes)
 	if err != nil {
 		return meta, fmt.Errorf(
 			"failed to publisher for conn_group=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",

@@ -3,8 +3,9 @@ package config
 import (
 	"encoding/json"
 
-	"github.com/goto/raccoon/config/util"
 	"github.com/spf13/viper"
+
+	"github.com/goto/raccoon/config/util"
 )
 
 // DeserializationCfg holds runtime configuration for the deserialization feature.
@@ -13,15 +14,15 @@ var DeserializationCfg deserializationConfig
 type deserializationConfig struct {
 	// Enabled controls whether deserialization is active.
 	// Set DESERIALIZATION_ENABLED=true to enable.
-	Enabled                        bool
-	// AppVersionPublisherWhitelist controls the publisher list that is allowed to 
+	Enabled bool
+	// AppVersionPublisherWhitelist controls the publisher list that is allowed to
 	// pass event that has app_version in metadata.
 	// If the list is empty, it means all publishers are allowed.
-	AppVersionPublisherWhitelist   []string
-	// PlatformPublisherWhitelist controls the publisher list that is allowed to 
+	AppVersionPublisherWhitelist []string
+	// PlatformPublisherWhitelist controls the publisher list that is allowed to
 	// pass event that has platform in metadata.
 	// If the list is empty, it means all publishers are allowed.
-	PlatformPublisherWhitelist     []string
+	PlatformPublisherWhitelist []string
 }
 
 func deserializationConfigLoader() {

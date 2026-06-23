@@ -12,6 +12,7 @@ import (
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
 	evalcache "github.com/goto/raccoon/ingestionrule/action/eval/cache"
 	"github.com/goto/raccoon/ingestionrule/schemaregistry"
+	"github.com/goto/raccoon/ingestionrule/schemaregistry/deserialization"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/model"
@@ -27,21 +28,36 @@ const MetricEvalDuration = action.MetricEvalLatency
 type Service struct {
 	chain            Chain
 	duplicateChecker action.DuplicateChecker
-	stencil          schemaregistry.StencilClient
+	deserializer     *deserialization.Deserializer
 }
 
 // NewService builds a fully wired Service from the given config rules.
 // It partitions the rules by action type, creates an eval.Cache per action,
 // and assembles the action chain in priority order: Deactivate → Drop → OverrideTimestamp → Dedup.
 func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventType string) (*Service, error) {
-	var stencil schemaregistry.StencilClient
-	var err error
+	var deserializer *deserialization.Deserializer
 
 	if config.DeserializationCfg.Enabled || config.DedupCfg.Enabled {
-		stencil, err = schemaregistry.NewStencilClient()
+		stencil, err := schemaregistry.NewStencilClient()
 		if err != nil {
 			return nil, err
 		}
+
+		var cache *deserialization.SchemaCache
+
+		if config.DeserializationCfg.Enabled {
+			cache = deserialization.NewSchemaCache(
+				ctx,
+				config.CompassCfg.HTTPHost,
+				config.CompassCfg.AuthEmail,
+				config.CompassCfg.SyncInterval,
+				config.CompassCfg.HTTPRequestTimeout,
+			)
+
+			cache.Start()
+		}
+
+		deserializer = deserialization.NewDeserializer(stencil, cache)
 	}
 
 	var chain Chain
@@ -88,7 +104,7 @@ func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventTyp
 	return &Service{
 		chain:            chain,
 		duplicateChecker: duplicateChecker,
-		stencil:          stencil,
+		deserializer:     deserializer,
 	}, nil
 }
 
@@ -96,6 +112,10 @@ func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventTyp
 func (s *Service) Close() {
 	if s == nil {
 		return
+	}
+
+	if s.deserializer != nil {
+		s.deserializer.Close()
 	}
 
 	if s.duplicateChecker != nil {
@@ -122,11 +142,14 @@ func (s *Service) Apply(ctx context.Context, events []*pb.Event, connGroup strin
 		metrics.Timing(MetricEvalDuration, time.Since(start).Milliseconds(), fmt.Sprintf("action=total,conn_group=%s", connGroup))
 	}()
 
+	var metadataEvents []*model.EventWithMetadata
 	if s == nil {
-		return schemaregistry.DeserializeEvents(events, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, schemaregistry.StencilClient{})
+		var d *deserialization.Deserializer
+		
+		return d.Deserialize(events, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern)
+	} else {
+		metadataEvents = s.deserializer.Deserialize(events, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern)
 	}
-
-	metadataEvents := schemaregistry.DeserializeEvents(events, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, s.stencil)
 
 	sanitizedEvents := s.chain.Apply(ctx, metadataEvents, connGroup)
 

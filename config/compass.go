@@ -1,0 +1,35 @@
+package config
+
+import (
+	"time"
+
+	"github.com/spf13/viper"
+)
+
+// CompassCfg holds runtime configuration for the Compass integration.
+var CompassCfg compassConfig
+
+type compassConfig struct {
+	// HTTPHost is the base URL for the Compass API.
+	HTTPHost string
+	// AuthEmail is the email address used for authentication with the Compass API.
+	AuthEmail string
+	// SyncInterval is the interval at which the schema cache is updated.
+	SyncInterval time.Duration
+	// HTTPRequestTimeout is the timeout for HTTP requests to the Compass API.
+	HTTPRequestTimeout time.Duration
+}
+
+func compassConfigLoader() {
+	viper.SetDefault("COMPASS_HTTP_HOST", "")
+	viper.SetDefault("COMPASS_AUTH_EMAIL", "")
+	viper.SetDefault("COMPASS_SYNC_INTERVAL", "1h")
+	viper.SetDefault("COMPASS_HTTP_REQUEST_TIMEOUT", "5s")
+
+	CompassCfg = compassConfig{
+		HTTPHost:           viper.GetString("COMPASS_HTTP_HOST"),
+		AuthEmail:          viper.GetString("COMPASS_AUTH_EMAIL"),
+		SyncInterval:       viper.GetDuration("COMPASS_SYNC_INTERVAL"),
+		HTTPRequestTimeout: viper.GetDuration("COMPASS_HTTP_REQUEST_TIMEOUT"),
+	}
+}
