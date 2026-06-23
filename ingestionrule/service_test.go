@@ -202,8 +202,8 @@ func TestService_NewService_DeserializationDisabled(t *testing.T) {
 	config.StencilCfg.URL = ""
 
 	svc, err := ingestionrule.NewService(context.Background(), nil, testOverrideEventType)
-	assert.NoError(t, err)
-	assert.NotNil(t, svc)
+	assert.Error(t, err)
+	assert.Nil(t, svc)
 }
 
 func TestService_NewService_DeserializationEnabled(t *testing.T) {

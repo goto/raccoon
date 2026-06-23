@@ -78,10 +78,6 @@ func enrichEventMetadata(
 		topicFormat,
 	)
 
-	if stencil.Client == nil {
-		return meta, nil
-	}
-
 	protoClass, ok := config.DedupCfg.ProtoClassNameMapping[event.Type]
 	if !ok {
 		return meta, fmt.Errorf("failed to find proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
@@ -93,6 +89,17 @@ func enrichEventMetadata(
 	}
 
 	ref := parsedMsg.ProtoReflect()
+
+	eventGUID, err := getStringField(ref, protoFieldEventGUID, protoFieldEventGUID, meta)
+	if err != nil {
+		return meta, err
+	}
+
+	meta.EventGUID = eventGUID
+
+	if !config.DeserializationCfg.Enabled {
+		return meta, nil
+	}
 
 	eventName, err := getStringField(ref, protoFieldEventName, protoFieldEventName, meta)
 	if err != nil {
@@ -115,13 +122,6 @@ func enrichEventMetadata(
 	}
 
 	meta.EventTimestamp = ts
-
-	eventGUID, err := getStringField(ref, protoFieldEventGUID, protoFieldEventGUID, meta)
-	if err != nil {
-		return meta, err
-	}
-
-	meta.EventGUID = eventGUID
 
 	return meta, nil
 }

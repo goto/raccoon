@@ -34,14 +34,9 @@ type Service struct {
 // It partitions the rules by action type, creates an eval.Cache per action,
 // and assembles the action chain in priority order: Deactivate → Drop → OverrideTimestamp → Dedup.
 func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventType string) (*Service, error) {
-	var stencil schemaregistry.StencilClient
-	var err error
-
-	if config.DeserializationCfg.Enabled {
-		stencil, err = schemaregistry.NewStencilClient()
-		if err != nil {
-			return nil, err
-		}
+	stencil, err := schemaregistry.NewStencilClient()
+	if err != nil {
+		return nil, err
 	}
 
 	var chain Chain
