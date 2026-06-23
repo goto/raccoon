@@ -2,8 +2,6 @@ package model
 
 import (
 	"time"
-
-	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 )
 
 // EventWithMetadata holds the attributes extracted from an incoming event and its
@@ -28,7 +26,7 @@ type EventWithMetadata struct {
 	// EventBytes holds the raw bytes of the serialized event payload.
 	EventBytes []byte
 	// Platform denotes the client platform generating the event (e.g., Android, iOS, Flutter).
-	Platform pb.Platform
+	Platform string
 	// AppVersion denotes the version of the client application generating the event.
 	AppVersion string
 	// IsExclusive indicates whether the event is mirrored to both MQTT and Websocket.

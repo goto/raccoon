@@ -47,7 +47,7 @@ func toEventsWithMetadata(events []*pb.Event) []*model.EventWithMetadata {
 			EventName:   e.EventName,
 			Product:     e.Product,
 			Type:        e.Type,
-			Platform:    e.Platform,
+			Platform:    e.Platform.String(),
 			AppVersion:  e.AppVersion,
 			IsExclusive: e.IsExclusive,
 			EventBytes:  e.EventBytes,

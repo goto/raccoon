@@ -39,9 +39,13 @@ func TestDeserializeEvents(t *testing.T) {
 	// Save original config to restore later
 	origProtoMapping := config.DedupCfg.ProtoClassNameMapping
 	origDeserializationEnabled := config.DeserializationCfg.Enabled
+	origPlatformWhitelist := config.DeserializationCfg.PlatformPublisherWhitelist
+	origAppVersionWhitelist := config.DeserializationCfg.AppVersionPublisherWhitelist
 	defer func() {
 		config.DedupCfg.ProtoClassNameMapping = origProtoMapping
 		config.DeserializationCfg.Enabled = origDeserializationEnabled
+		config.DeserializationCfg.PlatformPublisherWhitelist = origPlatformWhitelist
+		config.DeserializationCfg.AppVersionPublisherWhitelist = origAppVersionWhitelist
 	}()
 
 	config.DedupCfg.ProtoClassNameMapping = map[string]string{
@@ -57,13 +61,15 @@ func TestDeserializeEvents(t *testing.T) {
 	tsProto := timestamppb.New(now)
 
 	tests := []struct {
-		name         string
-		events       []*pb.Event
-		connGroup    string
-		publisherMap map[string]string
-		topicFormat  string
-		parseFunc    func(string, []byte) (protoreflect.ProtoMessage, error)
-		verify       func(t *testing.T, results []*model.EventWithMetadata)
+		name                string
+		events              []*pb.Event
+		connGroup           string
+		publisherMap        map[string]string
+		topicFormat         string
+		platformWhitelist   []string
+		appVersionWhitelist []string
+		parseFunc           func(string, []byte) (protoreflect.ProtoMessage, error)
+		verify              func(t *testing.T, results []*model.EventWithMetadata)
 	}{
 		{
 			name: "successful deserialization",
@@ -312,10 +318,83 @@ func TestDeserializeEvents(t *testing.T) {
 				assert.Equal(t, "publisher-1", res.Publisher)
 			},
 		},
+		{
+			name: "conditional deserialization - neither platform nor app_version whitelisted",
+			events: []*pb.Event{
+				{
+					Type:           "click_event",
+					Product:        "my_product",
+					EventName:      "test_event",
+					EventBytes:     []byte("event-bytes-data"),
+					EventTimestamp: tsProto,
+					Platform:       pb.Platform_PLATFORM_ANDROID,
+					AppVersion:     "1.0.0-envelope",
+				},
+			},
+			connGroup:           "group-1",
+			publisherMap:        publisherMap,
+			topicFormat:         "topic-%s",
+			platformWhitelist:   []string{"other-publisher"},
+			appVersionWhitelist: []string{"other-publisher"},
+			parseFunc: func(class string, data []byte) (protoreflect.ProtoMessage, error) {
+				return &testpb.Event{
+					EventName:      "inner_event_name",
+					Product:        testpb.Product_Generic,
+					EventTimestamp: tsProto,
+					Meta: &testpb.Meta{
+						EventGuid: "some-guid-123",
+					},
+				}, nil
+			},
+			verify: func(t *testing.T, results []*model.EventWithMetadata) {
+				require.Len(t, results, 1)
+				res := results[0]
+				// Since they are not whitelisted, they must keep the base envelope values and not try to deserialize from Stencil (which would fail anyway since testpb.Event doesn't have operating_system or app version)
+				assert.Equal(t, pb.Platform_PLATFORM_ANDROID.String(), res.Platform)
+				assert.Equal(t, "1.0.0-envelope", res.AppVersion)
+			},
+		},
+		{
+			name: "conditional deserialization - platform whitelisted, app_version not whitelisted",
+			events: []*pb.Event{
+				{
+					Type:           "click_event",
+					Product:        "my_product",
+					EventName:      "test_event",
+					EventBytes:     []byte("event-bytes-data"),
+					EventTimestamp: tsProto,
+					Platform:       pb.Platform_PLATFORM_ANDROID,
+					AppVersion:     "1.0.0-envelope",
+				},
+			},
+			connGroup:           "group-1",
+			publisherMap:        publisherMap,
+			topicFormat:         "topic-%s",
+			platformWhitelist:   []string{"publisher-1"},
+			appVersionWhitelist: []string{"other-publisher"},
+			parseFunc: func(class string, data []byte) (protoreflect.ProtoMessage, error) {
+				return &testpb.Event{
+					EventName:      "inner_event_name",
+					Product:        testpb.Product_Generic,
+					EventTimestamp: tsProto,
+					Meta: &testpb.Meta{
+						EventGuid: "some-guid-123",
+					},
+				}, nil
+			},
+			verify: func(t *testing.T, results []*model.EventWithMetadata) {
+				require.Len(t, results, 1)
+				res := results[0]
+				// Since platform is whitelisted, it tries to deserialize and fails (due to missing field in testpb.Event), but app_version is NOT whitelisted so it is skipped.
+				assert.Equal(t, "1.0.0-envelope", res.AppVersion)
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			config.DeserializationCfg.PlatformPublisherWhitelist = tt.platformWhitelist
+			config.DeserializationCfg.AppVersionPublisherWhitelist = tt.appVersionWhitelist
 			clientMock := &mockStencilClient{parseFunc: tt.parseFunc}
 			stencilClient := StencilClient{Client: clientMock}
 

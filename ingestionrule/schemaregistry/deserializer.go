@@ -2,6 +2,7 @@ package schemaregistry
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -29,6 +30,8 @@ const (
 	protoFieldEventName      = "event_name"
 	protoFieldEventProduct   = "product"
 	protoFieldEventTimestamp = "event_timestamp"
+	protoFieldPlatform       = "meta.device.operating_system"
+	protoFieldAppVersion     = "meta.app.version"
 )
 
 // DeserializeEvents extracts metadata for the entire batch of events and tracks error and latency metrics.
@@ -123,6 +126,24 @@ func enrichEventMetadata(
 
 	meta.EventTimestamp = ts
 
+	if isPublisherWhitelisted(config.DeserializationCfg.PlatformPublisherWhitelist, meta.Publisher) {
+		platform, err := getStringField(ref, protoFieldPlatform, protoFieldPlatform, meta)
+		if err != nil {
+			return meta, fmt.Errorf("failed to extract %q value for publisher=%s,product=%s,event_name=%s: %w", protoFieldPlatform, meta.Publisher, meta.Product, meta.EventName, err)
+		}
+
+		meta.Platform = platform
+	}
+
+	if isPublisherWhitelisted(config.DeserializationCfg.AppVersionPublisherWhitelist, meta.Publisher) {
+		appVersion, err := getStringField(ref, protoFieldAppVersion, protoFieldAppVersion, meta)
+		if err != nil {
+			return meta, err
+		}
+		
+		meta.AppVersion = appVersion
+	}
+
 	return meta, nil
 }
 
@@ -144,11 +165,20 @@ func extractBaseMetadata(
 		EventName:      event.GetEventName(),
 		EventTimestamp: ts,
 		Type:           event.GetType(),
-		Platform:       event.GetPlatform(),
+		Platform:       event.GetPlatform().String(),
 		AppVersion:     event.GetAppVersion(),
 		IsExclusive:    event.GetIsExclusive(),
 		EventBytes:     event.GetEventBytes(),
 	}
+}
+
+// isPublisherWhitelisted checks if the publisher is whitelisted for the given config.
+func isPublisherWhitelisted(whitelist []string, publisher string) bool {
+	if len(whitelist) == 0 {
+		return true
+	}
+
+	return slices.Contains(whitelist, publisher)
 }
 
 // getStringField is a helper function to safely extract and convert to string.
