@@ -24,7 +24,7 @@ import (
 func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
 
-	ingestionRuleSvc, err := initIngestionRule(ctx)
+	ingestionRuleSvc, err := ingestionrule.NewService(ctx, config.PolicyCfg.Rules, config.PolicyCfg.OverrideEventType)
 	if err != nil {
 		panic("error creating ingestion rule service: " + err.Error())
 	}
@@ -130,26 +130,6 @@ func reportProcMetrics() {
 		metrics.Gauge("server_mem_gc_count_current", m.NumGC, "")
 		metrics.Gauge("server_mem_gc_pauseTotalNs_current", m.PauseTotalNs, "")
 	}
-}
-
-// initIngestionRule builds a *ingestionrule.Service.
-func initIngestionRule(ctx context.Context) (*ingestionrule.Service, error) {
-	if config.PolicyCfg.Enabled {
-		logger.Infof("ingestionRule enforcement enabled: loaded %d rules", len(config.PolicyCfg.Rules))
-	} else {
-		logger.Info("ingestionRule enforcement disabled (deserialization only)")
-	}
-
-	svc, err := ingestionrule.NewService(
-		ctx,
-		config.PolicyCfg.Rules,
-		config.PolicyCfg.OverrideEventType,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return svc, nil
 }
 
 func registerHealthCheck(svcs services.Services, kafka *publisher.Kafka, ingestionRuleSvc *ingestionrule.Service) {

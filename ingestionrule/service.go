@@ -118,17 +118,17 @@ func (s *Service) HealthCheck() error {
 // that no action consumed (passthrough)
 func (s *Service) Apply(ctx context.Context, events []*pb.Event, connGroup string) []*model.EventWithMetadata {
 	start := time.Now()
+	defer func() {
+		metrics.Timing(MetricEvalDuration, time.Since(start).Milliseconds(), fmt.Sprintf("action=total,conn_group=%s", connGroup))
+	}()
+
+	if s == nil {
+		return schemaregistry.DeserializeEvents(events, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, schemaregistry.StencilClient{})
+	}
 
 	metadataEvents := schemaregistry.DeserializeEvents(events, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern, s.stencil)
 
-	var sanitizedEvents []*model.EventWithMetadata
-	if config.PolicyCfg.Enabled {
-		sanitizedEvents = s.chain.Apply(ctx, metadataEvents, connGroup)
-	} else {
-		sanitizedEvents = metadataEvents
-	}
-
-	metrics.Timing(MetricEvalDuration, time.Since(start).Milliseconds(), fmt.Sprintf("action=total,conn_group=%s", connGroup))
+	sanitizedEvents := s.chain.Apply(ctx, metadataEvents, connGroup)
 
 	return sanitizedEvents
 }
