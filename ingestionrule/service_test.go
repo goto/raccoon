@@ -191,14 +191,37 @@ func TestService_Apply_UnknownActionTypeSkipped(t *testing.T) {
 
 func TestService_NewService_DeserializationDisabled(t *testing.T) {
 	origEnabled := config.DeserializationCfg.Enabled
+	origDedupEnabled := config.DedupCfg.Enabled
 	origStencilURL := config.StencilCfg.URL
 	defer func() {
 		config.DeserializationCfg.Enabled = origEnabled
+		config.DedupCfg.Enabled = origDedupEnabled
 		config.StencilCfg.URL = origStencilURL
 	}()
 
 	config.DeserializationCfg.Enabled = false
-	// Set Stencil URL to empty/invalid, which would normally fail initialization
+	config.DedupCfg.Enabled = false
+	// Set Stencil URL to empty/invalid, which should NOT fail initialization when both features are disabled
+	config.StencilCfg.URL = ""
+
+	svc, err := ingestionrule.NewService(context.Background(), nil, testOverrideEventType)
+	assert.NoError(t, err)
+	assert.NotNil(t, svc)
+}
+
+func TestService_NewService_DedupEnabled_StencilURL_Empty(t *testing.T) {
+	origEnabled := config.DeserializationCfg.Enabled
+	origDedupEnabled := config.DedupCfg.Enabled
+	origStencilURL := config.StencilCfg.URL
+	defer func() {
+		config.DeserializationCfg.Enabled = origEnabled
+		config.DedupCfg.Enabled = origDedupEnabled
+		config.StencilCfg.URL = origStencilURL
+	}()
+
+	config.DeserializationCfg.Enabled = false
+	config.DedupCfg.Enabled = true
+	// Set Stencil URL to empty/invalid, which must fail initialization when dedup is enabled
 	config.StencilCfg.URL = ""
 
 	svc, err := ingestionrule.NewService(context.Background(), nil, testOverrideEventType)

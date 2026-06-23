@@ -81,6 +81,10 @@ func enrichEventMetadata(
 		topicFormat,
 	)
 
+	if stencil.Client == nil {
+		return meta, nil
+	}
+
 	protoClass, ok := config.DedupCfg.ProtoClassNameMapping[event.Type]
 	if !ok {
 		return meta, fmt.Errorf("failed to find proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
