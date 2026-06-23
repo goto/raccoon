@@ -87,12 +87,28 @@ func enrichEventMetadata(
 
 	protoClass, ok := config.DedupCfg.ProtoClassNameMapping[event.Type]
 	if !ok {
-		return meta, fmt.Errorf("failed to find proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
+		return meta, fmt.Errorf(
+			"failed to find proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
+			connGroup,
+			event.Type,
+			event.Product,
+			event.EventName,
+			meta.Platform,
+			meta.AppVersion,
+		)
 	}
 
 	parsedMsg, err := stencil.Client.Parse(protoClass, event.EventBytes)
 	if err != nil {
-		return meta, fmt.Errorf("failed to publisher for conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, event.Type, event.Product, event.EventName)
+		return meta, fmt.Errorf(
+			"failed to publisher for conn_group=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
+			connGroup,
+			event.Type,
+			event.Product,
+			event.EventName,
+			meta.Platform,
+			meta.AppVersion,
+		)
 	}
 
 	ref := parsedMsg.ProtoReflect()
@@ -117,7 +133,16 @@ func enrichEventMetadata(
 
 	product, err := protoutil.GetEnumStringValue(ref, protoFieldEventProduct)
 	if err != nil {
-		return meta, fmt.Errorf("failed to extract %q value for publisher=%s,product=%s,event_name=%s: %w", protoFieldEventProduct, meta.Publisher, meta.Product, meta.EventName, err)
+		return meta, fmt.Errorf(
+			"failed to extract %q value for publisher=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
+			protoFieldEventProduct,
+			meta.Publisher,
+			meta.Product,
+			meta.EventName,
+			meta.Platform,
+			meta.AppVersion,
+			err,
+		)
 	}
 
 	// normalize across iOS/Android variants (e.g. "My_App" → "myapp")
@@ -133,7 +158,7 @@ func enrichEventMetadata(
 	if isPublisherWhitelisted(config.DeserializationCfg.PlatformPublisherWhitelist, meta.Publisher) {
 		platform, err := getStringField(ref, protoFieldPlatform, protoFieldPlatform, meta)
 		if err != nil {
-			return meta, fmt.Errorf("failed to extract %q value for publisher=%s,product=%s,event_name=%s: %w", protoFieldPlatform, meta.Publisher, meta.Product, meta.EventName, err)
+			return meta, err
 		}
 
 		meta.Platform = platform
@@ -144,7 +169,7 @@ func enrichEventMetadata(
 		if err != nil {
 			return meta, err
 		}
-		
+
 		meta.AppVersion = appVersion
 	}
 
@@ -194,12 +219,30 @@ func getStringField(
 ) (string, error) {
 	rawVal, err := protoutil.GetFieldValue(ref, strings.Split(path, "."))
 	if err != nil {
-		return "", fmt.Errorf("failed to extract %q value for publisher=%s,product=%s,event_name=%s: %w", fieldName, meta.Publisher, meta.Product, meta.EventName, err)
+		return "", fmt.Errorf(
+			"failed to extract %q value for publisher=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
+			fieldName,
+			meta.Publisher,
+			meta.Product,
+			meta.EventName,
+			meta.Platform,
+			meta.AppVersion,
+			err,
+		)
 	}
 
 	val, err := cast.ToStringE(rawVal)
 	if err != nil {
-		return "", fmt.Errorf("failed to convert %q value to string for publisher=%s,product=%s,event_name=%s: %w", fieldName, meta.Publisher, meta.Product, meta.EventName, err)
+		return "", fmt.Errorf(
+			"failed to convert %q value to string for publisher=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
+			fieldName,
+			meta.Publisher,
+			meta.Product,
+			meta.EventName,
+			meta.Platform,
+			meta.AppVersion,
+			err,
+		)
 	}
 
 	return val, nil
