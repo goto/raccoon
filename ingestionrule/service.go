@@ -46,14 +46,7 @@ func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventTyp
 		var cache *deserialization.SchemaCache
 
 		if config.DeserializationCfg.Enabled {
-			cache = deserialization.NewSchemaCache(
-				ctx,
-				config.CompassCfg.HTTPHost,
-				config.CompassCfg.AuthEmail,
-				config.CompassCfg.SyncInterval,
-				config.CompassCfg.HTTPRequestTimeout,
-			)
-
+			cache = deserialization.NewSchemaCache(ctx)
 			cache.Start()
 		}
 
@@ -108,7 +101,7 @@ func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventTyp
 	}, nil
 }
 
-// Close closes any resources used by the service (such as deduplication).
+// Close closes any resources used by the service during shutdown.
 func (s *Service) Close() {
 	if s == nil {
 		return
@@ -125,13 +118,22 @@ func (s *Service) Close() {
 	}
 }
 
-// HealthCheck checks the health of the duplicate checker.
-func (s *Service) HealthCheck() error {
+// DedupHealthCheck checks the health of the duplicate checker client.
+func (s *Service) DedupHealthCheck() error {
 	if s == nil || s.duplicateChecker == nil {
 		return nil
 	}
 
 	return s.duplicateChecker.HealthCheck()
+}
+
+// CompassHealthCheck checks the health of the compass schema registry client.
+func (s *Service) CompassHealthCheck() error {
+	if s == nil || s.deserializer == nil {
+		return nil
+	}
+
+	return s.deserializer.HealthCheck()
 }
 
 // Apply runs the event batch through the action pipeline and returns only events
@@ -145,7 +147,7 @@ func (s *Service) Apply(ctx context.Context, events []*pb.Event, connGroup strin
 	var metadataEvents []*model.EventWithMetadata
 	if s == nil {
 		var d *deserialization.Deserializer
-		
+
 		return d.Deserialize(events, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern)
 	} else {
 		metadataEvents = s.deserializer.Deserialize(events, connGroup, config.PolicyCfg.PublisherMapping, config.EventDistribution.PublisherPattern)

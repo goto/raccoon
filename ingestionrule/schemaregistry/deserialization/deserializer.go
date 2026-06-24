@@ -41,6 +41,8 @@ type SchemaRegistryCache interface {
 	Get(topic string) (string, bool)
 	// Close closes the schema cache
 	Close()
+	// HealthCheck checks the health of the schema registry
+	HealthCheck() error
 }
 
 type Deserializer struct {
@@ -80,11 +82,19 @@ func (d *Deserializer) Deserialize(
 	return metadataBatch
 }
 
-// Close closes the schema cache used by the deserializer.
+// Close closes the schema cache used by the deserializer during shutdown.
 func (d *Deserializer) Close() {
 	if d != nil && d.cache != nil {
 		d.cache.Close()
 	}
+}
+
+// HealthCheck checks the health of the underlying schema registry cache/server.
+func (d *Deserializer) HealthCheck() error {
+	if d == nil || d.cache == nil {
+		return nil
+	}
+	return d.cache.HealthCheck()
 }
 
 // enrichEventMetadata builds a complete EventWithMetadata for an event.
@@ -112,16 +122,16 @@ func (d *Deserializer) enrichEventMetadata(
 	}
 
 	var protoClass string
-	var ok bool
+	var found bool
 	if d.cache != nil {
-		protoClass, ok = d.cache.Get(meta.TopicName)
+		protoClass, found = d.cache.Get(meta.TopicName)
 	}
 
-	if !ok {
-		protoClass, ok = config.DedupCfg.ProtoClassNameMapping[event.Type]
+	if !found {
+		protoClass, found = config.DedupCfg.ProtoClassNameMapping[event.Type]
 	}
 
-	if !ok {
+	if !found {
 		return meta, fmt.Errorf(
 			"failed to find proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
 			connGroup,
