@@ -36,19 +36,17 @@ func GetFieldValue(msg protoreflect.Message, path []string) (any, error) {
 			return nil, fmt.Errorf("intermediate field %q is not a message", fieldName)
 		}
 
-		if !val.Message().IsValid() {
-			return nil, fmt.Errorf("intermediate message %q is not valid or not set", fieldName)
-		}
-
 		currentMsg = val.Message()
 	}
 
 	return nil, errors.New("unexpected error resolving path")
 }
 
-// GetEnumStringValue safely extracts the string name of an enum field from a dynamic message.
+// GetEnumStringValue safely extracts the string name of a root-level enum field from a dynamic message.
 // It returns the string name of the enum value, or an error if the field doesn't exist, isn't an enum, or resolves to an empty string.
 // If the enum number is not defined in the schema, it falls back to returning the number as a string with no error.
+//
+// Note: This function only works for top-level fields of the provided message and does not support nested enum paths.
 func GetEnumStringValue(msg protoreflect.Message, fieldName string) (string, error) {
 	fieldDesc := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
 	if fieldDesc == nil {
@@ -67,12 +65,7 @@ func GetEnumStringValue(msg protoreflect.Message, fieldName string) (string, err
 		return fmt.Sprintf("%d", enumNumber), nil
 	}
 
-	result := string(valueDescriptor.Name())
-	if result == "" {
-		return "", fmt.Errorf("resolved string value for enum field %q is empty", fieldName)
-	}
-
-	return result, nil
+	return string(valueDescriptor.Name()), nil
 }
 
 // GetTimestampFieldValue safely extracts a time.Time from a dynamic message field representing a google.protobuf.Timestamp.

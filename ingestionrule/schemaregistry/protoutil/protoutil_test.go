@@ -95,13 +95,65 @@ func TestGetFieldValue(t *testing.T) {
 			wantErr: "intermediate field \"name\" is not a message",
 		},
 		{
-			name: "traversal fails on nil intermediate message",
+			name: "primitive value - Home Page",
 			setupMsg: func() protoreflect.Message {
-				return (&pb.Event{Id: 1}).ProtoReflect()
+				return (&pb.Event{Name: "Home Page"}).ProtoReflect()
 			},
-			path:    []string{"event_timestamp", "seconds"},
-			want:    nil,
-			wantErr: "intermediate message \"event_timestamp\" is not valid or not set",
+			path:    []string{"name"},
+			want:    "Home Page",
+			wantErr: "",
+		},
+		{
+			name: "nested path meta.event_guid - populated",
+			setupMsg: func() protoreflect.Message {
+				return (&pb.Event{
+					Meta: &pb.Meta{
+						EventGuid: "some-guid",
+					},
+				}).ProtoReflect()
+			},
+			path:    []string{"meta", "event_guid"},
+			want:    "some-guid",
+			wantErr: "",
+		},
+		{
+			name: "nested path meta.event_guid - unset",
+			setupMsg: func() protoreflect.Message {
+				return (&pb.Event{
+					Meta: &pb.Meta{
+						Device: &pb.Device{
+							OperatingSystem: "Android",
+						},
+					},
+				}).ProtoReflect()
+			},
+			path:    []string{"meta", "event_guid"},
+			want:    "",
+			wantErr: "",
+		},
+		{
+			name: "nested path meta.device.operating_system - populated",
+			setupMsg: func() protoreflect.Message {
+				return (&pb.Event{
+					Meta: &pb.Meta{
+						Device: &pb.Device{
+							OperatingSystem: "iOS",
+						},
+					},
+				}).ProtoReflect()
+			},
+			path:    []string{"meta", "device", "operating_system"},
+			want:    "iOS",
+			wantErr: "",
+		},
+		{
+			name: "nested path meta.device.operating_system - unset",
+			setupMsg: func() protoreflect.Message {
+				return (&pb.Event{}).ProtoReflect()
+			},
+			path:    []string{"meta", "device", "operating_system"},
+			want:    "",
+			wantErr: "",
 		},
 	}
 

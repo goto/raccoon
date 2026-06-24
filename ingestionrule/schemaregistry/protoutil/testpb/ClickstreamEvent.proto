@@ -45,8 +45,13 @@ message NestedMessage {
   Product product = 3;
 }
 
+message Device {
+  string operating_system = 1;
+}
+
 message Meta {
   string event_guid = 1;
+  Device device = 2;
 }
 
 message InvalidProductEvent {
