@@ -23,7 +23,8 @@ import (
 const MetricEventLossCount = action.MetricEventLossCount
 
 const (
-	metricNameEventDeserializationLatency = "event_deserialization_latency"
+	metricNameEventDeserializationLatency    = "event_deserialization_latency"
+	metricNameEventDeserializationEmptyField = "event_deserialization_empty_field_total"
 )
 
 const (
@@ -159,7 +160,7 @@ func (d *Deserializer) enrichEventMetadata(
 
 	ref := parsedMsg.ProtoReflect()
 
-	eventGUID, err := getStringField(ref, protoFieldEventGUID, protoFieldEventGUID, meta)
+	eventGUID, err := getStringField(ref, protoFieldEventGUID, connGroup, meta)
 	if err != nil {
 		return meta, err
 	}
@@ -170,7 +171,7 @@ func (d *Deserializer) enrichEventMetadata(
 		return meta, nil
 	}
 
-	eventName, err := getStringField(ref, protoFieldEventName, protoFieldEventName, meta)
+	eventName, err := getStringField(ref, protoFieldEventName, connGroup, meta)
 	if err != nil {
 		return meta, err
 	}
@@ -202,7 +203,7 @@ func (d *Deserializer) enrichEventMetadata(
 	meta.EventTimestamp = ts
 
 	if isPublisherWhitelisted(config.DeserializationCfg.PlatformPublisherWhitelist, meta.Publisher) {
-		platform, err := getStringField(ref, protoFieldPlatform, protoFieldPlatform, meta)
+		platform, err := getStringField(ref, protoFieldPlatform, connGroup, meta)
 		if err != nil {
 			return meta, err
 		}
@@ -211,7 +212,7 @@ func (d *Deserializer) enrichEventMetadata(
 	}
 
 	if isPublisherWhitelisted(config.DeserializationCfg.AppVersionPublisherWhitelist, meta.Publisher) {
-		appVersion, err := getStringField(ref, protoFieldAppVersion, protoFieldAppVersion, meta)
+		appVersion, err := getStringField(ref, protoFieldAppVersion, connGroup, meta)
 		if err != nil {
 			return meta, err
 		}
@@ -259,11 +260,10 @@ func isPublisherWhitelisted(whitelist []string, publisher string) bool {
 // getStringField is a helper function to safely extract and convert to string.
 func getStringField(
 	ref protoreflect.Message,
-	path string,
-	fieldName string,
+	fieldName, connGroup string,
 	meta model.EventWithMetadata,
 ) (string, error) {
-	rawVal, err := protoutil.GetFieldValue(ref, strings.Split(path, "."))
+	rawVal, err := protoutil.GetFieldValue(ref, strings.Split(fieldName, "."))
 	if err != nil {
 		return "", fmt.Errorf(
 			"failed to extract %q value for publisher=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
@@ -288,6 +288,22 @@ func getStringField(
 			meta.Platform,
 			meta.AppVersion,
 			err,
+		)
+	}
+
+	if val == "" {
+		metrics.Increment(
+			metricNameEventDeserializationEmptyField,
+			fmt.Sprintf("field_name=%s,conn_group=%s,platform=%s,app_version=%s", fieldName, connGroup, meta.Platform, meta.AppVersion),
+		)
+		logger.Infof(
+			"field %q is empty for publisher=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
+			fieldName,
+			meta.Publisher,
+			meta.Product,
+			meta.EventName,
+			meta.Platform,
+			meta.AppVersion,
 		)
 	}
 
