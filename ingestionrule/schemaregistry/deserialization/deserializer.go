@@ -146,13 +146,14 @@ func (d *Deserializer) enrichEventMetadata(
 	parsedMsg, err := d.stencil.Client.Parse(protoClass, event.EventBytes)
 	if err != nil {
 		return meta, fmt.Errorf(
-			"failed to publisher for conn_group=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
+			"failed to parse event bytes for conn_group=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
 			connGroup,
 			event.Type,
 			event.Product,
 			event.EventName,
 			meta.Platform,
 			meta.AppVersion,
+			err,
 		)
 	}
 
