@@ -555,3 +555,76 @@ func TestDeserializer_FallbackOrder(t *testing.T) {
 		assert.Empty(t, results[0].EventGUID)
 	})
 }
+
+func TestDeserializer_NilCache(t *testing.T) {
+	metrics.SetVoid()
+
+	// Save original config to restore later
+	origProtoMapping := config.DedupCfg.ProtoClassNameMapping
+	origDeserializationEnabled := config.DeserializationCfg.Enabled
+	defer func() {
+		config.DedupCfg.ProtoClassNameMapping = origProtoMapping
+		config.DeserializationCfg.Enabled = origDeserializationEnabled
+	}()
+
+	config.DedupCfg.ProtoClassNameMapping = map[string]string{
+		"click_event": "class.from.Static",
+	}
+	config.DeserializationCfg.Enabled = true
+
+	now := time.Now().Truncate(time.Microsecond)
+	tsProto := timestamppb.New(now)
+
+	event := &pb.Event{
+		Type:           "click_event",
+		Product:        "my_product",
+		EventName:      "test_event",
+		EventBytes:     []byte("event-bytes-data"),
+		EventTimestamp: tsProto,
+	}
+
+	t.Run("typed nil pointer cache", func(t *testing.T) {
+		var cache *SchemaCache = nil
+		clientMock := &mockStencilClient{
+			parseFunc: func(class string, data []byte) (protoreflect.ProtoMessage, error) {
+				assert.Equal(t, "class.from.Static", class)
+				return &testpb.Event{
+					EventName:      "inner_event",
+					Product:        testpb.Product_Generic,
+					EventTimestamp: tsProto,
+					Meta:           &testpb.Meta{EventGuid: "guid-typed-nil"},
+				}, nil
+			},
+		}
+
+		// This passes `cache` which is (*SchemaCache)(nil) wrapped in SchemaRegistryCache.
+		// It shouldn't panic because:
+		// 1. SchemaCache.Get has a nil check.
+		// 2. It fallbacks to the static mapping.
+		d := NewDeserializer(schemaregistry.StencilClient{Client: clientMock}, cache)
+		results := d.Deserialize([]*pb.Event{event}, "group-1", map[string]string{}, "topic-%s")
+		require.Len(t, results, 1)
+		assert.Equal(t, "guid-typed-nil", results[0].EventGUID)
+	})
+
+	t.Run("nil interface cache", func(t *testing.T) {
+		var cache SchemaRegistryCache = nil
+		clientMock := &mockStencilClient{
+			parseFunc: func(class string, data []byte) (protoreflect.ProtoMessage, error) {
+				assert.Equal(t, "class.from.Static", class)
+				return &testpb.Event{
+					EventName:      "inner_event",
+					Product:        testpb.Product_Generic,
+					EventTimestamp: tsProto,
+					Meta:           &testpb.Meta{EventGuid: "guid-nil-interface"},
+				}, nil
+			},
+		}
+
+		d := NewDeserializer(schemaregistry.StencilClient{Client: clientMock}, cache)
+		results := d.Deserialize([]*pb.Event{event}, "group-1", map[string]string{}, "topic-%s")
+		require.Len(t, results, 1)
+		assert.Equal(t, "guid-nil-interface", results[0].EventGUID)
+	})
+}
+

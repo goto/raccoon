@@ -68,6 +68,10 @@ func NewSchemaCache(ctx context.Context) *SchemaCache {
 // If it fails after the maximum configured attempts, it logs the failure and still launches the periodic background worker.
 // If it succeeds, it launches the periodic background worker.
 func (c *SchemaCache) Start() {
+	if c == nil {
+		return
+	}
+
 	var (
 		maxRetry = c.startupConfig.startupMaxRetry
 		backoff  = c.startupConfig.startupRetryBackoff
@@ -77,7 +81,7 @@ func (c *SchemaCache) Start() {
 
 	var err error
 
-	for attempt := 0; attempt < maxRetry; attempt++ {
+	for attempt := range maxRetry {
 		err = c.sync()
 		if err == nil {
 			go c.worker()
@@ -106,11 +110,19 @@ func (c *SchemaCache) Start() {
 
 // Close cancels the schema cache's background worker and frees resources.
 func (c *SchemaCache) Close() {
+	if c == nil {
+		return
+	}
+
 	c.cancel()
 }
 
 // HealthCheck checks the health of the compass API by sending a GET request to the /ping endpoint.
 func (c *SchemaCache) HealthCheck() error {
+	if c == nil {
+		return errors.New("schema cache is disabled")
+	}
+
 	if c.httpConfig.httpHost == "" {
 		return errors.New("compass HTTP host is empty")
 	}
@@ -129,6 +141,10 @@ func (c *SchemaCache) HealthCheck() error {
 
 // Get retrieves the proto class name for a given topic.
 func (c *SchemaCache) Get(topic string) (string, bool) {
+	if c == nil {
+		return "", false
+	}
+
 	val := c.schemaMap.Load()
 	if val == nil {
 		return "", false

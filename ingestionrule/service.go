@@ -43,11 +43,13 @@ func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventTyp
 			return nil, err
 		}
 
-		var cache *deserialization.SchemaCache
+		var cache deserialization.SchemaRegistryCache
 
 		if config.DeserializationCfg.Enabled {
-			cache = deserialization.NewSchemaCache(ctx)
-			cache.Start()
+			schemaCache := deserialization.NewSchemaCache(ctx)
+			schemaCache.Start()
+			
+			cache = schemaCache
 		}
 
 		deserializer = deserialization.NewDeserializer(stencil, cache)
