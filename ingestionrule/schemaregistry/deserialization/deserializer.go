@@ -134,8 +134,8 @@ func (d *Deserializer) enrichEventMetadata(
 
 	if !found {
 		return meta, fmt.Errorf(
-			"failed to find proto class for conn_group=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
-			connGroup,
+			"failed to find proto class for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
+			meta.Publisher,
 			event.Type,
 			event.Product,
 			event.EventName,
@@ -147,8 +147,8 @@ func (d *Deserializer) enrichEventMetadata(
 	parsedMsg, err := d.stencil.Client.Parse(protoClass, event.EventBytes)
 	if err != nil {
 		return meta, fmt.Errorf(
-			"failed to parse event bytes for conn_group=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
-			connGroup,
+			"failed to parse event bytes for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
+			meta.Publisher,
 			event.Type,
 			event.Product,
 			event.EventName,
@@ -181,9 +181,10 @@ func (d *Deserializer) enrichEventMetadata(
 	product, err := protoutil.GetEnumStringValue(ref, protoFieldEventProduct)
 	if err != nil {
 		return meta, fmt.Errorf(
-			"failed to extract %q value for publisher=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
+			"failed to extract %q value for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
 			protoFieldEventProduct,
 			meta.Publisher,
+			meta.Type,
 			meta.Product,
 			meta.EventName,
 			meta.Platform,
@@ -266,11 +267,12 @@ func getStringField(
 	rawVal, err := protoutil.GetFieldValue(ref, strings.Split(fieldName, "."))
 	if err != nil {
 		return "", fmt.Errorf(
-			"failed to extract %q value for publisher=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
+			"failed to extract %q value for publisher=%s,product=%s,event_name=%s,event_type=%s,platform=%s,app_version=%s: %w",
 			fieldName,
 			meta.Publisher,
 			meta.Product,
 			meta.EventName,
+			meta.Type,
 			meta.Platform,
 			meta.AppVersion,
 			err,
@@ -280,9 +282,10 @@ func getStringField(
 	val, err := cast.ToStringE(rawVal)
 	if err != nil {
 		return "", fmt.Errorf(
-			"failed to convert %q value to string for publisher=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
+			"failed to convert %q value to string for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
 			fieldName,
 			meta.Publisher,
+			meta.Type,
 			meta.Product,
 			meta.EventName,
 			meta.Platform,
@@ -297,9 +300,10 @@ func getStringField(
 			fmt.Sprintf("field_name=%s,conn_group=%s,platform=%s,app_version=%s", fieldName, connGroup, meta.Platform, meta.AppVersion),
 		)
 		logger.Infof(
-			"field %q is empty for publisher=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
+			"field %q is empty for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
 			fieldName,
 			meta.Publisher,
+			meta.Type,
 			meta.Product,
 			meta.EventName,
 			meta.Platform,
