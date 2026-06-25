@@ -136,29 +136,31 @@ func (d *Deserializer) enrichEventMetadata(
 	}
 
 	if !found {
-		protoClass, found = config.DedupCfg.ProtoClassNameMapping[event.Type]
+		logger.Infof("proto class not found in cache, using proto class name from config for event_type=%s", meta.Type)
+
+		protoClass, found = config.DedupCfg.ProtoClassNameMapping[meta.Type]
 	}
 
 	if !found {
 		return meta, fmt.Errorf(
 			"failed to find proto class for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
 			meta.Publisher,
-			event.Type,
-			event.Product,
-			event.EventName,
+			meta.Type,
+			meta.Product,
+			meta.EventName,
 			meta.Platform,
 			meta.AppVersion,
 		)
 	}
 
-	parsedMsg, err := d.stencil.Client.Parse(protoClass, event.EventBytes)
+	parsedMsg, err := d.stencil.Client.Parse(protoClass, meta.EventBytes)
 	if err != nil {
 		return meta, fmt.Errorf(
 			"failed to parse event bytes for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
 			meta.Publisher,
-			event.Type,
-			event.Product,
-			event.EventName,
+			meta.Type,
+			meta.Product,
+			meta.EventName,
 			meta.Platform,
 			meta.AppVersion,
 			err,
