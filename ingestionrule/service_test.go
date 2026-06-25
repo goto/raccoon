@@ -275,3 +275,9 @@ func TestService_NewService_PolicyDisabled(t *testing.T) {
 	assert.Len(t, result, 1)
 	assert.Equal(t, "click", result[0].EventName)
 }
+
+func TestService_CompassHealthCheck(t *testing.T) {
+	// A nil service should return nil error (no-op)
+	var nilSvc *ingestionrule.Service
+	assert.NoError(t, nilSvc.CompassHealthCheck())
+}

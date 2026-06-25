@@ -35,4 +35,5 @@ func Load() {
 	dedupConfigLoader()
 	stencilConfigLoader()
 	deserializationConfigLoader()
+	compassConfigLoader()
 }
