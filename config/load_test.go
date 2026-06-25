@@ -290,3 +290,25 @@ func TestValidatePolicyRules(t *testing.T) {
 		})
 	}
 }
+
+func TestDeserializationConfig(t *testing.T) {
+	os.Setenv("DESERIALIZATION_ENABLED", "true")
+	os.Setenv("DESERIALIZATION_APP_VERSION_PUBLISHER_WHITELIST", `["pub1", "pub2"]`)
+	os.Setenv("DESERIALIZATION_PLATFORM_PUBLISHER_WHITELIST", `["pub3"]`)
+	os.Setenv("DESERIALIZATION_EXCLUDE_EVENT_TYPE_LIST", `["excluded-type-1", "excluded-type-2"]`)
+
+	defer func() {
+		os.Unsetenv("DESERIALIZATION_ENABLED")
+		os.Unsetenv("DESERIALIZATION_APP_VERSION_PUBLISHER_WHITELIST")
+		os.Unsetenv("DESERIALIZATION_PLATFORM_PUBLISHER_WHITELIST")
+		os.Unsetenv("DESERIALIZATION_EXCLUDE_EVENT_TYPE_LIST")
+	}()
+
+	deserializationConfigLoader()
+
+	assert.True(t, DeserializationCfg.Enabled)
+	assert.Equal(t, []string{"pub1", "pub2"}, DeserializationCfg.AppVersionPublisherWhitelist)
+	assert.Equal(t, []string{"pub3"}, DeserializationCfg.PlatformPublisherWhitelist)
+	assert.Equal(t, []string{"excluded-type-1", "excluded-type-2"}, DeserializationCfg.ExcludeEventTypeList)
+}
+

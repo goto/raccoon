@@ -43,11 +43,13 @@ func TestDeserializeEvents(t *testing.T) {
 	origDeserializationEnabled := config.DeserializationCfg.Enabled
 	origPlatformWhitelist := config.DeserializationCfg.PlatformPublisherWhitelist
 	origAppVersionWhitelist := config.DeserializationCfg.AppVersionPublisherWhitelist
+	origExcludeEventTypeList := config.DeserializationCfg.ExcludeEventTypeList
 	defer func() {
 		config.DedupCfg.ProtoClassNameMapping = origProtoMapping
 		config.DeserializationCfg.Enabled = origDeserializationEnabled
 		config.DeserializationCfg.PlatformPublisherWhitelist = origPlatformWhitelist
 		config.DeserializationCfg.AppVersionPublisherWhitelist = origAppVersionWhitelist
+		config.DeserializationCfg.ExcludeEventTypeList = origExcludeEventTypeList
 	}()
 
 	config.DedupCfg.ProtoClassNameMapping = map[string]string{
@@ -63,15 +65,16 @@ func TestDeserializeEvents(t *testing.T) {
 	tsProto := timestamppb.New(now)
 
 	tests := []struct {
-		name                string
-		events              []*pb.Event
-		connGroup           string
-		publisherMap        map[string]string
-		topicFormat         string
-		platformWhitelist   []string
-		appVersionWhitelist []string
-		parseFunc           func(string, []byte) (protoreflect.ProtoMessage, error)
-		verify              func(t *testing.T, results []*model.EventWithMetadata)
+		name                 string
+		events               []*pb.Event
+		connGroup            string
+		publisherMap         map[string]string
+		topicFormat          string
+		platformWhitelist    []string
+		appVersionWhitelist  []string
+		excludeEventTypeList []string
+		parseFunc            func(string, []byte) (protoreflect.ProtoMessage, error)
+		verify               func(t *testing.T, results []*model.EventWithMetadata)
 	}{
 		{
 			name: "successful deserialization",
@@ -385,12 +388,77 @@ func TestDeserializeEvents(t *testing.T) {
 				assert.Equal(t, "1.0.0-envelope", res.AppVersion)
 			},
 		},
+		{
+			name: "event type is in exclude list",
+			events: []*pb.Event{
+				{
+					Type:           "click_event",
+					Product:        "my_product",
+					EventName:      "test_event",
+					EventBytes:     []byte("event-bytes-data"),
+					EventTimestamp: tsProto,
+				},
+			},
+			connGroup:            "group-1",
+			publisherMap:         publisherMap,
+			topicFormat:          "topic-%s",
+			excludeEventTypeList: []string{"click_event"},
+			parseFunc: func(class string, data []byte) (protoreflect.ProtoMessage, error) {
+				t.Error("parse should not be called because event type is excluded")
+				return nil, nil
+			},
+			verify: func(t *testing.T, results []*model.EventWithMetadata) {
+				require.Len(t, results, 1)
+				res := results[0]
+				// It should return basic/base metadata because we skipped enrichment/deserialization.
+				assert.Equal(t, "publisher-1", res.Publisher)
+				assert.Equal(t, "myproduct", res.Product) // Normalized base product name
+				assert.Equal(t, "test_event", res.EventName)
+				assert.Empty(t, res.EventGUID)
+			},
+		},
+		{
+			name: "successful deserialization with empty event_guid",
+			events: []*pb.Event{
+				{
+					Type:           "click_event",
+					Product:        "my_product",
+					EventName:      "test_event",
+					EventBytes:     []byte("event-bytes-data"),
+					EventTimestamp: tsProto,
+				},
+			},
+			connGroup:    "group-1",
+			publisherMap: publisherMap,
+			topicFormat:  "topic-%s",
+			parseFunc: func(class string, data []byte) (protoreflect.ProtoMessage, error) {
+				return &testpb.Event{
+					EventName:      "inner_event_name",
+					Product:        testpb.Product_Generic,
+					EventTimestamp: tsProto,
+					Meta: &testpb.Meta{
+						EventGuid: "", // empty field
+					},
+				}, nil
+			},
+			verify: func(t *testing.T, results []*model.EventWithMetadata) {
+				require.Len(t, results, 1)
+				res := results[0]
+				assert.Equal(t, "inner_event_name", res.EventName)
+				assert.Equal(t, "generic", res.Product)
+				assert.True(t, res.EventTimestamp.Equal(now.UTC()))
+				assert.Equal(t, "", res.EventGUID) // should be empty, no error
+				assert.Equal(t, "publisher-1", res.Publisher)
+				assert.Equal(t, "topic-click_event", res.TopicName)
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config.DeserializationCfg.PlatformPublisherWhitelist = tt.platformWhitelist
 			config.DeserializationCfg.AppVersionPublisherWhitelist = tt.appVersionWhitelist
+			config.DeserializationCfg.ExcludeEventTypeList = tt.excludeEventTypeList
 			clientMock := &mockStencilClient{parseFunc: tt.parseFunc}
 			stencilClient := schemaregistry.StencilClient{Client: clientMock}
 

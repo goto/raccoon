@@ -23,12 +23,17 @@ type deserializationConfig struct {
 	// pass event that has platform in metadata.
 	// If the list is empty, it means all publishers are allowed.
 	PlatformPublisherWhitelist []string
+	// ExcludeEventTypeList controls the event type list that is not allowed to
+	// be deserialized.
+	// If the list is empty, it means no event types are excluded.
+	ExcludeEventTypeList []string
 }
 
 func deserializationConfigLoader() {
 	viper.SetDefault("DESERIALIZATION_ENABLED", "false")
 	viper.SetDefault("DESERIALIZATION_APP_VERSION_PUBLISHER_WHITELIST", "[]")
 	viper.SetDefault("DESERIALIZATION_PLATFORM_PUBLISHER_WHITELIST", "[]")
+	viper.SetDefault("DESERIALIZATION_EXCLUDE_EVENT_TYPE_LIST", "[]")
 
 	var appVersionWhitelist []string
 	rawAppVersionWhitelist := util.MustGetString("DESERIALIZATION_APP_VERSION_PUBLISHER_WHITELIST")
@@ -46,9 +51,18 @@ func deserializationConfigLoader() {
 		}
 	}
 
+	var excludeEventTypeList []string
+	rawExcludeEventTypeList := util.MustGetString("DESERIALIZATION_EXCLUDE_EVENT_TYPE_LIST")
+	if rawExcludeEventTypeList != "" && rawExcludeEventTypeList != "[]" {
+		if err := json.Unmarshal([]byte(rawExcludeEventTypeList), &excludeEventTypeList); err != nil {
+			panic("deserialization: invalid DESERIALIZATION_EXCLUDE_EVENT_TYPE_LIST: " + err.Error())
+		}
+	}
+
 	DeserializationCfg = deserializationConfig{
 		Enabled:                      util.MustGetBool("DESERIALIZATION_ENABLED"),
 		AppVersionPublisherWhitelist: appVersionWhitelist,
 		PlatformPublisherWhitelist:   platformWhitelist,
+		ExcludeEventTypeList:         excludeEventTypeList,
 	}
 }

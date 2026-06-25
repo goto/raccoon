@@ -47,14 +47,16 @@ type SchemaRegistryCache interface {
 }
 
 type Deserializer struct {
-	stencil schemaregistry.StencilClient
-	cache   SchemaRegistryCache
+	stencil              schemaregistry.StencilClient
+	cache                SchemaRegistryCache
+	excludeEventTypeList []string
 }
 
 func NewDeserializer(stencil schemaregistry.StencilClient, cache SchemaRegistryCache) *Deserializer {
 	return &Deserializer{
-		stencil: stencil,
-		cache:   cache,
+		stencil:              stencil,
+		cache:                cache,
+		excludeEventTypeList: config.DeserializationCfg.ExcludeEventTypeList,
 	}
 }
 
@@ -119,6 +121,11 @@ func (d *Deserializer) enrichEventMetadata(
 	)
 
 	if d == nil || d.stencil.Client == nil {
+		return meta, nil
+	}
+
+	// Skip deserialization if the event type is in the exclude list.
+	if slices.Contains(d.excludeEventTypeList, meta.Type) {
 		return meta, nil
 	}
 
@@ -297,7 +304,7 @@ func getStringField(
 	if val == "" {
 		metrics.Increment(
 			metricNameEventDeserializationEmptyField,
-			fmt.Sprintf("field_name=%s,conn_group=%s,platform=%s,app_version=%s", fieldName, connGroup, meta.Platform, meta.AppVersion),
+			fmt.Sprintf("field_name=%s,conn_group=%s,event_type=%s,product=%s,event_name=%s", fieldName, connGroup, meta.Type, meta.Product, meta.EventName),
 		)
 		logger.Infof(
 			"field %q is empty for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
