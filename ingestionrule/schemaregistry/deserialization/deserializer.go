@@ -28,8 +28,6 @@ const (
 	metricNameEventDeserializationEmptyField = "event_deserialization_empty_field_total"
 )
 
-var errProtoClassNotFound = errors.New("failed to find proto class")
-
 const (
 	protoFieldEventGUID      = "meta.event_guid"
 	protoFieldEventName      = "event_name"
@@ -37,6 +35,15 @@ const (
 	protoFieldEventTimestamp = "event_timestamp"
 	protoFieldPlatform       = "meta.device.operating_system"
 	protoFieldAppVersion     = "meta.app.version"
+)
+
+var errProtoClassNotFound = errors.New("failed to find proto class")
+
+const (
+	// errDeserializationInvalidContent is returned when event proto content is invalid.
+	errDeserializationInvalidContent = "DESERIALIZATION_ERROR | INVALID_CONTENT"
+	// errDeserializationProtoNotFound is returned when proto class name is not found.
+	errDeserializationProtoNotFound = "DESERIALIZATION_ERROR | PROTO_NOT_FOUND"
 )
 
 // SchemaRegistryCache is an interface for retrieving proto class names for topics.
@@ -83,9 +90,9 @@ func (d *Deserializer) Deserialize(
 			logger.Errorf("deserialization error for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %v",
 				meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.Platform, meta.AppVersion, err)
 
-			reason := "DESERIALIZATION_ERROR"
+			reason := errDeserializationInvalidContent
 			if errors.Is(err, errProtoClassNotFound) {
-				reason = "TOPIC_NOT_FOUND"
+				reason = errDeserializationProtoNotFound
 			}
 			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=%s,conn_group=%s,product=%s,event_name=%s,event_type=%s", reason, connGroup, meta.Product, meta.EventName, meta.Type))
 
@@ -180,9 +187,9 @@ func (d *Deserializer) enrichEventMetadata(
 		meta.EventName = eventName
 	}
 
-	product, err := protoutil.GetEnumStringValue(ref, protoFieldEventProduct)
+	product, err := getEnumField(ref, protoFieldEventProduct)
 	if err != nil {
-		errs = append(errs, fmt.Errorf("failed to extract %q value: %w", protoFieldEventProduct, err))
+		errs = append(errs, err)
 	} else {
 		meta.Product = product
 	}
@@ -296,6 +303,16 @@ func getStringField(
 	}
 
 	return val, nil
+}
+
+// getEnumField is a helper function to safely extract the string name of an enum field.
+func getEnumField(ref protoreflect.Message, fieldName string) (string, error) {
+	rawVal, err := protoutil.GetEnumStringValue(ref, fieldName)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract %q value: %w", fieldName, err)
+	}
+
+	return rawVal, nil
 }
 
 // resolvePublisher maps a conn_group to a publisher name using the provided map.
