@@ -15,11 +15,12 @@ func TestGetFieldValue(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		setupMsg func() protoreflect.Message
-		path     []string
-		want     any
-		wantErr  string
+		name        string
+		setupMsg    func() protoreflect.Message
+		path        []string
+		isMandatory bool
+		want        any
+		wantErr     string
 	}{
 		{
 			name: "single field - string",
@@ -58,13 +59,24 @@ func TestGetFieldValue(t *testing.T) {
 			wantErr: "path cannot be empty",
 		},
 		{
-			name: "field not found returns error",
+			name: "field not found returns error when mandatory",
 			setupMsg: func() protoreflect.Message {
 				return (&pb.Event{Name: "test"}).ProtoReflect()
 			},
-			path:    []string{"non_existent"},
-			want:    nil,
-			wantErr: "field \"non_existent\" not found in path",
+			path:        []string{"non_existent"},
+			isMandatory: true,
+			want:        nil,
+			wantErr:     "field \"non_existent\" not found in path",
+		},
+		{
+			name: "field not found returns nil without error when not mandatory",
+			setupMsg: func() protoreflect.Message {
+				return (&pb.Event{Name: "test"}).ProtoReflect()
+			},
+			path:        []string{"non_existent"},
+			isMandatory: false,
+			want:        nil,
+			wantErr:     "",
 		},
 		{
 			name: "message field returns error",
@@ -155,6 +167,74 @@ func TestGetFieldValue(t *testing.T) {
 			want:    "",
 			wantErr: "",
 		},
+		{
+			name: "mandatory field - string populated",
+			setupMsg: func() protoreflect.Message {
+				return (&pb.Event{Name: "test-event"}).ProtoReflect()
+			},
+			path:        []string{"name"},
+			isMandatory: true,
+			want:        "test-event",
+			wantErr:     "",
+		},
+		{
+			name: "mandatory field - string empty returns error",
+			setupMsg: func() protoreflect.Message {
+				return (&pb.Event{Name: ""}).ProtoReflect()
+			},
+			path:        []string{"name"},
+			isMandatory: true,
+			want:        nil,
+			wantErr:     "mandatory field \"name\" is empty",
+		},
+		{
+			name: "nested mandatory field - populated",
+			setupMsg: func() protoreflect.Message {
+				return (&pb.Event{
+					Meta: &pb.Meta{
+						EventGuid: "some-guid",
+					},
+				}).ProtoReflect()
+			},
+			path:        []string{"meta", "event_guid"},
+			isMandatory: true,
+			want:        "some-guid",
+			wantErr:     "",
+		},
+		{
+			name: "nested mandatory field - parent nil returns error",
+			setupMsg: func() protoreflect.Message {
+				return (&pb.Event{}).ProtoReflect()
+			},
+			path:        []string{"meta", "event_guid"},
+			isMandatory: true,
+			want:        nil,
+			wantErr:     "mandatory field \"event_guid\" is empty",
+		},
+		{
+			name: "nested mandatory field - leaf empty returns error",
+			setupMsg: func() protoreflect.Message {
+				return (&pb.Event{
+					Meta: &pb.Meta{
+						EventGuid: "",
+					},
+				}).ProtoReflect()
+			},
+			path:        []string{"meta", "event_guid"},
+			isMandatory: true,
+			want:        nil,
+			wantErr:     "mandatory field \"event_guid\" is empty",
+		},
+		{
+			name: "mandatory field - list empty returns error",
+			setupMsg: func() protoreflect.Message {
+				return (&pb.Event{Tags: []string{}}).ProtoReflect()
+			},
+			path:        []string{"tags"},
+			isMandatory: true,
+			want:        nil,
+			wantErr:     "mandatory field \"tags\" is empty",
+		},
 	}
 
 	for _, tt := range tests {
@@ -162,7 +242,7 @@ func TestGetFieldValue(t *testing.T) {
 			t.Parallel()
 
 			msg := tt.setupMsg()
-			got, err := GetFieldValue(msg, tt.path)
+			got, err := GetFieldValue(msg, tt.path, tt.isMandatory)
 
 			if tt.wantErr != "" {
 				if err == nil {

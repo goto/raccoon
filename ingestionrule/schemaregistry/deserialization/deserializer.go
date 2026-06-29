@@ -1,6 +1,7 @@
 package deserialization
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -36,6 +37,15 @@ const (
 	protoFieldAppVersion     = "meta.app.version"
 )
 
+var errProtoClassNotFound = errors.New("failed to find proto class")
+
+const (
+	// errDeserializationInvalidContent is returned when event proto content is invalid.
+	errDeserializationInvalidContent = "DESERIALIZATION_ERROR | INVALID_CONTENT"
+	// errDeserializationProtoNotFound is returned when proto class name is not found.
+	errDeserializationProtoNotFound = "DESERIALIZATION_ERROR | PROTO_NOT_FOUND"
+)
+
 // SchemaRegistryCache is an interface for retrieving proto class names for topics.
 type SchemaRegistryCache interface {
 	// Get retrieve proto class name for a given topic
@@ -47,16 +57,18 @@ type SchemaRegistryCache interface {
 }
 
 type Deserializer struct {
-	stencil              schemaregistry.StencilClient
-	cache                SchemaRegistryCache
-	excludeEventTypeList []string
+	stencil                schemaregistry.StencilClient
+	cache                  SchemaRegistryCache
+	excludeEventTypeList   []string
+	eventTypePrefixMapping map[string]string
 }
 
 func NewDeserializer(stencil schemaregistry.StencilClient, cache SchemaRegistryCache) *Deserializer {
 	return &Deserializer{
-		stencil:              stencil,
-		cache:                cache,
-		excludeEventTypeList: config.DeserializationCfg.ExcludeEventTypeList,
+		stencil:                stencil,
+		cache:                  cache,
+		excludeEventTypeList:   config.DeserializationCfg.ExcludeEventTypeList,
+		eventTypePrefixMapping: config.PublisherKafka.EventTypePrefixMapping,
 	}
 }
 
@@ -75,8 +87,16 @@ func (d *Deserializer) Deserialize(
 		metrics.Timing(metricNameEventDeserializationLatency, time.Since(startDeserialize).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
 
 		if err != nil {
-			logger.Errorf("deserialization error: %v", err)
-			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DESERIALIZATION_ERROR,conn_group=%s,product=%s,event_name=%s,event_type=%s", connGroup, meta.Product, meta.EventName, meta.Type))
+			logger.Errorf("deserialization error for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %v",
+				meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.Platform, meta.AppVersion, err)
+
+			reason := errDeserializationInvalidContent
+			if errors.Is(err, errProtoClassNotFound) {
+				reason = errDeserializationProtoNotFound
+			}
+			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=%s,conn_group=%s,product=%s,event_name=%s,event_type=%s", reason, connGroup, meta.Product, meta.EventName, meta.Type))
+
+			continue
 		}
 
 		metadataBatch = append(metadataBatch, &meta)
@@ -97,6 +117,7 @@ func (d *Deserializer) HealthCheck() error {
 	if d == nil || d.cache == nil {
 		return nil
 	}
+
 	return d.cache.HealthCheck()
 }
 
@@ -113,12 +134,7 @@ func (d *Deserializer) enrichEventMetadata(
 	publisherMap map[string]string,
 	topicFormat string,
 ) (model.EventWithMetadata, error) {
-	meta := extractBaseMetadata(
-		event,
-		connGroup,
-		publisherMap,
-		topicFormat,
-	)
+	meta := d.extractBaseMetadata(event, connGroup, publisherMap, topicFormat)
 
 	if d == nil || d.stencil.Client == nil {
 		return meta, nil
@@ -142,99 +158,92 @@ func (d *Deserializer) enrichEventMetadata(
 	}
 
 	if !found {
-		return meta, fmt.Errorf(
-			"failed to find proto class for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
-			meta.Publisher,
-			meta.Type,
-			meta.Product,
-			meta.EventName,
-			meta.Platform,
-			meta.AppVersion,
-		)
+		return meta, errProtoClassNotFound
 	}
 
 	parsedMsg, err := d.stencil.Client.Parse(protoClass, meta.EventBytes)
 	if err != nil {
-		return meta, fmt.Errorf(
-			"failed to parse event bytes for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
-			meta.Publisher,
-			meta.Type,
-			meta.Product,
-			meta.EventName,
-			meta.Platform,
-			meta.AppVersion,
-			err,
-		)
+		return meta, fmt.Errorf("failed to parse event bytes: %w", err)
 	}
 
+	var errs []error
 	ref := parsedMsg.ProtoReflect()
 
-	eventGUID, err := getStringField(ref, protoFieldEventGUID, connGroup, meta)
+	eventGUID, err := getStringField(ref, protoFieldEventGUID, connGroup, meta, false)
 	if err != nil {
-		return meta, err
+		errs = append(errs, err)
+	} else {
+		meta.EventGUID = eventGUID
 	}
-
-	meta.EventGUID = eventGUID
 
 	if !config.DeserializationCfg.Enabled {
-		return meta, nil
+		return meta, errors.Join(errs...)
 	}
 
-	eventName, err := getStringField(ref, protoFieldEventName, connGroup, meta)
+	eventName, err := getStringField(ref, protoFieldEventName, connGroup, meta, false)
 	if err != nil {
-		return meta, err
+		errs = append(errs, err)
+	} else {
+		meta.EventName = eventName
 	}
 
-	meta.EventName = eventName
-
-	product, err := protoutil.GetEnumStringValue(ref, protoFieldEventProduct)
+	product, err := getEnumField(ref, protoFieldEventProduct)
 	if err != nil {
-		return meta, fmt.Errorf(
-			"failed to extract %q value for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
-			protoFieldEventProduct,
-			meta.Publisher,
-			meta.Type,
-			meta.Product,
-			meta.EventName,
-			meta.Platform,
-			meta.AppVersion,
-			err,
-		)
+		errs = append(errs, err)
+	} else {
+		meta.Product = product
 	}
-
-	// normalize across iOS/Android variants (e.g. "My_App" → "myapp")
-	meta.Product = strings.ReplaceAll(strings.ToLower(product), "_", "")
 
 	ts, err := protoutil.GetTimestampFieldValue(ref, protoFieldEventTimestamp)
 	if err != nil {
-		return meta, err
+		errs = append(errs, err)
+	} else {
+		meta.EventTimestamp = ts
 	}
 
-	meta.EventTimestamp = ts
-
 	if isPublisherWhitelisted(config.DeserializationCfg.PlatformPublisherWhitelist, meta.Publisher) {
-		platform, err := getStringField(ref, protoFieldPlatform, connGroup, meta)
+		platform, err := getStringField(ref, protoFieldPlatform, connGroup, meta, false)
 		if err != nil {
-			return meta, err
+			errs = append(errs, err)
+		} else {
+			meta.Platform = platform
 		}
-
-		meta.Platform = platform
 	}
 
 	if isPublisherWhitelisted(config.DeserializationCfg.AppVersionPublisherWhitelist, meta.Publisher) {
-		appVersion, err := getStringField(ref, protoFieldAppVersion, connGroup, meta)
+		appVersion, err := getStringField(ref, protoFieldAppVersion, connGroup, meta, false)
 		if err != nil {
-			return meta, err
+			errs = append(errs, err)
+		} else {
+			meta.AppVersion = appVersion
 		}
-
-		meta.AppVersion = appVersion
 	}
 
-	return meta, nil
+	return meta, errors.Join(errs...)
+}
+
+// overrideEventType overrides the event type with the mapped event type from config.
+func (d *Deserializer) overrideEventType(eventType string) string {
+	if d == nil || len(d.eventTypePrefixMapping) == 0 || eventType == "" {
+		return eventType
+	}
+
+	// Event types are expected in <prefix>-<rest> form for direct map lookup.
+	prefix, rest, found := strings.Cut(eventType, "-")
+	if !found {
+		return eventType
+	}
+
+	targetPrefix, ok := d.eventTypePrefixMapping[prefix]
+	if !ok {
+		return eventType
+	}
+
+	return targetPrefix + "-" + rest
 }
 
 // extractBaseMetadata extracts base metadata from an event.
-func extractBaseMetadata(
+func (d *Deserializer) extractBaseMetadata(
 	event *pb.Event,
 	connGroup string,
 	publisherMap map[string]string,
@@ -244,13 +253,14 @@ func extractBaseMetadata(
 		ts = event.GetEventTimestamp().AsTime()
 	}
 
+	// override event type if prefix mapping exist and event type is in expected format, otherwise use the original event type
 	return model.EventWithMetadata{
-		TopicName:      fmt.Sprintf(topicFormat, event.GetType()),
+		TopicName:      fmt.Sprintf(topicFormat, d.overrideEventType(event.GetType())),
 		Publisher:      resolvePublisher(connGroup, publisherMap),
-		Product:        strings.ReplaceAll(strings.ToLower(event.GetProduct()), "_", ""), // normalize across iOS/Android variants (e.g. "My_App" → "myapp")
+		Product:        event.GetProduct(),
 		EventName:      event.GetEventName(),
 		EventTimestamp: ts,
-		Type:           event.GetType(),
+		Type:           d.overrideEventType(event.GetType()),
 		Platform:       event.GetPlatform().String(),
 		AppVersion:     event.GetAppVersion(),
 		IsExclusive:    event.GetIsExclusive(),
@@ -272,35 +282,16 @@ func getStringField(
 	ref protoreflect.Message,
 	fieldName, connGroup string,
 	meta model.EventWithMetadata,
+	isMandatory bool,
 ) (string, error) {
-	rawVal, err := protoutil.GetFieldValue(ref, strings.Split(fieldName, "."))
+	rawVal, err := protoutil.GetFieldValue(ref, strings.Split(fieldName, "."), isMandatory)
 	if err != nil {
-		return "", fmt.Errorf(
-			"failed to extract %q value for publisher=%s,product=%s,event_name=%s,event_type=%s,platform=%s,app_version=%s: %w",
-			fieldName,
-			meta.Publisher,
-			meta.Product,
-			meta.EventName,
-			meta.Type,
-			meta.Platform,
-			meta.AppVersion,
-			err,
-		)
+		return "", fmt.Errorf("failed to extract %q value: %w", fieldName, err)
 	}
 
 	val, err := cast.ToStringE(rawVal)
 	if err != nil {
-		return "", fmt.Errorf(
-			"failed to convert %q value to string for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
-			fieldName,
-			meta.Publisher,
-			meta.Type,
-			meta.Product,
-			meta.EventName,
-			meta.Platform,
-			meta.AppVersion,
-			err,
-		)
+		return "", fmt.Errorf("failed to convert %q value to string: %w", fieldName, err)
 	}
 
 	if val == "" {
@@ -308,19 +299,20 @@ func getStringField(
 			metricNameEventDeserializationEmptyField,
 			fmt.Sprintf("field_name=%s,conn_group=%s,event_type=%s,product=%s,event_name=%s", fieldName, connGroup, meta.Type, meta.Product, meta.EventName),
 		)
-		logger.Infof(
-			"field %q is empty for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
-			fieldName,
-			meta.Publisher,
-			meta.Type,
-			meta.Product,
-			meta.EventName,
-			meta.Platform,
-			meta.AppVersion,
-		)
+		logger.Infof("field %q is empty", fieldName)
 	}
 
 	return val, nil
+}
+
+// getEnumField is a helper function to safely extract the string name of an enum field.
+func getEnumField(ref protoreflect.Message, fieldName string) (string, error) {
+	rawVal, err := protoutil.GetEnumStringValue(ref, fieldName)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract %q value: %w", fieldName, err)
+	}
+
+	return rawVal, nil
 }
 
 // resolvePublisher maps a conn_group to a publisher name using the provided map.

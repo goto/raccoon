@@ -34,7 +34,7 @@ func TestProducer_Close(suite *testing.T) {
 		client := &mockClient{}
 		client.On("Flush", 10).Return(0)
 		client.On("Close").Return()
-		kp := NewKafkaFromClient(client, 10, map[bool]string{true: "%s", false: "%s"}, nil)
+		kp := NewKafkaFromClient(client, 10, map[bool]string{true: "%s", false: "%s"})
 		kp.Close()
 		client.AssertExpectations(t)
 	})
@@ -79,146 +79,11 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 					}
 				}()
 			})
-			kp := NewKafkaFromClient(client, 10, testFormat, nil)
+			kp := NewKafkaFromClient(client, 10, testFormat)
 
 			events := []*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}
 			err := kp.ProduceBulk(toEventsWithMetadata(events), group1, make(chan kafka.Event, 2), now, now, now)
 			assert.NoError(t, err)
-		})
-
-		t.Run("Should rewrite event type prefix based on config mapping", func(t *testing.T) {
-			client := &mockClient{}
-			events := []*pb.Event{{EventBytes: []byte{}, Type: "CS_APP_PREFIX-apihealth"}}
-			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
-				message := args.Get(0).(*kafka.Message)
-				assert.Equal(t, "gobiz-apihealth", *message.TopicPartition.Topic)
-				go func() {
-					args.Get(1).(chan kafka.Event) <- &kafka.Message{
-						TopicPartition: kafka.TopicPartition{
-							Topic:     message.TopicPartition.Topic,
-							Partition: 0,
-							Offset:    0,
-							Error:     nil,
-						},
-						Opaque: 0,
-					}
-				}()
-			}).Once()
-
-			kp := NewKafkaFromClient(client, 10, testFormat, map[string]string{"CS_APP_PREFIX": "gobiz"})
-			eventsWithMetadata := toEventsWithMetadata(events)
-			err := kp.ProduceBulk(eventsWithMetadata, group1, make(chan kafka.Event, 1), now, now, now)
-
-			assert.NoError(t, err)
-			assert.Equal(t, "gobiz-apihealth", eventsWithMetadata[0].Type)
-		})
-
-		t.Run("Should leave event type unchanged when mapping key does not match extracted prefix", func(t *testing.T) {
-			client := &mockClient{}
-			events := []*pb.Event{{EventBytes: []byte{}, Type: "CS_APP_PREFIX-apihealth"}}
-			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
-				message := args.Get(0).(*kafka.Message)
-				assert.Equal(t, "CS_APP_PREFIX-apihealth", *message.TopicPartition.Topic)
-				go func() {
-					args.Get(1).(chan kafka.Event) <- &kafka.Message{
-						TopicPartition: kafka.TopicPartition{
-							Topic:     message.TopicPartition.Topic,
-							Partition: 0,
-							Offset:    0,
-							Error:     nil,
-						},
-						Opaque: 0,
-					}
-				}()
-			}).Once()
-
-			kp := NewKafkaFromClient(client, 10, testFormat, map[string]string{"CS_APP": "gobiz"})
-			eventsWithMetadata := toEventsWithMetadata(events)
-			err := kp.ProduceBulk(eventsWithMetadata, group1, make(chan kafka.Event, 1), now, now, now)
-
-			assert.NoError(t, err)
-			assert.Equal(t, "CS_APP_PREFIX-apihealth", eventsWithMetadata[0].Type)
-		})
-
-		t.Run("Should leave plain event type unchanged when incoming type is page", func(t *testing.T) {
-			client := &mockClient{}
-			events := []*pb.Event{{EventBytes: []byte{}, Type: "page"}}
-			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
-				message := args.Get(0).(*kafka.Message)
-				assert.Equal(t, "page", *message.TopicPartition.Topic)
-				go func() {
-					args.Get(1).(chan kafka.Event) <- &kafka.Message{
-						TopicPartition: kafka.TopicPartition{
-							Topic:     message.TopicPartition.Topic,
-							Partition: 0,
-							Offset:    0,
-							Error:     nil,
-						},
-						Opaque: 0,
-					}
-				}()
-			}).Once()
-
-			kp := NewKafkaFromClient(client, 10, testFormat, map[string]string{"CS_APP_PREFIX": "gobiz"})
-			eventsWithMetadata := toEventsWithMetadata(events)
-			err := kp.ProduceBulk(eventsWithMetadata, group1, make(chan kafka.Event, 1), now, now, now)
-
-			assert.NoError(t, err)
-			assert.Equal(t, "page", eventsWithMetadata[0].Type)
-		})
-
-		t.Run("Should leave event type unchanged when incoming type is CS_APP without delimiter", func(t *testing.T) {
-			client := &mockClient{}
-			events := []*pb.Event{{EventBytes: []byte{}, Type: "CS_APP"}}
-			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
-				message := args.Get(0).(*kafka.Message)
-				assert.Equal(t, "CS_APP", *message.TopicPartition.Topic)
-				go func() {
-					args.Get(1).(chan kafka.Event) <- &kafka.Message{
-						TopicPartition: kafka.TopicPartition{
-							Topic:     message.TopicPartition.Topic,
-							Partition: 0,
-							Offset:    0,
-							Error:     nil,
-						},
-						Opaque: 0,
-					}
-				}()
-			}).Once()
-
-			kp := NewKafkaFromClient(client, 10, testFormat, map[string]string{"CS_APP_PREFIX": "gobiz"})
-			eventsWithMetadata := toEventsWithMetadata(events)
-			err := kp.ProduceBulk(eventsWithMetadata, group1, make(chan kafka.Event, 1), now, now, now)
-
-			assert.NoError(t, err)
-			assert.Equal(t, "CS_APP", eventsWithMetadata[0].Type)
-		})
-
-		t.Run("Should leave event type unchanged when prefix mapping is nil", func(t *testing.T) {
-			client := &mockClient{}
-			events := []*pb.Event{{EventBytes: []byte{}, Type: "CS_APP_PREFIX-apihealth"}}
-			client.On("Produce", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
-				message := args.Get(0).(*kafka.Message)
-				assert.Equal(t, "CS_APP_PREFIX-apihealth", *message.TopicPartition.Topic)
-				go func() {
-					args.Get(1).(chan kafka.Event) <- &kafka.Message{
-						TopicPartition: kafka.TopicPartition{
-							Topic:     message.TopicPartition.Topic,
-							Partition: 0,
-							Offset:    0,
-							Error:     nil,
-						},
-						Opaque: 0,
-					}
-				}()
-			}).Once()
-
-			kp := NewKafkaFromClient(client, 10, testFormat, nil)
-			eventsWithMetadata := toEventsWithMetadata(events)
-			err := kp.ProduceBulk(eventsWithMetadata, group1, make(chan kafka.Event, 1), now, now, now)
-
-			assert.NoError(t, err)
-			assert.Equal(t, "CS_APP_PREFIX-apihealth", eventsWithMetadata[0].Type)
 		})
 	})
 
@@ -240,7 +105,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 				}()
 			}).Once()
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf("buffer full")).Once()
-			kp := NewKafkaFromClient(client, 10, testFormat, nil)
+			kp := NewKafkaFromClient(client, 10, testFormat)
 
 			events := []*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}
 			err := kp.ProduceBulk(toEventsWithMetadata(events), group1, make(chan kafka.Event, 2), now, now, now)
@@ -253,7 +118,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 		t.Run("Should return topic name when unknown topic is returned", func(t *testing.T) {
 			client := &mockClient{}
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errUnknownTopic)).Once()
-			kp := NewKafkaFromClient(client, 10, testFormat, nil)
+			kp := NewKafkaFromClient(client, 10, testFormat)
 
 			events := []*pb.Event{{EventBytes: []byte{}, Type: topic}}
 			err := kp.ProduceBulk(toEventsWithMetadata(events), "group1", make(chan kafka.Event, 2), now, now, now)
@@ -263,7 +128,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 		t.Run("Should return topic name when message size is too large", func(t *testing.T) {
 			client := &mockClient{}
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errLargeMessageSize)).Once()
-			kp := NewKafkaFromClient(client, 10, testFormat, nil)
+			kp := NewKafkaFromClient(client, 10, testFormat)
 
 			events := []*pb.Event{{EventBytes: []byte{}, Type: topic}}
 			err := kp.ProduceBulk(toEventsWithMetadata(events), "group1", make(chan kafka.Event, 2), now, now, now)
@@ -288,7 +153,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 					}
 				}()
 			}).Once()
-			kp := NewKafkaFromClient(client, 10, testFormat, nil)
+			kp := NewKafkaFromClient(client, 10, testFormat)
 
 			events := []*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}
 			err := kp.ProduceBulk(toEventsWithMetadata(events), "group1", make(chan kafka.Event, 2), now, now, now)
