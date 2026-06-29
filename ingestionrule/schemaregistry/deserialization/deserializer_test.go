@@ -667,3 +667,49 @@ func TestDeserializer_OverrideEventType(t *testing.T) {
 	}
 }
 
+func TestDeserializer_EnrichEventMetadata_ErrorsJoin(t *testing.T) {
+	origDeserializationEnabled := config.DeserializationCfg.Enabled
+	origProtoMapping := config.DedupCfg.ProtoClassNameMapping
+	defer func() {
+		config.DeserializationCfg.Enabled = origDeserializationEnabled
+		config.DedupCfg.ProtoClassNameMapping = origProtoMapping
+	}()
+	config.DeserializationCfg.Enabled = true
+	config.DedupCfg.ProtoClassNameMapping = map[string]string{
+		"click_event": "gojek.de.raccoon.Meta",
+	}
+
+	// Use &testpb.Meta{} which lacks both "product" and "event_timestamp" fields,
+	// causing both GetEnumStringValue and GetTimestampFieldValue to return errors.
+	clientMock := &mockStencilClient{
+		parseFunc: func(class string, data []byte) (protoreflect.ProtoMessage, error) {
+			return &testpb.Meta{
+				EventGuid: "some-guid",
+			}, nil
+		},
+	}
+
+	d := NewDeserializer(schemaregistry.StencilClient{Client: clientMock}, nil)
+	event := &pb.Event{
+		Type:       "click_event",
+		EventBytes: []byte("data"),
+	}
+
+	_, err := d.enrichEventMetadata(event, "group-1", map[string]string{}, "topic-%s")
+	require.Error(t, err)
+
+	errStr := err.Error()
+	assert.Contains(t, errStr, `failed to extract "product" value: field "product" does not exist`)
+	assert.Contains(t, errStr, `field "event_timestamp" not found`)
+
+	type unpacker interface {
+		Unwrap() []error
+	}
+	unwrapped, ok := err.(unpacker)
+	require.True(t, ok, "expected err to implement Unwrap() []error")
+	errs := unwrapped.Unwrap()
+	require.Len(t, errs, 2)
+	assert.Contains(t, errs[0].Error(), `failed to extract "product" value: field "product" does not exist`)
+	assert.Contains(t, errs[1].Error(), `field "event_timestamp" not found`)
+}
+
