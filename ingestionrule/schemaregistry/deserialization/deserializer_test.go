@@ -289,7 +289,7 @@ func TestDeserializeEvents(t *testing.T) {
 			publisherMap: publisherMap,
 			topicFormat:  "topic-%s",
 			parseFunc: func(class string, data []byte) (protoreflect.ProtoMessage, error) {
-				// return an event where Meta is nil, causing getStringField for meta.event_guid to fail
+				// return an event where Meta is nil, which will leave event_guid empty (since it's not mandatory)
 				return &testpb.Event{
 					EventName:      "inner_event_name",
 					Product:        testpb.Product_Generic,
@@ -298,7 +298,8 @@ func TestDeserializeEvents(t *testing.T) {
 				}, nil
 			},
 			verify: func(t *testing.T, results []*model.EventWithMetadata) {
-				require.Empty(t, results)
+				require.Len(t, results, 1)
+				assert.Empty(t, results[0].EventGUID)
 			},
 		},
 		{
@@ -400,7 +401,7 @@ func TestDeserializeEvents(t *testing.T) {
 			},
 		},
 		{
-			name: "error - empty event_guid",
+			name: "success - empty event_guid (not mandatory)",
 			events: []*pb.Event{
 				{
 					Type:           "click_event",
@@ -424,7 +425,8 @@ func TestDeserializeEvents(t *testing.T) {
 				}, nil
 			},
 			verify: func(t *testing.T, results []*model.EventWithMetadata) {
-				require.Empty(t, results)
+				require.Len(t, results, 1)
+				assert.Empty(t, results[0].EventGUID)
 			},
 		},
 	}
@@ -600,5 +602,68 @@ func TestDeserializer_NilCache(t *testing.T) {
 		require.Len(t, results, 1)
 		assert.Equal(t, "guid-nil-interface", results[0].EventGUID)
 	})
+}
+
+func TestDeserializer_EnrichEventMetadata_Errors(t *testing.T) {
+	origProtoMapping := config.DedupCfg.ProtoClassNameMapping
+	defer func() {
+		config.DedupCfg.ProtoClassNameMapping = origProtoMapping
+	}()
+	config.DedupCfg.ProtoClassNameMapping = map[string]string{}
+
+	mockCache := mocks.NewSchemaRegistryCache(t)
+	mockCache.EXPECT().Get("topic-unknown").Return("", false)
+
+	d := NewDeserializer(schemaregistry.StencilClient{Client: &mockStencilClient{}}, mockCache)
+	event := &pb.Event{
+		Type: "unknown",
+	}
+
+	_, err := d.enrichEventMetadata(event, "group-1", map[string]string{}, "topic-%s")
+	assert.ErrorIs(t, err, errProtoClassNotFound)
+}
+
+func TestDeserializer_OverrideEventType(t *testing.T) {
+	tests := []struct {
+		name         string
+		mapping      map[string]string
+		eventType    string
+		expectedType string
+	}{
+		{
+			name:         "Should rewrite event type prefix based on config mapping",
+			mapping:      map[string]string{"CS_APP_PREFIX": "gobiz"},
+			eventType:    "CS_APP_PREFIX-apihealth",
+			expectedType: "gobiz-apihealth",
+		},
+		{
+			name:         "Should leave event type unchanged when mapping key does not match extracted prefix",
+			mapping:      map[string]string{"CS_APP_PREFIX": "gobiz"},
+			eventType:    "OTHER_PREFIX-apihealth",
+			expectedType: "OTHER_PREFIX-apihealth",
+		},
+		{
+			name:         "Should leave plain event type unchanged when incoming type has no delimiter",
+			mapping:      map[string]string{"CS_APP_PREFIX": "gobiz"},
+			eventType:    "page",
+			expectedType: "page",
+		},
+		{
+			name:         "Should leave event type unchanged when prefix mapping is nil",
+			mapping:      nil,
+			eventType:    "CS_APP_PREFIX-apihealth",
+			expectedType: "CS_APP_PREFIX-apihealth",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := &Deserializer{
+				eventTypePrefixMapping: tt.mapping,
+			}
+			actual := d.overrideEventType(tt.eventType)
+			assert.Equal(t, tt.expectedType, actual)
+		})
+	}
 }
 

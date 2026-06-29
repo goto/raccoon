@@ -28,6 +28,8 @@ const (
 	metricNameEventDeserializationEmptyField = "event_deserialization_empty_field_total"
 )
 
+var errProtoClassNotFound = errors.New("failed to find proto class")
+
 const (
 	protoFieldEventGUID      = "meta.event_guid"
 	protoFieldEventName      = "event_name"
@@ -48,16 +50,18 @@ type SchemaRegistryCache interface {
 }
 
 type Deserializer struct {
-	stencil              schemaregistry.StencilClient
-	cache                SchemaRegistryCache
-	excludeEventTypeList []string
+	stencil                schemaregistry.StencilClient
+	cache                  SchemaRegistryCache
+	excludeEventTypeList   []string
+	eventTypePrefixMapping map[string]string
 }
 
 func NewDeserializer(stencil schemaregistry.StencilClient, cache SchemaRegistryCache) *Deserializer {
 	return &Deserializer{
-		stencil:              stencil,
-		cache:                cache,
-		excludeEventTypeList: config.DeserializationCfg.ExcludeEventTypeList,
+		stencil:                stencil,
+		cache:                  cache,
+		excludeEventTypeList:   config.DeserializationCfg.ExcludeEventTypeList,
+		eventTypePrefixMapping: config.PublisherKafka.EventTypePrefixMapping,
 	}
 }
 
@@ -78,7 +82,12 @@ func (d *Deserializer) Deserialize(
 		if err != nil {
 			logger.Errorf("deserialization error for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %v",
 				meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.Platform, meta.AppVersion, err)
-			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DESERIALIZATION_ERROR,conn_group=%s,product=%s,event_name=%s,event_type=%s", connGroup, meta.Product, meta.EventName, meta.Type))
+
+			reason := "DESERIALIZATION_ERROR"
+			if errors.Is(err, errProtoClassNotFound) {
+				reason = "TOPIC_NOT_FOUND"
+			}
+			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=%s,conn_group=%s,product=%s,event_name=%s,event_type=%s", reason, connGroup, meta.Product, meta.EventName, meta.Type))
 
 			continue
 		}
@@ -101,6 +110,7 @@ func (d *Deserializer) HealthCheck() error {
 	if d == nil || d.cache == nil {
 		return nil
 	}
+
 	return d.cache.HealthCheck()
 }
 
@@ -117,12 +127,7 @@ func (d *Deserializer) enrichEventMetadata(
 	publisherMap map[string]string,
 	topicFormat string,
 ) (model.EventWithMetadata, error) {
-	meta := extractBaseMetadata(
-		event,
-		connGroup,
-		publisherMap,
-		topicFormat,
-	)
+	meta := d.extractBaseMetadata(event, connGroup, publisherMap, topicFormat)
 
 	if d == nil || d.stencil.Client == nil {
 		return meta, nil
@@ -146,35 +151,18 @@ func (d *Deserializer) enrichEventMetadata(
 	}
 
 	if !found {
-		return meta, fmt.Errorf(
-			"failed to find proto class for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
-			meta.Publisher,
-			meta.Type,
-			meta.Product,
-			meta.EventName,
-			meta.Platform,
-			meta.AppVersion,
-		)
+		return meta, errProtoClassNotFound
 	}
 
 	parsedMsg, err := d.stencil.Client.Parse(protoClass, meta.EventBytes)
 	if err != nil {
-		return meta, fmt.Errorf(
-			"failed to parse event bytes for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
-			meta.Publisher,
-			meta.Type,
-			meta.Product,
-			meta.EventName,
-			meta.Platform,
-			meta.AppVersion,
-			err,
-		)
+		return meta, fmt.Errorf("failed to parse event bytes: %w", err)
 	}
 
 	var errs []error
 	ref := parsedMsg.ProtoReflect()
 
-	eventGUID, err := getStringField(ref, protoFieldEventGUID, connGroup, meta, true)
+	eventGUID, err := getStringField(ref, protoFieldEventGUID, connGroup, meta, false)
 	if err != nil {
 		errs = append(errs, err)
 	} else {
@@ -185,7 +173,7 @@ func (d *Deserializer) enrichEventMetadata(
 		return meta, errors.Join(errs...)
 	}
 
-	eventName, err := getStringField(ref, protoFieldEventName, connGroup, meta, true)
+	eventName, err := getStringField(ref, protoFieldEventName, connGroup, meta, false)
 	if err != nil {
 		errs = append(errs, err)
 	} else {
@@ -227,8 +215,28 @@ func (d *Deserializer) enrichEventMetadata(
 	return meta, errors.Join(errs...)
 }
 
+// overrideEventType overrides the event type with the mapped event type from config.
+func (d *Deserializer) overrideEventType(eventType string) string {
+	if d == nil || len(d.eventTypePrefixMapping) == 0 || eventType == "" {
+		return eventType
+	}
+
+	// Event types are expected in <prefix>-<rest> form for direct map lookup.
+	prefix, rest, found := strings.Cut(eventType, "-")
+	if !found {
+		return eventType
+	}
+
+	targetPrefix, ok := d.eventTypePrefixMapping[prefix]
+	if !ok {
+		return eventType
+	}
+
+	return targetPrefix + "-" + rest
+}
+
 // extractBaseMetadata extracts base metadata from an event.
-func extractBaseMetadata(
+func (d *Deserializer) extractBaseMetadata(
 	event *pb.Event,
 	connGroup string,
 	publisherMap map[string]string,
@@ -238,13 +246,14 @@ func extractBaseMetadata(
 		ts = event.GetEventTimestamp().AsTime()
 	}
 
+	// override event type if prefix mapping exist and event type is in expected format, otherwise use the original event type
 	return model.EventWithMetadata{
-		TopicName:      fmt.Sprintf(topicFormat, event.GetType()),
+		TopicName:      fmt.Sprintf(topicFormat, d.overrideEventType(event.GetType())),
 		Publisher:      resolvePublisher(connGroup, publisherMap),
 		Product:        event.GetProduct(),
 		EventName:      event.GetEventName(),
 		EventTimestamp: ts,
-		Type:           event.GetType(),
+		Type:           d.overrideEventType(event.GetType()),
 		Platform:       event.GetPlatform().String(),
 		AppVersion:     event.GetAppVersion(),
 		IsExclusive:    event.GetIsExclusive(),
