@@ -106,7 +106,7 @@ func TestDeserializeEvents(t *testing.T) {
 				require.Len(t, results, 1)
 				res := results[0]
 				assert.Equal(t, "inner_event_name", res.EventName)
-				assert.Equal(t, "generic", res.Product)
+				assert.Equal(t, "Generic", res.Product)
 				assert.True(t, res.EventTimestamp.Equal(now.UTC()))
 				assert.Equal(t, "some-guid-123", res.EventGUID)
 				assert.Equal(t, "publisher-1", res.Publisher)
@@ -158,12 +158,7 @@ func TestDeserializeEvents(t *testing.T) {
 			topicFormat:  "topic-%s",
 			parseFunc:    nil,
 			verify: func(t *testing.T, results []*model.EventWithMetadata) {
-				require.Len(t, results, 1)
-				// The function still returns a basic metadata object but with base fields, since enrich failed
-				res := results[0]
-				assert.Equal(t, "publisher-1", res.Publisher)
-				assert.Equal(t, "myproduct", res.Product) // base metadata normalization
-				assert.Equal(t, "test_event", res.EventName)
+				require.Empty(t, results)
 			},
 		},
 		{
@@ -183,10 +178,7 @@ func TestDeserializeEvents(t *testing.T) {
 				return nil, errors.New("stencil parse error")
 			},
 			verify: func(t *testing.T, results []*model.EventWithMetadata) {
-				require.Len(t, results, 1)
-				res := results[0]
-				assert.Equal(t, "publisher-1", res.Publisher)
-				assert.Equal(t, "myproduct", res.Product)
+				require.Empty(t, results)
 			},
 		},
 		{
@@ -207,9 +199,7 @@ func TestDeserializeEvents(t *testing.T) {
 				return &testpb.Meta{EventGuid: "some-guid"}, nil
 			},
 			verify: func(t *testing.T, results []*model.EventWithMetadata) {
-				require.Len(t, results, 1)
-				res := results[0]
-				assert.Equal(t, "publisher-1", res.Publisher)
+				require.Empty(t, results)
 			},
 		},
 		{
@@ -233,9 +223,7 @@ func TestDeserializeEvents(t *testing.T) {
 				}, nil
 			},
 			verify: func(t *testing.T, results []*model.EventWithMetadata) {
-				require.Len(t, results, 1)
-				res := results[0]
-				assert.Equal(t, "publisher-1", res.Publisher)
+				require.Empty(t, results)
 			},
 		},
 		{
@@ -260,9 +248,7 @@ func TestDeserializeEvents(t *testing.T) {
 				}, nil
 			},
 			verify: func(t *testing.T, results []*model.EventWithMetadata) {
-				require.Len(t, results, 1)
-				res := results[0]
-				assert.Equal(t, "publisher-1", res.Publisher)
+				require.Empty(t, results)
 			},
 		},
 		{
@@ -285,9 +271,7 @@ func TestDeserializeEvents(t *testing.T) {
 				}, nil
 			},
 			verify: func(t *testing.T, results []*model.EventWithMetadata) {
-				require.Len(t, results, 1)
-				res := results[0]
-				assert.Equal(t, "publisher-1", res.Publisher)
+				require.Empty(t, results)
 			},
 		},
 		{
@@ -314,9 +298,7 @@ func TestDeserializeEvents(t *testing.T) {
 				}, nil
 			},
 			verify: func(t *testing.T, results []*model.EventWithMetadata) {
-				require.Len(t, results, 1)
-				res := results[0]
-				assert.Equal(t, "publisher-1", res.Publisher)
+				require.Empty(t, results)
 			},
 		},
 		{
@@ -412,13 +394,13 @@ func TestDeserializeEvents(t *testing.T) {
 				res := results[0]
 				// It should return basic/base metadata because we skipped enrichment/deserialization.
 				assert.Equal(t, "publisher-1", res.Publisher)
-				assert.Equal(t, "myproduct", res.Product) // Normalized base product name
+				assert.Equal(t, "my_product", res.Product) // Raw base product name from envelope since excluded
 				assert.Equal(t, "test_event", res.EventName)
 				assert.Empty(t, res.EventGUID)
 			},
 		},
 		{
-			name: "successful deserialization with empty event_guid",
+			name: "error - empty event_guid",
 			events: []*pb.Event{
 				{
 					Type:           "click_event",
@@ -442,14 +424,7 @@ func TestDeserializeEvents(t *testing.T) {
 				}, nil
 			},
 			verify: func(t *testing.T, results []*model.EventWithMetadata) {
-				require.Len(t, results, 1)
-				res := results[0]
-				assert.Equal(t, "inner_event_name", res.EventName)
-				assert.Equal(t, "generic", res.Product)
-				assert.True(t, res.EventTimestamp.Equal(now.UTC()))
-				assert.Equal(t, "", res.EventGUID) // should be empty, no error
-				assert.Equal(t, "publisher-1", res.Publisher)
-				assert.Equal(t, "topic-click_event", res.TopicName)
+				require.Empty(t, results)
 			},
 		},
 	}
@@ -551,8 +526,7 @@ func TestDeserializer_FallbackOrder(t *testing.T) {
 
 		d := NewDeserializer(schemaregistry.StencilClient{Client: &mockStencilClient{}}, mockCache)
 		results := d.Deserialize([]*pb.Event{event}, "group-1", map[string]string{}, "topic-%s")
-		require.Len(t, results, 1)
-		assert.Empty(t, results[0].EventGUID)
+		require.Empty(t, results)
 	})
 }
 

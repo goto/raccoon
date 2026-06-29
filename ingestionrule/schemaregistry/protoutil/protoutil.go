@@ -10,7 +10,8 @@ import (
 
 // GetFieldValue retrieves the value of a field from a protobuf message by its path.
 // It returns the field value and an error if any occurs during traversal.
-func GetFieldValue(msg protoreflect.Message, path []string) (any, error) {
+// If isMandatory is set to true, it returns an error if the final leaf field value is empty.
+func GetFieldValue(msg protoreflect.Message, path []string, isMandatory bool) (any, error) {
 	if len(path) == 0 {
 		return nil, errors.New("path cannot be empty")
 	}
@@ -20,6 +21,10 @@ func GetFieldValue(msg protoreflect.Message, path []string) (any, error) {
 	for i, fieldName := range path {
 		fieldDesc := currentMsg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
 		if fieldDesc == nil {
+			if !isMandatory {
+				return nil, nil
+			}
+
 			return nil, fmt.Errorf("field %q not found in path", fieldName)
 		}
 
@@ -29,6 +34,11 @@ func GetFieldValue(msg protoreflect.Message, path []string) (any, error) {
 			if fieldDesc.Kind() == protoreflect.MessageKind {
 				return nil, fmt.Errorf("final field %q is a message, expected a scalar value", fieldName)
 			}
+
+			if isMandatory && isEmptyValue(val, fieldDesc) {
+				return nil, fmt.Errorf("mandatory field %q is empty", fieldName)
+			}
+
 			return val.Interface(), nil
 		}
 
@@ -101,4 +111,28 @@ func protoTimestampToTime(msg protoreflect.Message) (time.Time, error) {
 	nanos := msg.Get(nanosDesc).Int()
 
 	return time.Unix(seconds, nanos), nil
+}
+
+// isEmptyValue checks if a protobuf field value is considered empty.
+func isEmptyValue(val protoreflect.Value, fd protoreflect.FieldDescriptor) bool {
+	if !val.IsValid() {
+		return true
+	}
+
+	if fd.IsList() {
+		return val.List().Len() == 0
+	}
+
+	if fd.IsMap() {
+		return val.Map().Len() == 0
+	}
+
+	switch fd.Kind() {
+	case protoreflect.StringKind:
+		return val.String() == ""
+	case protoreflect.BytesKind:
+		return len(val.Bytes()) == 0
+	}
+
+	return false
 }

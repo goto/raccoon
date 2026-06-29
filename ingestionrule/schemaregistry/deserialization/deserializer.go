@@ -1,6 +1,7 @@
 package deserialization
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -75,8 +76,11 @@ func (d *Deserializer) Deserialize(
 		metrics.Timing(metricNameEventDeserializationLatency, time.Since(startDeserialize).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
 
 		if err != nil {
-			logger.Errorf("deserialization error: %v", err)
+			logger.Errorf("deserialization error for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %v",
+				meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.Platform, meta.AppVersion, err)
 			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DESERIALIZATION_ERROR,conn_group=%s,product=%s,event_name=%s,event_type=%s", connGroup, meta.Product, meta.EventName, meta.Type))
+
+			continue
 		}
 
 		metadataBatch = append(metadataBatch, &meta)
@@ -167,70 +171,60 @@ func (d *Deserializer) enrichEventMetadata(
 		)
 	}
 
+	var errs []error
 	ref := parsedMsg.ProtoReflect()
 
-	eventGUID, err := getStringField(ref, protoFieldEventGUID, connGroup, meta)
+	eventGUID, err := getStringField(ref, protoFieldEventGUID, connGroup, meta, true)
 	if err != nil {
-		return meta, err
+		errs = append(errs, err)
+	} else {
+		meta.EventGUID = eventGUID
 	}
-
-	meta.EventGUID = eventGUID
 
 	if !config.DeserializationCfg.Enabled {
-		return meta, nil
+		return meta, errors.Join(errs...)
 	}
 
-	eventName, err := getStringField(ref, protoFieldEventName, connGroup, meta)
+	eventName, err := getStringField(ref, protoFieldEventName, connGroup, meta, true)
 	if err != nil {
-		return meta, err
+		errs = append(errs, err)
+	} else {
+		meta.EventName = eventName
 	}
-
-	meta.EventName = eventName
 
 	product, err := protoutil.GetEnumStringValue(ref, protoFieldEventProduct)
 	if err != nil {
-		return meta, fmt.Errorf(
-			"failed to extract %q value for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
-			protoFieldEventProduct,
-			meta.Publisher,
-			meta.Type,
-			meta.Product,
-			meta.EventName,
-			meta.Platform,
-			meta.AppVersion,
-			err,
-		)
+		errs = append(errs, fmt.Errorf("failed to extract %q value: %w", protoFieldEventProduct, err))
+	} else {
+		meta.Product = product
 	}
-
-	// normalize across iOS/Android variants (e.g. "My_App" → "myapp")
-	meta.Product = strings.ReplaceAll(strings.ToLower(product), "_", "")
 
 	ts, err := protoutil.GetTimestampFieldValue(ref, protoFieldEventTimestamp)
 	if err != nil {
-		return meta, err
+		errs = append(errs, err)
+	} else {
+		meta.EventTimestamp = ts
 	}
 
-	meta.EventTimestamp = ts
-
 	if isPublisherWhitelisted(config.DeserializationCfg.PlatformPublisherWhitelist, meta.Publisher) {
-		platform, err := getStringField(ref, protoFieldPlatform, connGroup, meta)
+		platform, err := getStringField(ref, protoFieldPlatform, connGroup, meta, false)
 		if err != nil {
-			return meta, err
+			errs = append(errs, err)
+		} else {
+			meta.Platform = platform
 		}
-
-		meta.Platform = platform
 	}
 
 	if isPublisherWhitelisted(config.DeserializationCfg.AppVersionPublisherWhitelist, meta.Publisher) {
-		appVersion, err := getStringField(ref, protoFieldAppVersion, connGroup, meta)
+		appVersion, err := getStringField(ref, protoFieldAppVersion, connGroup, meta, false)
 		if err != nil {
-			return meta, err
+			errs = append(errs, err)
+		} else {
+			meta.AppVersion = appVersion
 		}
-
-		meta.AppVersion = appVersion
 	}
 
-	return meta, nil
+	return meta, errors.Join(errs...)
 }
 
 // extractBaseMetadata extracts base metadata from an event.
@@ -247,7 +241,7 @@ func extractBaseMetadata(
 	return model.EventWithMetadata{
 		TopicName:      fmt.Sprintf(topicFormat, event.GetType()),
 		Publisher:      resolvePublisher(connGroup, publisherMap),
-		Product:        strings.ReplaceAll(strings.ToLower(event.GetProduct()), "_", ""), // normalize across iOS/Android variants (e.g. "My_App" → "myapp")
+		Product:        event.GetProduct(),
 		EventName:      event.GetEventName(),
 		EventTimestamp: ts,
 		Type:           event.GetType(),
@@ -272,35 +266,16 @@ func getStringField(
 	ref protoreflect.Message,
 	fieldName, connGroup string,
 	meta model.EventWithMetadata,
+	isMandatory bool,
 ) (string, error) {
-	rawVal, err := protoutil.GetFieldValue(ref, strings.Split(fieldName, "."))
+	rawVal, err := protoutil.GetFieldValue(ref, strings.Split(fieldName, "."), isMandatory)
 	if err != nil {
-		return "", fmt.Errorf(
-			"failed to extract %q value for publisher=%s,product=%s,event_name=%s,event_type=%s,platform=%s,app_version=%s: %w",
-			fieldName,
-			meta.Publisher,
-			meta.Product,
-			meta.EventName,
-			meta.Type,
-			meta.Platform,
-			meta.AppVersion,
-			err,
-		)
+		return "", fmt.Errorf("failed to extract %q value: %w", fieldName, err)
 	}
 
 	val, err := cast.ToStringE(rawVal)
 	if err != nil {
-		return "", fmt.Errorf(
-			"failed to convert %q value to string for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %w",
-			fieldName,
-			meta.Publisher,
-			meta.Type,
-			meta.Product,
-			meta.EventName,
-			meta.Platform,
-			meta.AppVersion,
-			err,
-		)
+		return "", fmt.Errorf("failed to convert %q value to string: %w", fieldName, err)
 	}
 
 	if val == "" {
@@ -308,16 +283,7 @@ func getStringField(
 			metricNameEventDeserializationEmptyField,
 			fmt.Sprintf("field_name=%s,conn_group=%s,event_type=%s,product=%s,event_name=%s", fieldName, connGroup, meta.Type, meta.Product, meta.EventName),
 		)
-		logger.Infof(
-			"field %q is empty for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
-			fieldName,
-			meta.Publisher,
-			meta.Type,
-			meta.Product,
-			meta.EventName,
-			meta.Platform,
-			meta.AppVersion,
-		)
+		logger.Infof("field %q is empty", fieldName)
 	}
 
 	return val, nil
