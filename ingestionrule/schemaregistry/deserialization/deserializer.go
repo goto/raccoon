@@ -176,10 +176,6 @@ func (d *Deserializer) enrichEventMetadata(
 		meta.EventGUID = eventGUID
 	}
 
-	if !config.DeserializationCfg.Enabled {
-		return meta, errors.Join(errs...)
-	}
-
 	eventName, err := getStringField(ref, protoFieldEventName, connGroup, meta, false)
 	if err != nil {
 		errs = append(errs, err)

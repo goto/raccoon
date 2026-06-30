@@ -12,9 +12,6 @@ import (
 var DeserializationCfg deserializationConfig
 
 type deserializationConfig struct {
-	// Enabled controls whether deserialization is active.
-	// Set DESERIALIZATION_ENABLED=true to enable.
-	Enabled bool
 	// AppVersionPublisherWhitelist controls the publisher list that is allowed to
 	// pass event that has app_version in metadata.
 	// If the list is empty, it means all publishers are allowed.
@@ -30,7 +27,6 @@ type deserializationConfig struct {
 }
 
 func deserializationConfigLoader() {
-	viper.SetDefault("DESERIALIZATION_ENABLED", "false")
 	viper.SetDefault("DESERIALIZATION_APP_VERSION_PUBLISHER_WHITELIST", "[]")
 	viper.SetDefault("DESERIALIZATION_PLATFORM_PUBLISHER_WHITELIST", "[]")
 	viper.SetDefault("DESERIALIZATION_EXCLUDE_EVENT_TYPE_LIST", "[]")
@@ -60,7 +56,6 @@ func deserializationConfigLoader() {
 	}
 
 	DeserializationCfg = deserializationConfig{
-		Enabled:                      util.MustGetBool("DESERIALIZATION_ENABLED"),
 		AppVersionPublisherWhitelist: appVersionWhitelist,
 		PlatformPublisherWhitelist:   platformWhitelist,
 		ExcludeEventTypeList:         excludeEventTypeList,
