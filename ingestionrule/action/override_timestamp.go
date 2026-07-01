@@ -47,7 +47,7 @@ func (o *OverrideTimestamp) Apply(_ context.Context, events []*model.EventWithMe
 
 	for _, meta := range events {
 		if o.evalChain.Run(*meta, o.cache) {
-			logger.Debugf("[override_timestamp.Apply] overriding timestamp: event_name=%s, product=%s, publisher=%s, topic=%s, event_timestamp=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp)
+			logger.Infof("[override_timestamp.Apply] overriding timestamp: event_name=%s, product=%s, publisher=%s, topic=%s, original_event_timestamp=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp)
 
 			parsedMsg := meta.ProtoMsg
 			if parsedMsg == nil {
