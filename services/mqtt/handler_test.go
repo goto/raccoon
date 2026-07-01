@@ -66,7 +66,7 @@ func TestHandler_MQTTHandler(t *testing.T) {
 			mockCollector := new(collection.MockCollector)
 			ctx := context.Background()
 
-			svc, _ := ingestionrule.NewService(context.Background(), nil, "")
+			svc, _ := ingestionrule.NewService(context.Background(), nil)
 			h := &Handler{
 				Collector: mockCollector,
 				policy:    svc,

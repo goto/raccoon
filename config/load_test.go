@@ -144,7 +144,6 @@ func TestPolicyConfig_Defaults(t *testing.T) {
 	policyConfigLoader()
 	assert.False(t, PolicyCfg.Enabled)
 	assert.Empty(t, PolicyCfg.Rules)
-	assert.Equal(t, "invalid-et", PolicyCfg.OverrideEventType)
 	assert.Empty(t, PolicyCfg.PublisherMapping)
 }
 
@@ -153,13 +152,6 @@ func TestPolicyConfig_Enabled(t *testing.T) {
 	policyConfigLoader()
 	assert.True(t, PolicyCfg.Enabled)
 	os.Unsetenv("POLICY_ENABLED")
-}
-
-func TestPolicyConfig_OverrideEventType(t *testing.T) {
-	os.Setenv("POLICY_OVERRIDE_EVENT_TYPE", "my-override-type")
-	policyConfigLoader()
-	assert.Equal(t, "my-override-type", PolicyCfg.OverrideEventType)
-	os.Unsetenv("POLICY_OVERRIDE_EVENT_TYPE")
 }
 
 func TestPolicyConfig_Rules(t *testing.T) {
@@ -277,6 +269,11 @@ func TestValidatePolicyRules(t *testing.T) {
 		{"event missing publisher", []PolicyRule{valid(PolicyResourceEvent, "click", "app", "")}, true},
 		{"topic missing name", []PolicyRule{valid(PolicyResourceTopic, "", "", "")}, true},
 		{"unknown resource", []PolicyRule{valid("unknown", "click", "app", "pub-a")}, true},
+		{"valid global rule", []PolicyRule{valid(PolicyResourceGlobal, "", "", "")}, false},
+		{"global rule followed by invalid rule", []PolicyRule{
+			valid(PolicyResourceGlobal, "", "", ""),
+			valid("unknown", "click", "app", "pub-a"),
+		}, true},
 		{"empty rules", []PolicyRule{}, false},
 	}
 	for _, tt := range tests {
@@ -298,7 +295,6 @@ func TestDeserializationConfig(t *testing.T) {
 	os.Setenv("DESERIALIZATION_EXCLUDE_EVENT_TYPE_LIST", `["excluded-type-1", "excluded-type-2"]`)
 
 	defer func() {
-		os.Unsetenv("DESERIALIZATION_ENABLED")
 		os.Unsetenv("DESERIALIZATION_APP_VERSION_PUBLISHER_WHITELIST")
 		os.Unsetenv("DESERIALIZATION_PLATFORM_PUBLISHER_WHITELIST")
 		os.Unsetenv("DESERIALIZATION_EXCLUDE_EVENT_TYPE_LIST")
@@ -306,9 +302,7 @@ func TestDeserializationConfig(t *testing.T) {
 
 	deserializationConfigLoader()
 
-	assert.True(t, DeserializationCfg.Enabled)
 	assert.Equal(t, []string{"pub1", "pub2"}, DeserializationCfg.AppVersionPublisherWhitelist)
 	assert.Equal(t, []string{"pub3"}, DeserializationCfg.PlatformPublisherWhitelist)
 	assert.Equal(t, []string{"excluded-type-1", "excluded-type-2"}, DeserializationCfg.ExcludeEventTypeList)
 }
-

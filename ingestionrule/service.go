@@ -34,25 +34,26 @@ type Service struct {
 // NewService builds a fully wired Service from the given config rules.
 // It partitions the rules by action type, creates an eval.Cache per action,
 // and assembles the action chain in priority order: Deactivate → Drop → OverrideTimestamp → Dedup.
-func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventType string) (*Service, error) {
-	var deserializer *deserialization.Deserializer
+func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error) {
+	var (
+		stencil      schemaregistry.StencilClient
+		schemaCache  *deserialization.SchemaCache
+		deserializer *deserialization.Deserializer
+	)
 
 	if config.DeserializationCfg.Enabled || config.DedupCfg.Enabled {
-		stencil, err := schemaregistry.NewStencilClient()
+		var err error
+		stencil, err = schemaregistry.NewStencilClient()
 		if err != nil {
 			return nil, err
 		}
 
-		var cache deserialization.SchemaRegistryCache
-
 		if config.DeserializationCfg.Enabled {
-			schemaCache := deserialization.NewSchemaCache(ctx)
+			schemaCache = deserialization.NewSchemaCache(ctx)
 			schemaCache.Start()
-			
-			cache = schemaCache
 		}
 
-		deserializer = deserialization.NewDeserializer(stencil, cache)
+		deserializer = deserialization.NewDeserializer(stencil, schemaCache)
 	}
 
 	var chain Chain
@@ -78,7 +79,7 @@ func NewService(ctx context.Context, rules []config.PolicyRule, overrideEventTyp
 		chain = Chain{
 			action.NewDeactivate(deactivateCache, action.DefaultChain()),
 			action.NewDrop(dropCache, action.DefaultChain()),
-			action.NewOverrideTimestamp(overrideCache, action.DefaultChain(), overrideEventType),
+			action.NewOverrideTimestamp(overrideCache, action.DefaultChain()),
 		}
 
 		if config.DedupCfg.Enabled {

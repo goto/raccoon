@@ -84,7 +84,9 @@ func (c *SchemaCache) Start() {
 	for attempt := range maxRetry {
 		err = c.sync()
 		if err == nil {
-			go c.worker()
+			if c.syncInterval > 0 {
+				go c.worker()
+			}
 
 			return
 		}
@@ -105,7 +107,9 @@ func (c *SchemaCache) Start() {
 
 	logger.Errorf("failed to fetch schema cache after %d attempts: %v. Cache will be empty initially and rely on fallback config.", maxRetry, err)
 
-	go c.worker()
+	if c.syncInterval > 0 {
+		go c.worker()
+	}
 }
 
 // Close cancels the schema cache's background worker and frees resources.

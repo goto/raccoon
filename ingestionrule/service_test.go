@@ -32,10 +32,14 @@ func TestMain(m *testing.M) {
 	originalPolicyCfgEnabled := config.PolicyCfg.Enabled
 	config.PolicyCfg.Enabled = true
 
+	originalExcludeList := config.DeserializationCfg.ExcludeEventTypeList
+	config.DeserializationCfg.ExcludeEventTypeList = []string{"click", "scroll", ""}
+
 	code := m.Run()
 
 	config.StencilCfg = originalCfg
 	config.PolicyCfg.Enabled = originalPolicyCfgEnabled
+	config.DeserializationCfg.ExcludeEventTypeList = originalExcludeList
 	os.Exit(code)
 }
 
@@ -81,7 +85,7 @@ func buildRules(pastDrop, pastOverride time.Duration, withDeactivate bool) []con
 
 func TestService_Apply_DropTakesPriorityOverOverride(t *testing.T) {
 	rules := buildRules(time.Hour, time.Hour, false)
-	svc, err := ingestionrule.NewService(context.Background(), rules, testOverrideEventType)
+	svc, err := ingestionrule.NewService(context.Background(), rules)
 	assert.NoError(t, err)
 
 	events := []*pb.Event{
@@ -103,20 +107,20 @@ func TestService_Apply_OverrideWhenNoDrop(t *testing.T) {
 			},
 		},
 	}
-	svc, err := ingestionrule.NewService(context.Background(), rules, testOverrideEventType)
+	svc, err := ingestionrule.NewService(context.Background(), rules)
 	assert.NoError(t, err)
 
 	events := []*pb.Event{
 		{EventName: "click", Product: "app", EventTimestamp: timestampProto(time.Now().Add(-2 * time.Hour))},
 	}
 	result := svc.Apply(context.Background(), events, "grp")
-	// Event stays in batch but with Type overridden to the override event type.
+	// Event stays in batch and Type remains empty.
 	assert.Len(t, result, 1)
-	assert.Equal(t, testOverrideEventType, result[0].Type)
+	assert.Empty(t, result[0].Type)
 }
 
 func TestService_Apply_PassthroughWhenNoPolicy(t *testing.T) {
-	svc, err := ingestionrule.NewService(context.Background(), nil, testOverrideEventType)
+	svc, err := ingestionrule.NewService(context.Background(), nil)
 	assert.NoError(t, err)
 
 	events := []*pb.Event{{EventName: "click"}}
@@ -127,7 +131,7 @@ func TestService_Apply_PassthroughWhenNoPolicy(t *testing.T) {
 
 func TestService_Apply_MixedBatch(t *testing.T) {
 	rules := buildRules(time.Hour, 0, false)
-	svc, err := ingestionrule.NewService(context.Background(), rules, testOverrideEventType)
+	svc, err := ingestionrule.NewService(context.Background(), rules)
 	assert.NoError(t, err)
 
 	clean := &pb.Event{EventName: "other", Product: "app"}
@@ -138,7 +142,7 @@ func TestService_Apply_MixedBatch(t *testing.T) {
 }
 
 func TestService_Apply_DeactivateDropsEvent(t *testing.T) {
-	svc, err := ingestionrule.NewService(context.Background(), buildRules(0, 0, true), testOverrideEventType)
+	svc, err := ingestionrule.NewService(context.Background(), buildRules(0, 0, true))
 	assert.NoError(t, err)
 
 	events := []*pb.Event{
@@ -151,7 +155,7 @@ func TestService_Apply_DeactivateTakesPriorityOverDrop(t *testing.T) {
 	// Both DEACTIVE and DROP rules target the same event.
 	// DEACTIVE runs first and removes it; DROP never sees it.
 	rules := buildRules(time.Hour, 0, true)
-	svc, err := ingestionrule.NewService(context.Background(), rules, testOverrideEventType)
+	svc, err := ingestionrule.NewService(context.Background(), rules)
 	assert.NoError(t, err)
 
 	events := []*pb.Event{
@@ -161,7 +165,7 @@ func TestService_Apply_DeactivateTakesPriorityOverDrop(t *testing.T) {
 }
 
 func TestService_Apply_DeactivatePassthroughWhenNoMatch(t *testing.T) {
-	svc, err := ingestionrule.NewService(context.Background(), buildRules(0, 0, true), testOverrideEventType)
+	svc, err := ingestionrule.NewService(context.Background(), buildRules(0, 0, true))
 	assert.NoError(t, err)
 
 	events := []*pb.Event{
@@ -181,7 +185,7 @@ func TestService_Apply_UnknownActionTypeSkipped(t *testing.T) {
 		},
 	}
 	// Should not panic; rule is silently skipped (error logged).
-	svc, err := ingestionrule.NewService(context.Background(), rules, testOverrideEventType)
+	svc, err := ingestionrule.NewService(context.Background(), rules)
 	assert.NoError(t, err)
 	events := []*pb.Event{{EventName: "click", Product: "app"}}
 	result := svc.Apply(context.Background(), events, "grp")
@@ -192,19 +196,22 @@ func TestService_Apply_UnknownActionTypeSkipped(t *testing.T) {
 func TestService_NewService_DeserializationDisabled(t *testing.T) {
 	origEnabled := config.DeserializationCfg.Enabled
 	origDedupEnabled := config.DedupCfg.Enabled
+	origPolicyEnabled := config.PolicyCfg.Enabled
 	origStencilURL := config.StencilCfg.URL
 	defer func() {
 		config.DeserializationCfg.Enabled = origEnabled
 		config.DedupCfg.Enabled = origDedupEnabled
+		config.PolicyCfg.Enabled = origPolicyEnabled
 		config.StencilCfg.URL = origStencilURL
 	}()
 
 	config.DeserializationCfg.Enabled = false
 	config.DedupCfg.Enabled = false
-	// Set Stencil URL to empty/invalid, which should NOT fail initialization when both features are disabled
+	config.PolicyCfg.Enabled = false
+	// Set Stencil URL to empty/invalid, which should NOT fail initialization when features are disabled
 	config.StencilCfg.URL = ""
 
-	svc, err := ingestionrule.NewService(context.Background(), nil, testOverrideEventType)
+	svc, err := ingestionrule.NewService(context.Background(), nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, svc)
 }
@@ -212,38 +219,70 @@ func TestService_NewService_DeserializationDisabled(t *testing.T) {
 func TestService_NewService_DedupEnabled_StencilURL_Empty(t *testing.T) {
 	origEnabled := config.DeserializationCfg.Enabled
 	origDedupEnabled := config.DedupCfg.Enabled
+	origPolicyEnabled := config.PolicyCfg.Enabled
 	origStencilURL := config.StencilCfg.URL
 	defer func() {
 		config.DeserializationCfg.Enabled = origEnabled
 		config.DedupCfg.Enabled = origDedupEnabled
+		config.PolicyCfg.Enabled = origPolicyEnabled
 		config.StencilCfg.URL = origStencilURL
 	}()
 
 	config.DeserializationCfg.Enabled = false
 	config.DedupCfg.Enabled = true
+	config.PolicyCfg.Enabled = false
 	// Set Stencil URL to empty/invalid, which must fail initialization when dedup is enabled
 	config.StencilCfg.URL = ""
 
-	svc, err := ingestionrule.NewService(context.Background(), nil, testOverrideEventType)
+	svc, err := ingestionrule.NewService(context.Background(), nil)
 	assert.Error(t, err)
 	assert.Nil(t, svc)
 }
 
-func TestService_NewService_DeserializationEnabled(t *testing.T) {
+func TestService_NewService_DeserializationEnabled_StencilURL_Empty(t *testing.T) {
 	origEnabled := config.DeserializationCfg.Enabled
+	origDedupEnabled := config.DedupCfg.Enabled
+	origPolicyEnabled := config.PolicyCfg.Enabled
 	origStencilURL := config.StencilCfg.URL
 	defer func() {
 		config.DeserializationCfg.Enabled = origEnabled
+		config.DedupCfg.Enabled = origDedupEnabled
+		config.PolicyCfg.Enabled = origPolicyEnabled
 		config.StencilCfg.URL = origStencilURL
 	}()
 
 	config.DeserializationCfg.Enabled = true
-	// Set Stencil URL to empty/invalid, which must fail initialization
+	config.DedupCfg.Enabled = false
+	config.PolicyCfg.Enabled = false
+	// Set Stencil URL to empty/invalid, which must fail initialization when deserialization is enabled
 	config.StencilCfg.URL = ""
 
-	svc, err := ingestionrule.NewService(context.Background(), nil, testOverrideEventType)
+	svc, err := ingestionrule.NewService(context.Background(), nil)
 	assert.Error(t, err)
 	assert.Nil(t, svc)
+}
+
+func TestService_NewService_PolicyEnabled_StencilURL_Empty(t *testing.T) {
+	origEnabled := config.DeserializationCfg.Enabled
+	origDedupEnabled := config.DedupCfg.Enabled
+	origPolicyEnabled := config.PolicyCfg.Enabled
+	origStencilURL := config.StencilCfg.URL
+	defer func() {
+		config.DeserializationCfg.Enabled = origEnabled
+		config.DedupCfg.Enabled = origDedupEnabled
+		config.PolicyCfg.Enabled = origPolicyEnabled
+		config.StencilCfg.URL = origStencilURL
+	}()
+
+	config.DeserializationCfg.Enabled = false
+	config.DedupCfg.Enabled = false
+	config.PolicyCfg.Enabled = true
+	// Set Stencil URL to empty/invalid, which must fail initialization when policy is enabled
+	config.StencilCfg.URL = ""
+
+	svc, err := ingestionrule.NewService(context.Background(), nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, svc)
 }
 
 func TestService_NewService_PolicyDisabled(t *testing.T) {
@@ -263,7 +302,7 @@ func TestService_NewService_PolicyDisabled(t *testing.T) {
 		},
 	}
 
-	svc, err := ingestionrule.NewService(context.Background(), rules, testOverrideEventType)
+	svc, err := ingestionrule.NewService(context.Background(), rules)
 	assert.NoError(t, err)
 	assert.NotNil(t, svc)
 

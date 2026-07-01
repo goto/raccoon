@@ -4,10 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action/eval"
 	"github.com/goto/raccoon/model"
-	"github.com/stretchr/testify/assert"
 )
 
 func makeEventRules(name, product, publisher string, past, future time.Duration) map[string]eval.Condition {

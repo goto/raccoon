@@ -165,6 +165,7 @@ func (d *Deserializer) enrichEventMetadata(
 	if err != nil {
 		return meta, fmt.Errorf("failed to parse event bytes: %w", err)
 	}
+	meta.ProtoMsg = parsedMsg
 
 	var errs []error
 	ref := parsedMsg.ProtoReflect()
@@ -174,10 +175,6 @@ func (d *Deserializer) enrichEventMetadata(
 		errs = append(errs, err)
 	} else {
 		meta.EventGUID = eventGUID
-	}
-
-	if !config.DeserializationCfg.Enabled {
-		return meta, errors.Join(errs...)
 	}
 
 	eventName, err := getStringField(ref, protoFieldEventName, connGroup, meta, false)

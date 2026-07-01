@@ -40,13 +40,11 @@ func TestDeserializeEvents(t *testing.T) {
 
 	// Save original config to restore later
 	origProtoMapping := config.DedupCfg.ProtoClassNameMapping
-	origDeserializationEnabled := config.DeserializationCfg.Enabled
 	origPlatformWhitelist := config.DeserializationCfg.PlatformPublisherWhitelist
 	origAppVersionWhitelist := config.DeserializationCfg.AppVersionPublisherWhitelist
 	origExcludeEventTypeList := config.DeserializationCfg.ExcludeEventTypeList
 	defer func() {
 		config.DedupCfg.ProtoClassNameMapping = origProtoMapping
-		config.DeserializationCfg.Enabled = origDeserializationEnabled
 		config.DeserializationCfg.PlatformPublisherWhitelist = origPlatformWhitelist
 		config.DeserializationCfg.AppVersionPublisherWhitelist = origAppVersionWhitelist
 		config.DeserializationCfg.ExcludeEventTypeList = origExcludeEventTypeList
@@ -55,7 +53,6 @@ func TestDeserializeEvents(t *testing.T) {
 	config.DedupCfg.ProtoClassNameMapping = map[string]string{
 		"click_event": "gojek.de.raccoon.Event",
 	}
-	config.DeserializationCfg.Enabled = true
 
 	publisherMap := map[string]string{
 		"group-1": "publisher-1",
@@ -451,13 +448,9 @@ func TestDeserializer_FallbackOrder(t *testing.T) {
 
 	// Save original config to restore later
 	origProtoMapping := config.DedupCfg.ProtoClassNameMapping
-	origDeserializationEnabled := config.DeserializationCfg.Enabled
 	defer func() {
 		config.DedupCfg.ProtoClassNameMapping = origProtoMapping
-		config.DeserializationCfg.Enabled = origDeserializationEnabled
 	}()
-
-	config.DeserializationCfg.Enabled = true
 
 	now := time.Now().Truncate(time.Microsecond)
 	tsProto := timestamppb.New(now)
@@ -537,16 +530,13 @@ func TestDeserializer_NilCache(t *testing.T) {
 
 	// Save original config to restore later
 	origProtoMapping := config.DedupCfg.ProtoClassNameMapping
-	origDeserializationEnabled := config.DeserializationCfg.Enabled
 	defer func() {
 		config.DedupCfg.ProtoClassNameMapping = origProtoMapping
-		config.DeserializationCfg.Enabled = origDeserializationEnabled
 	}()
 
 	config.DedupCfg.ProtoClassNameMapping = map[string]string{
 		"click_event": "class.from.Static",
 	}
-	config.DeserializationCfg.Enabled = true
 
 	now := time.Now().Truncate(time.Microsecond)
 	tsProto := timestamppb.New(now)
@@ -668,13 +658,10 @@ func TestDeserializer_OverrideEventType(t *testing.T) {
 }
 
 func TestDeserializer_EnrichEventMetadata_ErrorsJoin(t *testing.T) {
-	origDeserializationEnabled := config.DeserializationCfg.Enabled
 	origProtoMapping := config.DedupCfg.ProtoClassNameMapping
 	defer func() {
-		config.DeserializationCfg.Enabled = origDeserializationEnabled
 		config.DedupCfg.ProtoClassNameMapping = origProtoMapping
 	}()
-	config.DeserializationCfg.Enabled = true
 	config.DedupCfg.ProtoClassNameMapping = map[string]string{
 		"click_event": "gojek.de.raccoon.Meta",
 	}

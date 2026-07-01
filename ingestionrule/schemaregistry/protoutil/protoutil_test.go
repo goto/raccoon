@@ -425,6 +425,26 @@ func TestGetTimestampFieldValue(t *testing.T) {
 			want:      time.Unix(0, 0),
 			wantErr:   "",
 		},
+		{
+			name: "timestamp with only seconds set (nanos omitted)",
+			setupMsg: func() protoreflect.Message {
+				ts := &timestamppb.Timestamp{Seconds: 12345}
+				return (&pb.Event{EventTimestamp: ts}).ProtoReflect()
+			},
+			fieldName: "event_timestamp",
+			want:      time.Unix(12345, 0),
+			wantErr:   "",
+		},
+		{
+			name: "timestamp with only nanos set (seconds omitted)",
+			setupMsg: func() protoreflect.Message {
+				ts := &timestamppb.Timestamp{Nanos: 67890}
+				return (&pb.Event{EventTimestamp: ts}).ProtoReflect()
+			},
+			fieldName: "event_timestamp",
+			want:      time.Unix(0, 67890),
+			wantErr:   "",
+		},
 	}
 
 	for _, tt := range tests {

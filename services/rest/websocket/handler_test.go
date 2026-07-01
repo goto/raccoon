@@ -122,7 +122,7 @@ func TestHandler_GETHandlerWSEvents(t *testing.T) {
 		ConnIDHeader:      "X-User-ID",
 		ConnGroupHeader:   "string",
 	})
-	svc, _ := ingestionrule.NewService(context.Background(), nil, "")
+	svc, _ := ingestionrule.NewService(context.Background(), nil)
 	hlr := &Handler{
 		upgrader:      upgrader,
 		ingestionrule: svc,

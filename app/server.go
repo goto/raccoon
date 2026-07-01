@@ -24,7 +24,7 @@ import (
 func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
 
-	ingestionRuleSvc, err := ingestionrule.NewService(ctx, config.PolicyCfg.Rules, config.PolicyCfg.OverrideEventType)
+	ingestionRuleSvc, err := ingestionrule.NewService(ctx, config.PolicyCfg.Rules)
 	if err != nil {
 		panic("error creating ingestion rule service: " + err.Error())
 	}
