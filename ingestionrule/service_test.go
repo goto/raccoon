@@ -9,11 +9,11 @@ import (
 	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-	"github.com/stretchr/testify/assert"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule"
+	checkregistration "github.com/goto/raccoon/ingestionrule/action/checkregistration"
+	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestMain(m *testing.M) {
@@ -41,6 +41,18 @@ func TestMain(m *testing.M) {
 	config.PolicyCfg.Enabled = originalPolicyCfgEnabled
 	config.DeserializationCfg.ExcludeEventTypeList = originalExcludeList
 	os.Exit(code)
+}
+
+func disableRegistrationStore(t *testing.T) {
+	original := ingestionrule.NewRegistrationStore
+
+	ingestionrule.NewRegistrationStore = func(context.Context) (*checkregistration.Store, error) {
+		return nil, nil
+	}
+
+	t.Cleanup(func() {
+		ingestionrule.NewRegistrationStore = original
+	})
 }
 
 func timestampProto(t time.Time) *timestamppb.Timestamp {
@@ -84,6 +96,7 @@ func buildRules(pastDrop, pastOverride time.Duration, withDeactivate bool) []con
 }
 
 func TestService_Apply_DropTakesPriorityOverOverride(t *testing.T) {
+	disableRegistrationStore(t)
 	rules := buildRules(time.Hour, time.Hour, false)
 	svc, err := ingestionrule.NewService(context.Background(), rules)
 	assert.NoError(t, err)
@@ -96,6 +109,7 @@ func TestService_Apply_DropTakesPriorityOverOverride(t *testing.T) {
 }
 
 func TestService_Apply_OverrideWhenNoDrop(t *testing.T) {
+	disableRegistrationStore(t)
 	rules := []config.PolicyRule{
 		{
 			Resource: config.PolicyResourceEvent,
@@ -120,6 +134,8 @@ func TestService_Apply_OverrideWhenNoDrop(t *testing.T) {
 }
 
 func TestService_Apply_PassthroughWhenNoPolicy(t *testing.T) {
+	disableRegistrationStore(t)
+
 	svc, err := ingestionrule.NewService(context.Background(), nil)
 	assert.NoError(t, err)
 
@@ -130,6 +146,7 @@ func TestService_Apply_PassthroughWhenNoPolicy(t *testing.T) {
 }
 
 func TestService_Apply_MixedBatch(t *testing.T) {
+	disableRegistrationStore(t)
 	rules := buildRules(time.Hour, 0, false)
 	svc, err := ingestionrule.NewService(context.Background(), rules)
 	assert.NoError(t, err)
@@ -142,7 +159,10 @@ func TestService_Apply_MixedBatch(t *testing.T) {
 }
 
 func TestService_Apply_DeactivateDropsEvent(t *testing.T) {
+	disableRegistrationStore(t)
+
 	svc, err := ingestionrule.NewService(context.Background(), buildRules(0, 0, true))
+
 	assert.NoError(t, err)
 
 	events := []*pb.Event{
@@ -152,6 +172,7 @@ func TestService_Apply_DeactivateDropsEvent(t *testing.T) {
 }
 
 func TestService_Apply_DeactivateTakesPriorityOverDrop(t *testing.T) {
+	disableRegistrationStore(t)
 	// Both DEACTIVE and DROP rules target the same event.
 	// DEACTIVE runs first and removes it; DROP never sees it.
 	rules := buildRules(time.Hour, 0, true)
@@ -165,6 +186,8 @@ func TestService_Apply_DeactivateTakesPriorityOverDrop(t *testing.T) {
 }
 
 func TestService_Apply_DeactivatePassthroughWhenNoMatch(t *testing.T) {
+	disableRegistrationStore(t)
+
 	svc, err := ingestionrule.NewService(context.Background(), buildRules(0, 0, true))
 	assert.NoError(t, err)
 
@@ -177,6 +200,7 @@ func TestService_Apply_DeactivatePassthroughWhenNoMatch(t *testing.T) {
 }
 
 func TestService_Apply_UnknownActionTypeSkipped(t *testing.T) {
+	disableRegistrationStore(t)
 	rules := []config.PolicyRule{
 		{
 			Resource: config.PolicyResourceEvent,
@@ -319,4 +343,135 @@ func TestService_CompassHealthCheck(t *testing.T) {
 	// A nil service should return nil error (no-op)
 	var nilSvc *ingestionrule.Service
 	assert.NoError(t, nilSvc.CompassHealthCheck())
+}
+
+func TestService_WithoutRegistrationStore(t *testing.T) {
+	original := ingestionrule.NewRegistrationStore
+	defer func() {
+		ingestionrule.NewRegistrationStore = original
+	}()
+
+	ingestionrule.NewRegistrationStore = func(context.Context) (*checkregistration.Store, error) {
+		return nil, nil
+	}
+
+	svc, err := ingestionrule.NewService(
+		context.Background(),
+		nil,
+		testOverrideEventType,
+	)
+
+	assert.NoError(t, err)
+
+	chain := svc.Apply(
+		context.Background(),
+		[]*pb.Event{{EventName: "click"}},
+		"grp",
+	)
+	// checkregistration is not in the chain, so the event should pass through unmodified.
+	assert.Len(t, chain, 1)
+}
+
+func TestService_WithRegistrationStore(t *testing.T) {
+	original := ingestionrule.NewRegistrationStore
+	defer func() {
+		ingestionrule.NewRegistrationStore = original
+	}()
+
+	store := &checkregistration.Store{}
+	// pre-populate the store with a registered event for testing
+	store.RegisteredEvents.Store(map[string]struct{}{
+		"grp:click:app": {},
+	})
+
+	ingestionrule.NewRegistrationStore = func(context.Context) (*checkregistration.Store, error) {
+		return store, nil
+	}
+
+	svc, err := ingestionrule.NewService(
+		context.Background(),
+		nil,
+		testOverrideEventType,
+	)
+
+	assert.NoError(t, err)
+
+	result := svc.Apply(
+		context.Background(),
+		[]*pb.Event{
+			{
+				EventName: "click",
+				Product:   "app",
+			},
+		},
+		"grp",
+	)
+	// checkregistration is in the chain, so the event should not be dropped and should pass through unmodified.
+	assert.Len(t, result, 1)
+}
+
+func TestService_WithRegistrationStore_ActionOrder(t *testing.T) {
+	originalEnable := config.PolicyCfg.EnableCheckVerification
+	originalMapping := config.PolicyCfg.PublisherMapping
+
+	config.PolicyCfg.EnableCheckVerification = true
+	config.PolicyCfg.PublisherMapping = map[string]string{
+		"grp": "grp",
+	}
+
+	defer func() {
+		config.PolicyCfg.EnableCheckVerification = originalEnable
+		config.PolicyCfg.PublisherMapping = originalMapping
+	}()
+
+	store := &checkregistration.Store{}
+	// pre-populate the store with a registered event for testing
+	store.RegisteredEvents.Store(map[string]struct{}{
+		"grp:other:app": {},
+	})
+
+	ingestionrule.NewRegistrationStore = func(context.Context) (*checkregistration.Store, error) {
+		return store, nil
+	}
+
+	rules := []config.PolicyRule{
+		{
+			Resource: config.PolicyResourceEvent,
+			Details: config.PolicyDetails{
+				Name:      "click",
+				Product:   "app",
+				Publisher: "grp",
+			},
+			Action: config.PolicyActionConfig{
+				Type:          config.PolicyActionOverrideTimestamp,
+				ConditionType: config.PolicyConditionTimestampThreshold,
+				EventTimestampThreshold: config.PolicyTimestampThreshold{
+					Past: config.PolicyDuration{
+						Duration: time.Hour,
+					},
+				},
+			},
+		},
+	}
+
+	svc, err := ingestionrule.NewService(
+		context.Background(),
+		rules,
+		testOverrideEventType,
+	)
+	assert.NoError(t, err)
+
+	events := []*pb.Event{
+		{
+			EventName:      "click",
+			Product:        "app",
+			EventTimestamp: timestampProto(time.Now().Add(-2 * time.Hour)),
+		},
+	}
+
+	result := svc.Apply(context.Background(), events, "grp")
+
+	// Event should be dropped by CheckRegistration because it is not registered.
+	// OverrideTimestamp gets a chance to modify it.
+	assert.Empty(t, result)
 }
