@@ -70,14 +70,14 @@ func (o *OverrideTimestamp) Apply(_ context.Context, events []*model.EventWithMe
 			newBytes, err := proto.Marshal(parsedMsg)
 			if err != nil {
 				logger.Errorf("[override_timestamp.Apply] failed to serialize overridden event for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %v", meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.Platform, meta.AppVersion, err)
-				metrics.Increment(metricNameEventOverrideErrorCount, fmt.Sprintf("reason=serialize_error,conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, meta.Type, meta.Product, meta.EventName))
+				metrics.Increment(metricNameEventOverrideErrorCount, fmt.Sprintf("type=serialize_error,conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, meta.Type, meta.Product, meta.EventName))
 				continue
 			}
 
 			meta.EventBytes = newBytes
 			meta.EventTimestamp = serverProcessTime
 
-			metrics.Increment(metricEventOverrideCount, fmt.Sprintf("reason=OVERRIDE_TIMESTAMP,conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, meta.Type, meta.Product, meta.EventName))
+			metrics.Increment(metricEventOverrideCount, fmt.Sprintf("type=success,conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, meta.Type, meta.Product, meta.EventName))
 		}
 	}
 
