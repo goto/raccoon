@@ -93,6 +93,18 @@ func (pr *Kafka) ProduceBulk(
 			Opaque:         order,
 		}
 
+		if event.EventName == "TESTING OVERRIDE_TIMESTAMP" {
+			logger.Infof(
+				"Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s, is_exclusive=%s",
+				event.EventName,
+				event.Product,
+				event.Type,
+				connGroup,
+				event.EventTimestamp.String(),
+				fmt.Sprintf("%t", event.IsExclusive),
+			)
+		}
+
 		logger.Debugf("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s, is_exclusive=%s",
 			event.EventName,
 			event.Product,
@@ -128,6 +140,18 @@ func (pr *Kafka) ProduceBulk(
 				errors[order] = err
 				logger.Errorf("produce to kafka failed due to: %v on topic : %s", err, topic)
 				errorTag = "unknown"
+			}
+
+			if event.EventName == "TESTING OVERRIDE_TIMESTAMP" {
+				logger.Infof(
+					"Clickstream-event-monitoring : produce failed: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s, is_exclusive=%s",
+					event.EventName,
+					event.Product,
+					event.Type,
+					connGroup,
+					event.EventTimestamp.String(),
+					fmt.Sprintf("%t", event.IsExclusive),
+				)
 			}
 
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s",
@@ -175,6 +199,18 @@ func (pr *Kafka) ProduceBulk(
 			errors[order] = m.TopicPartition.Error
 		} else {
 			startTimeEvent := startTimeEvents[order]
+
+			if event.EventName == "TESTING OVERRIDE_TIMESTAMP" {
+				logger.Infof(
+					"Clickstream-event-monitoring error ack kafka: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s, is_exclusive=%s",
+					event.EventName,
+					event.Product,
+					event.Type,
+					connGroup,
+					event.EventTimestamp.String(),
+					fmt.Sprintf("%t", event.IsExclusive),
+				)
+			}
 
 			// granular metric, el: event level
 			metrics.Timing("el_kafka_processing_duration_milliseconds", time.Since(startTimeEvent).Milliseconds(), fmt.Sprintf("conn_group=%s,event_type=%s", connGroup, event.Type))

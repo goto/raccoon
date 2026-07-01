@@ -296,7 +296,7 @@ func getStringField(
 			metricNameEventDeserializationEmptyField,
 			fmt.Sprintf("field_name=%s,conn_group=%s,event_type=%s,product=%s,event_name=%s", fieldName, connGroup, meta.Type, meta.Product, meta.EventName),
 		)
-		logger.Infof("field %q is empty", fieldName)
+		// /logger.Infof("field %q is empty", fieldName)
 	}
 
 	return val, nil
