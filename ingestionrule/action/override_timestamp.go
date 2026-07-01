@@ -75,6 +75,10 @@ func (o *OverrideTimestamp) Apply(_ context.Context, events []*model.EventWithMe
 				continue
 			}
 
+			if o.stencilClient == nil {
+				continue
+			}
+
 			parsedMsg, err := o.stencilClient.Parse(protoClass, meta.EventBytes)
 			if err != nil {
 				continue

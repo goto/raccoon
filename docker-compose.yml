@@ -52,7 +52,6 @@ services:
       - kafka
       - telegraf
       - redis
-      - stencil-mock
     environment:
       SERVER_WEBSOCKET_PORT: "8080"
       SERVER_WEBSOCKET_CHECK_ORIGIN: "true"
@@ -97,11 +96,11 @@ services:
       REDIS_RETRY_MIN_BACKOFF: "10s"
       REDIS_RETRY_MAX_BACKOFF: "60s"
       REDIS_SENTINEL_MASTER_NAME: ""
-      STENCIL_URL: "http://stencil-mock:80"
+      STENCIL_URL: ""
       STENCIL_AUTO_REFRESH: "true"
       STENCIL_REFRESH_INTERVAL: "12h"
       STENCIL_HTTP_TIMEOUT: "15s"
-      STENCIL_MAX_RETRY: 10
+      STENCIL_MAX_RETRY: 3
       STENCIL_MAX_JITTER_INTERVAL: "1s"
       STENCIL_EXPONENT_FACTOR: 1.5
     ports:
@@ -109,6 +108,7 @@ services:
       - "8081:8081"
     networks:
       - cs-network
+
   telegraf:
     image: telegraf
     volumes:
@@ -124,15 +124,5 @@ services:
     container_name: redis
     ports:
       - "6379:6379"
-    networks:
-      - cs-network
-
-  stencil-mock:
-    image: nginx:alpine
-    container_name: stencil-mock
-    command: >
-      /bin/sh -c "echo 'server { listen 80; location / { return 200 \"\"; } }' > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
-    ports:
-      - "8000:80"
     networks:
       - cs-network

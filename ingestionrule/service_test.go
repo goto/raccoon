@@ -193,12 +193,91 @@ func TestService_Apply_UnknownActionTypeSkipped(t *testing.T) {
 	assert.Equal(t, "click", result[0].EventName)
 }
 
-func TestService_NewService_StencilURL_Empty_Fails(t *testing.T) {
+func TestService_NewService_DeserializationDisabled(t *testing.T) {
+	origEnabled := config.DeserializationCfg.Enabled
+	origDedupEnabled := config.DedupCfg.Enabled
+	origPolicyEnabled := config.PolicyCfg.Enabled
 	origStencilURL := config.StencilCfg.URL
 	defer func() {
+		config.DeserializationCfg.Enabled = origEnabled
+		config.DedupCfg.Enabled = origDedupEnabled
+		config.PolicyCfg.Enabled = origPolicyEnabled
 		config.StencilCfg.URL = origStencilURL
 	}()
 
+	config.DeserializationCfg.Enabled = false
+	config.DedupCfg.Enabled = false
+	config.PolicyCfg.Enabled = false
+	// Set Stencil URL to empty/invalid, which should NOT fail initialization when features are disabled
+	config.StencilCfg.URL = ""
+
+	svc, err := ingestionrule.NewService(context.Background(), nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, svc)
+}
+
+func TestService_NewService_DedupEnabled_StencilURL_Empty(t *testing.T) {
+	origEnabled := config.DeserializationCfg.Enabled
+	origDedupEnabled := config.DedupCfg.Enabled
+	origPolicyEnabled := config.PolicyCfg.Enabled
+	origStencilURL := config.StencilCfg.URL
+	defer func() {
+		config.DeserializationCfg.Enabled = origEnabled
+		config.DedupCfg.Enabled = origDedupEnabled
+		config.PolicyCfg.Enabled = origPolicyEnabled
+		config.StencilCfg.URL = origStencilURL
+	}()
+
+	config.DeserializationCfg.Enabled = false
+	config.DedupCfg.Enabled = true
+	config.PolicyCfg.Enabled = false
+	// Set Stencil URL to empty/invalid, which must fail initialization when dedup is enabled
+	config.StencilCfg.URL = ""
+
+	svc, err := ingestionrule.NewService(context.Background(), nil)
+	assert.Error(t, err)
+	assert.Nil(t, svc)
+}
+
+func TestService_NewService_DeserializationEnabled_StencilURL_Empty(t *testing.T) {
+	origEnabled := config.DeserializationCfg.Enabled
+	origDedupEnabled := config.DedupCfg.Enabled
+	origPolicyEnabled := config.PolicyCfg.Enabled
+	origStencilURL := config.StencilCfg.URL
+	defer func() {
+		config.DeserializationCfg.Enabled = origEnabled
+		config.DedupCfg.Enabled = origDedupEnabled
+		config.PolicyCfg.Enabled = origPolicyEnabled
+		config.StencilCfg.URL = origStencilURL
+	}()
+
+	config.DeserializationCfg.Enabled = true
+	config.DedupCfg.Enabled = false
+	config.PolicyCfg.Enabled = false
+	// Set Stencil URL to empty/invalid, which must fail initialization when deserialization is enabled
+	config.StencilCfg.URL = ""
+
+	svc, err := ingestionrule.NewService(context.Background(), nil)
+	assert.Error(t, err)
+	assert.Nil(t, svc)
+}
+
+func TestService_NewService_PolicyEnabled_StencilURL_Empty(t *testing.T) {
+	origEnabled := config.DeserializationCfg.Enabled
+	origDedupEnabled := config.DedupCfg.Enabled
+	origPolicyEnabled := config.PolicyCfg.Enabled
+	origStencilURL := config.StencilCfg.URL
+	defer func() {
+		config.DeserializationCfg.Enabled = origEnabled
+		config.DedupCfg.Enabled = origDedupEnabled
+		config.PolicyCfg.Enabled = origPolicyEnabled
+		config.StencilCfg.URL = origStencilURL
+	}()
+
+	config.DeserializationCfg.Enabled = false
+	config.DedupCfg.Enabled = false
+	config.PolicyCfg.Enabled = true
+	// Set Stencil URL to empty/invalid, which must fail initialization when policy is enabled
 	config.StencilCfg.URL = ""
 
 	svc, err := ingestionrule.NewService(context.Background(), nil)

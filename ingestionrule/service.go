@@ -35,13 +35,26 @@ type Service struct {
 // It partitions the rules by action type, creates an eval.Cache per action,
 // and assembles the action chain in priority order: Deactivate → Drop → OverrideTimestamp → Dedup.
 func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error) {
-	stencil, err := schemaregistry.NewStencilClient()
-	if err != nil {
-		return nil, err
-	}
+	var (
+		stencil      schemaregistry.StencilClient
+		schemaCache  *deserialization.SchemaCache
+		deserializer *deserialization.Deserializer
+	)
 
-	schemaCache := deserialization.NewSchemaCache(ctx)
-	schemaCache.Start()
+	if config.DeserializationCfg.Enabled || config.PolicyCfg.Enabled || config.DedupCfg.Enabled {
+		var err error
+		stencil, err = schemaregistry.NewStencilClient()
+		if err != nil {
+			return nil, err
+		}
+
+		if config.DeserializationCfg.Enabled || config.PolicyCfg.Enabled {
+			schemaCache = deserialization.NewSchemaCache(ctx)
+			schemaCache.Start()
+		}
+
+		deserializer = deserialization.NewDeserializer(stencil, schemaCache)
+	}
 
 	var chain Chain
 	var duplicateChecker action.DuplicateChecker
@@ -87,7 +100,7 @@ func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error
 	return &Service{
 		chain:            chain,
 		duplicateChecker: duplicateChecker,
-		deserializer:     deserialization.NewDeserializer(stencil, schemaCache),
+		deserializer:     deserializer,
 	}, nil
 }
 
