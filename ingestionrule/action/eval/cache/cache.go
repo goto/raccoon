@@ -32,7 +32,7 @@ func NewCache(rules []config.PolicyRule) *Cache {
 			key = r.Details.Name
 		case config.PolicyResourceEvent:
 			key = r.Details.Name + r.Details.Product + r.Details.Publisher
-		default:
+		case config.PolicyResourceGlobal:
 			key = ""
 		}
 
