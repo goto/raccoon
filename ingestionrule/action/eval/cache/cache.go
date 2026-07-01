@@ -24,12 +24,18 @@ func NewCache(rules []config.PolicyRule) *Cache {
 		if _, ok := c.m[r.Resource]; !ok {
 			c.m[r.Resource] = make(map[string]eval.Condition)
 		}
+
 		var key string
-		if r.Resource == config.PolicyResourceTopic {
+
+		switch r.Resource {
+		case config.PolicyResourceTopic:
 			key = r.Details.Name
-		} else {
+		case config.PolicyResourceEvent:
 			key = r.Details.Name + r.Details.Product + r.Details.Publisher
+		default:
+			key = ""
 		}
+
 		switch r.Action.ConditionType {
 		case config.PolicyConditionTimestampThreshold:
 			c.m[r.Resource][key] = eval.NewTimestampCondition(r.Action.EventTimestampThreshold)

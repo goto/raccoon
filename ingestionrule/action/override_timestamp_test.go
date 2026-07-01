@@ -206,3 +206,65 @@ func TestOverrideTimestamp_SerializationError(t *testing.T) {
 	assert.Len(t, result, 1)
 	assert.Equal(t, staleTime, result[0].EventTimestamp)
 }
+
+func buildOverrideGlobalCache(past time.Duration) *cache.Cache {
+	return cache.NewCache([]config.PolicyRule{
+		{
+			Resource: config.PolicyResourceGlobal,
+			Details:  config.PolicyDetails{},
+			Action: config.PolicyActionConfig{
+				Type:                    config.PolicyActionOverrideTimestamp,
+				ConditionType:           config.PolicyConditionTimestampThreshold,
+				EventTimestampThreshold: config.PolicyTimestampThreshold{Past: config.PolicyDuration{Duration: past}},
+			},
+		},
+	})
+}
+
+func TestOverrideTimestamp_GlobalSuccess(t *testing.T) {
+	c := buildOverrideGlobalCache(time.Hour)
+
+	mockClient := mocks.NewStencilClient(t)
+	mockCache := mocks.NewSchemaCache(t)
+
+	mockCache.EXPECT().Get("any-topic").Return("testpb.Event", true)
+
+	mockClient.EXPECT().Parse("testpb.Event", mock.Anything).RunAndReturn(func(className string, data []byte) (protoreflect.ProtoMessage, error) {
+		msg := &testpb.Event{}
+		err := proto.Unmarshal(data, msg)
+		return msg, err
+	})
+
+	act := action.NewOverrideTimestamp(c, action.DefaultChain(), mockClient, mockCache)
+
+	staleTime := time.Now().UTC().Add(-2 * time.Hour)
+	eventProto := &testpb.Event{
+		EventName:      "some-event",
+		Product:        testpb.Product_Generic,
+		EventTimestamp: timestamppb.New(staleTime),
+	}
+	eventBytes, err := proto.Marshal(eventProto)
+	require.NoError(t, err)
+
+	meta := &model.EventWithMetadata{
+		EventName:      "some-event",
+		Product:        "app",
+		Publisher:      "pub-a",
+		TopicName:      "any-topic",
+		Type:           "some-event",
+		EventTimestamp: staleTime,
+		EventBytes:     eventBytes,
+	}
+
+	result := act.Apply(context.Background(), []*model.EventWithMetadata{meta}, "pub-a")
+
+	assert.Len(t, result, 1)
+	assert.WithinDuration(t, time.Now().UTC(), result[0].EventTimestamp, 2*time.Second)
+
+	updatedEventProto := &testpb.Event{}
+	err = proto.Unmarshal(result[0].EventBytes, updatedEventProto)
+	require.NoError(t, err)
+
+	assert.Equal(t, "some-event", updatedEventProto.EventName)
+	assert.WithinDuration(t, time.Now().UTC(), updatedEventProto.EventTimestamp.AsTime(), 2*time.Second)
+}

@@ -41,10 +41,11 @@ func (c Chain) Run(meta model.EventWithMetadata, ruleCache *cache.Cache) bool {
 	return false
 }
 
-// DefaultChain returns the standard evaluation chain: EventEvaluator → TopicEvaluator.
+// DefaultChain returns the standard evaluation chain: EventEvaluator → TopicEvaluator → GlobalEvaluator.
 func DefaultChain() Chain {
 	return Chain{
 		&eval.EventEvaluator{},
 		&eval.TopicEvaluator{},
+		&eval.GlobalEvaluator{},
 	}
 }

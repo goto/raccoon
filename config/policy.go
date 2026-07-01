@@ -25,6 +25,7 @@ type PolicyConditionType = string
 const (
 	PolicyResourceEvent PolicyResourceType = "event"
 	PolicyResourceTopic PolicyResourceType = "topic"
+	PolicyResourceGlobal PolicyResourceType = "global"
 
 	PolicyActionDrop              PolicyActionType = "DROP"
 	PolicyActionOverrideTimestamp PolicyActionType = "OVERRIDE_TIMESTAMP"
@@ -137,6 +138,8 @@ func ValidatePolicyRules(rules []PolicyRule) error {
 			if r.Details.Name == "" {
 				return fmt.Errorf("policy: rule[%d]: topic rule requires details.name", i)
 			}
+		case PolicyResourceGlobal:
+			// no specific details are required for "global" resource
 		default:
 			return fmt.Errorf("policy: rule[%d]: unknown resource type %q", i, r.Resource)
 		}

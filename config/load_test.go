@@ -269,6 +269,11 @@ func TestValidatePolicyRules(t *testing.T) {
 		{"event missing publisher", []PolicyRule{valid(PolicyResourceEvent, "click", "app", "")}, true},
 		{"topic missing name", []PolicyRule{valid(PolicyResourceTopic, "", "", "")}, true},
 		{"unknown resource", []PolicyRule{valid("unknown", "click", "app", "pub-a")}, true},
+		{"valid global rule", []PolicyRule{valid(PolicyResourceGlobal, "", "", "")}, false},
+		{"global rule followed by invalid rule", []PolicyRule{
+			valid(PolicyResourceGlobal, "", "", ""),
+			valid("unknown", "click", "app", "pub-a"),
+		}, true},
 		{"empty rules", []PolicyRule{}, false},
 	}
 	for _, tt := range tests {

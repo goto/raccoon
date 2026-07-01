@@ -88,8 +88,8 @@ func (o *OverrideTimestamp) Apply(_ context.Context, events []*model.EventWithMe
 				continue
 			}
 
-			now := time.Now()
-			tsProto := timestamppb.New(now)
+			serverProcessTime := time.Now().UTC()
+			tsProto := timestamppb.New(serverProcessTime)
 
 			ref.Set(fieldDesc, protoreflect.ValueOfMessage(tsProto.ProtoReflect()))
 
@@ -101,7 +101,7 @@ func (o *OverrideTimestamp) Apply(_ context.Context, events []*model.EventWithMe
 			}
 
 			meta.EventBytes = newBytes
-			meta.EventTimestamp = now
+			meta.EventTimestamp = serverProcessTime
 
 			metrics.Increment(metricEventOverrideCount, fmt.Sprintf("reason=OVERRIDE_TIMESTAMP,conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, meta.Type, meta.Product, meta.EventName))
 		}
