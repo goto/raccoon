@@ -281,8 +281,8 @@ func TestService_NewService_PolicyEnabled_StencilURL_Empty(t *testing.T) {
 	config.StencilCfg.URL = ""
 
 	svc, err := ingestionrule.NewService(context.Background(), nil)
-	assert.Error(t, err)
-	assert.Nil(t, svc)
+	assert.NoError(t, err)
+	assert.NotNil(t, svc)
 }
 
 func TestService_NewService_PolicyDisabled(t *testing.T) {

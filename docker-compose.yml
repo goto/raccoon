@@ -117,7 +117,7 @@ services:
       - "8125:8125"
     networks:
       - cs-network
-
+      
   redis:
     image: redis:7-alpine
     hostname: redis

@@ -6,16 +6,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
-	"github.com/goto/raccoon/ingestionrule/action/mocks"
 	testpb "github.com/goto/raccoon/ingestionrule/schemaregistry/protoutil/testpb"
 	"github.com/goto/raccoon/model"
 )
@@ -37,10 +34,7 @@ func buildOverrideCache(name, product, publisher string, past time.Duration) *ca
 func newOverrideAct(t *testing.T) *action.OverrideTimestamp {
 	t.Helper()
 	c := buildOverrideCache("click", "app", "pub-a", time.Hour)
-	mockClient := mocks.NewStencilClient(t)
-	mockCache := mocks.NewSchemaCache(t)
-	mockCache.EXPECT().Get(mock.Anything).Return("", false).Maybe()
-	return action.NewOverrideTimestamp(c, action.DefaultChain(), mockClient, mockCache)
+	return action.NewOverrideTimestamp(c, action.DefaultChain())
 }
 
 func staleEvent(name string) *model.EventWithMetadata {
@@ -93,19 +87,7 @@ func TestOverrideTimestamp_MixedBatch(t *testing.T) {
 
 func TestOverrideTimestamp_Success(t *testing.T) {
 	c := buildOverrideCache("click", "app", "pub-a", time.Hour)
-
-	mockClient := mocks.NewStencilClient(t)
-	mockCache := mocks.NewSchemaCache(t)
-
-	mockCache.EXPECT().Get("click-topic").Return("testpb.Event", true)
-
-	mockClient.EXPECT().Parse("testpb.Event", mock.Anything).RunAndReturn(func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-		msg := &testpb.Event{}
-		err := proto.Unmarshal(data, msg)
-		return msg, err
-	})
-
-	act := action.NewOverrideTimestamp(c, action.DefaultChain(), mockClient, mockCache)
+	act := action.NewOverrideTimestamp(c, action.DefaultChain())
 
 	staleTime := time.Now().Add(-2 * time.Hour)
 	eventProto := &testpb.Event{
@@ -124,6 +106,7 @@ func TestOverrideTimestamp_Success(t *testing.T) {
 		Type:           "click",
 		EventTimestamp: staleTime,
 		EventBytes:     eventBytes,
+		ProtoMsg:       eventProto,
 	}
 
 	result := act.Apply(context.Background(), []*model.EventWithMetadata{meta}, "pub-a")
@@ -139,22 +122,9 @@ func TestOverrideTimestamp_Success(t *testing.T) {
 	assert.WithinDuration(t, time.Now(), updatedEventProto.EventTimestamp.AsTime(), 2*time.Second)
 }
 
-func TestOverrideTimestamp_FieldNotFound(t *testing.T) {
+func TestOverrideTimestamp_NilProtoMsgSkipped(t *testing.T) {
 	c := buildOverrideCache("click", "app", "pub-a", time.Hour)
-
-	mockClient := mocks.NewStencilClient(t)
-	mockCache := mocks.NewSchemaCache(t)
-
-	mockCache.EXPECT().Get("click-topic").Return("testpb.Meta", true)
-
-	mockClient.EXPECT().Parse("testpb.Meta", mock.Anything).RunAndReturn(func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-		msg := &testpb.Meta{
-			EventGuid: "some-guid",
-		}
-		return msg, nil
-	})
-
-	act := action.NewOverrideTimestamp(c, action.DefaultChain(), mockClient, mockCache)
+	act := action.NewOverrideTimestamp(c, action.DefaultChain())
 
 	staleTime := time.Now().Add(-2 * time.Hour)
 	meta := &model.EventWithMetadata{
@@ -165,46 +135,13 @@ func TestOverrideTimestamp_FieldNotFound(t *testing.T) {
 		Type:           "click",
 		EventTimestamp: staleTime,
 		EventBytes:     []byte("some-bytes"),
+		ProtoMsg:       nil,
 	}
 
 	result := act.Apply(context.Background(), []*model.EventWithMetadata{meta}, "pub-a")
 
 	assert.Len(t, result, 1)
-	assert.Equal(t, staleTime, result[0].EventTimestamp)
-}
-
-func TestOverrideTimestamp_SerializationError(t *testing.T) {
-	c := buildOverrideCache("click", "app", "pub-a", time.Hour)
-
-	mockClient := mocks.NewStencilClient(t)
-	mockCache := mocks.NewSchemaCache(t)
-
-	mockCache.EXPECT().Get("click-topic").Return("testpb.Event", true)
-
-	mockClient.EXPECT().Parse("testpb.Event", mock.Anything).RunAndReturn(func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-		msg := &testpb.Event{
-			EventName: string([]byte{0xff, 0xfe, 0xfd}),
-		}
-		return msg, nil
-	})
-
-	act := action.NewOverrideTimestamp(c, action.DefaultChain(), mockClient, mockCache)
-
-	staleTime := time.Now().Add(-2 * time.Hour)
-	meta := &model.EventWithMetadata{
-		EventName:      "click",
-		Product:        "app",
-		Publisher:      "pub-a",
-		TopicName:      "click-topic",
-		Type:           "click",
-		EventTimestamp: staleTime,
-		EventBytes:     []byte("some-bytes"),
-	}
-
-	result := act.Apply(context.Background(), []*model.EventWithMetadata{meta}, "pub-a")
-
-	assert.Len(t, result, 1)
-	assert.Equal(t, staleTime, result[0].EventTimestamp)
+	assert.Equal(t, staleTime, result[0].EventTimestamp) // remains unchanged
 }
 
 func buildOverrideGlobalCache(past time.Duration) *cache.Cache {
@@ -223,19 +160,7 @@ func buildOverrideGlobalCache(past time.Duration) *cache.Cache {
 
 func TestOverrideTimestamp_GlobalSuccess(t *testing.T) {
 	c := buildOverrideGlobalCache(time.Hour)
-
-	mockClient := mocks.NewStencilClient(t)
-	mockCache := mocks.NewSchemaCache(t)
-
-	mockCache.EXPECT().Get("any-topic").Return("testpb.Event", true)
-
-	mockClient.EXPECT().Parse("testpb.Event", mock.Anything).RunAndReturn(func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-		msg := &testpb.Event{}
-		err := proto.Unmarshal(data, msg)
-		return msg, err
-	})
-
-	act := action.NewOverrideTimestamp(c, action.DefaultChain(), mockClient, mockCache)
+	act := action.NewOverrideTimestamp(c, action.DefaultChain())
 
 	staleTime := time.Now().UTC().Add(-2 * time.Hour)
 	eventProto := &testpb.Event{
@@ -254,6 +179,7 @@ func TestOverrideTimestamp_GlobalSuccess(t *testing.T) {
 		Type:           "some-event",
 		EventTimestamp: staleTime,
 		EventBytes:     eventBytes,
+		ProtoMsg:       eventProto,
 	}
 
 	result := act.Apply(context.Background(), []*model.EventWithMetadata{meta}, "pub-a")

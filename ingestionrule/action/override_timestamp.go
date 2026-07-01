@@ -9,31 +9,18 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/model"
 )
 
-// SchemaCache defines a read-only interface for schema lookups.
-type SchemaCache interface {
-	Get(topic string) (string, bool)
-}
-
-// StencilClient defines the interface for parsing event bytes using stencil.
-type StencilClient interface {
-	Parse(className string, data []byte) (protoreflect.ProtoMessage, error)
-}
-
 // OverrideTimestamp evaluates OVERRIDE_TIMESTAMP policies. When a matching rule's
 // condition is breached, the event's timestamp is updated both in the metadata and
-// inside its serialized event bytes using Stencil.
+// inside its serialized event bytes using the pre-parsed ProtoMsg.
 type OverrideTimestamp struct {
-	cache         *cache.Cache
-	evalChain     Chain
-	stencilClient StencilClient
-	schemaCache   SchemaCache
+	cache     *cache.Cache
+	evalChain Chain
 }
 
 // NewOverrideTimestamp creates an OverrideTimestamp action.
@@ -41,14 +28,10 @@ type OverrideTimestamp struct {
 func NewOverrideTimestamp(
 	c *cache.Cache,
 	evalChain Chain,
-	stencilClient StencilClient,
-	schemaCache SchemaCache,
 ) *OverrideTimestamp {
 	return &OverrideTimestamp{
-		cache:         c,
-		evalChain:     evalChain,
-		stencilClient: stencilClient,
-		schemaCache:   schemaCache,
+		cache:     c,
+		evalChain: evalChain,
 	}
 }
 
@@ -66,28 +49,15 @@ func (o *OverrideTimestamp) Apply(_ context.Context, events []*model.EventWithMe
 		if o.evalChain.Run(*meta, o.cache) {
 			logger.Debugf("[override_timestamp.Apply] overriding timestamp: event_name=%s, product=%s, publisher=%s, topic=%s, event_timestamp=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp)
 
-			protoClass, found := o.schemaCache.Get(meta.TopicName)
-			if !found {
-				protoClass, found = config.DedupCfg.ProtoClassNameMapping[meta.Type]
-			}
-
-			if !found {
-				continue
-			}
-
-			if o.stencilClient == nil {
-				continue
-			}
-
-			parsedMsg, err := o.stencilClient.Parse(protoClass, meta.EventBytes)
-			if err != nil {
+			parsedMsg := meta.ProtoMsg
+			if parsedMsg == nil {
 				continue
 			}
 
 			ref := parsedMsg.ProtoReflect()
 			fieldDesc := ref.Descriptor().Fields().ByName(protoFieldEventTimestamp)
 			if fieldDesc == nil {
-				logger.Errorf("[override_timestamp.Apply] event_timestamp field not found in schema for %s", protoClass)
+				logger.Errorf("[override_timestamp.Apply] event_timestamp field not found in schema for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s", meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.Platform, meta.AppVersion)
 				metrics.Increment(metricNameEventOverrideErrorCount, fmt.Sprintf("reason=timestamp_field_not_found,conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, meta.Type, meta.Product, meta.EventName))
 				continue
 			}

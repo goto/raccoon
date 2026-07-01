@@ -41,14 +41,14 @@ func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error
 		deserializer *deserialization.Deserializer
 	)
 
-	if config.DeserializationCfg.Enabled || config.PolicyCfg.Enabled || config.DedupCfg.Enabled {
+	if config.DeserializationCfg.Enabled || config.DedupCfg.Enabled {
 		var err error
 		stencil, err = schemaregistry.NewStencilClient()
 		if err != nil {
 			return nil, err
 		}
 
-		if config.DeserializationCfg.Enabled || config.PolicyCfg.Enabled {
+		if config.DeserializationCfg.Enabled {
 			schemaCache = deserialization.NewSchemaCache(ctx)
 			schemaCache.Start()
 		}
@@ -79,7 +79,7 @@ func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error
 		chain = Chain{
 			action.NewDeactivate(deactivateCache, action.DefaultChain()),
 			action.NewDrop(dropCache, action.DefaultChain()),
-			action.NewOverrideTimestamp(overrideCache, action.DefaultChain(), stencil.Client, schemaCache),
+			action.NewOverrideTimestamp(overrideCache, action.DefaultChain()),
 		}
 
 		if config.DedupCfg.Enabled {

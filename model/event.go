@@ -2,6 +2,8 @@ package model
 
 import (
 	"time"
+
+	"google.golang.org/protobuf/proto"
 )
 
 // EventWithMetadata holds the attributes extracted from an incoming event and its
@@ -25,6 +27,8 @@ type EventWithMetadata struct {
 	EventTimestamp time.Time
 	// EventBytes holds the raw bytes of the serialized event payload.
 	EventBytes []byte
+	// ProtoMsg is the pre-parsed protobuf message representation (if deserialization occurred).
+	ProtoMsg proto.Message
 	// Platform denotes the client platform generating the event (e.g., Android, iOS, Flutter).
 	Platform string
 	// AppVersion denotes the version of the client application generating the event.

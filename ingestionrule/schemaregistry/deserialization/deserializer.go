@@ -165,6 +165,7 @@ func (d *Deserializer) enrichEventMetadata(
 	if err != nil {
 		return meta, fmt.Errorf("failed to parse event bytes: %w", err)
 	}
+	meta.ProtoMsg = parsedMsg
 
 	var errs []error
 	ref := parsedMsg.ProtoReflect()
