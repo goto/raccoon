@@ -109,7 +109,7 @@ func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error
 	actions := []Action{
 		action.NewDeactivate(deactivateCache, action.DefaultChain()),
 		action.NewDrop(dropCache, action.DefaultChain()),
-		action.NewOverrideTimestamp(overrideCache, action.DefaultChain(), overrideEventType),
+		action.NewOverrideTimestamp(overrideCache, action.DefaultChain()),
 		action.NewDedup(stencil, checker),
 	}
 	if store != nil {
