@@ -74,6 +74,8 @@ func (o *OverrideTimestamp) Apply(_ context.Context, events []*model.EventWithMe
 				continue
 			}
 
+			logger.Infof("[override_timestamp.Apply] overriding timestamp: event_name=%s, product=%s, publisher=%s, topic=%s, original_event_timestamp=%s, new_event_timestamp=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp, serverProcessTime)
+
 			meta.EventBytes = newBytes
 			meta.EventTimestamp = serverProcessTime
 
