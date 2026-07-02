@@ -35,11 +35,15 @@ func TestMain(m *testing.M) {
 	originalExcludeList := config.DeserializationCfg.ExcludeEventTypeList
 	config.DeserializationCfg.ExcludeEventTypeList = []string{"click", "scroll", ""}
 
+	originalPattern := config.EventDistribution.PublisherPattern
+	config.EventDistribution.PublisherPattern = "clickstream-%s-log"
+
 	code := m.Run()
 
 	config.StencilCfg = originalCfg
 	config.PolicyCfg.Enabled = originalPolicyCfgEnabled
 	config.DeserializationCfg.ExcludeEventTypeList = originalExcludeList
+	config.EventDistribution.PublisherPattern = originalPattern
 	os.Exit(code)
 }
 
@@ -54,8 +58,6 @@ func disableEventChecker(t *testing.T) {
 func timestampProto(t time.Time) *timestamppb.Timestamp {
 	return timestamppb.New(t)
 }
-
-const testOverrideEventType = "invalid-et"
 
 func buildRules(pastDrop, pastOverride time.Duration, withDeactivate bool) []config.PolicyRule {
 	var rules []config.PolicyRule
