@@ -10,6 +10,7 @@ import (
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
+	"github.com/goto/raccoon/ingestionrule/action/eventchecker"
 	"github.com/goto/raccoon/model"
 )
 
@@ -24,7 +25,7 @@ func buildDeactivateEventCache(name, product, publisher string) *cache.Cache {
 }
 
 func newDeactivate(c *cache.Cache) *action.Deactivate {
-	return action.NewDeactivate(c, action.DefaultChain())
+	return action.NewDeactivate(c, action.DefaultChain(), nil)
 }
 
 func TestDeactivate_DropsMatchingEvent(t *testing.T) {
@@ -92,4 +93,69 @@ func TestDeactivate_DropsMatchingTopicRule(t *testing.T) {
 		EventTimestamp: time.Now(),
 	}}
 	assert.Empty(t, newDeactivate(c).Apply(context.Background(), events, "pub-a"))
+}
+
+type mockEventChecker struct {
+	events map[string]eventchecker.EventStatus
+}
+
+func (m *mockEventChecker) GetEvents(key string) (eventchecker.EventStatus, bool) {
+	status, ok := m.events[key]
+	return status, ok
+}
+
+func (m *mockEventChecker) Close() {}
+func (m *mockEventChecker) Start() {}
+func (m *mockEventChecker) HealthCheck() error { return nil }
+
+func TestDeactivate_WithEventChecker(t *testing.T) {
+	originalEnable := config.PolicyCfg.EventVerificationEnabled
+	config.PolicyCfg.EventVerificationEnabled = true
+	defer func() {
+		config.PolicyCfg.EventVerificationEnabled = originalEnable
+	}()
+
+	mockChecker := &mockEventChecker{
+		events: map[string]eventchecker.EventStatus{
+			"pub-a:clickstream-click-log:app:click":       eventchecker.EventStatusActive,
+			"pub-a:clickstream-scroll-log:app:scroll":     eventchecker.EventStatusInactive,
+			"pub-a:clickstream-pageview-log:app:pageview": eventchecker.EventStatusDeprecated,
+		},
+	}
+
+	c := cache.NewCache(nil)
+	deactivateAction := action.NewDeactivate(c, action.DefaultChain(), mockChecker)
+
+	events := []*model.EventWithMetadata{
+		{
+			EventName: "click",
+			Product:   "app",
+			Publisher: "pub-a",
+			TopicName: "clickstream-click-log",
+		},
+		{
+			EventName: "scroll",
+			Product:   "app",
+			Publisher: "pub-a",
+			TopicName: "clickstream-scroll-log",
+		},
+		{
+			EventName: "pageview",
+			Product:   "app",
+			Publisher: "pub-a",
+			TopicName: "clickstream-pageview-log",
+		},
+		{
+			EventName: "unknown",
+			Product:   "app",
+			Publisher: "pub-a",
+			TopicName: "clickstream-unknown-log",
+		},
+	}
+
+	result := deactivateAction.Apply(context.Background(), events, "pub-a")
+
+	// Only "click" is active, so all others (inactive, deprecated, unregistered) should be dropped
+	assert.Len(t, result, 1)
+	assert.Equal(t, "click", result[0].EventName)
 }

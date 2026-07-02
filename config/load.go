@@ -36,4 +36,5 @@ func Load() {
 	stencilConfigLoader()
 	deserializationConfigLoader()
 	compassConfigLoader()
+	mslConfigLoader()
 }

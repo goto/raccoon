@@ -9,17 +9,15 @@ import (
 
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
-	checkregistration "github.com/goto/raccoon/ingestionrule/action/checkregistration"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
 	evalcache "github.com/goto/raccoon/ingestionrule/action/eval/cache"
+	"github.com/goto/raccoon/ingestionrule/action/eventchecker"
 	"github.com/goto/raccoon/ingestionrule/schemaregistry"
 	"github.com/goto/raccoon/ingestionrule/schemaregistry/deserialization"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/model"
 )
-
-var NewRegistrationStore = checkregistration.NewStore
 
 // MetricEvalDuration is the service-level alias for the shared latency metric.
 // Use the action-level metric (action.MetricEvalLatency) for per-action breakdown.
@@ -32,6 +30,7 @@ type Service struct {
 	chain            Chain
 	duplicateChecker action.DuplicateChecker
 	deserializer     *deserialization.Deserializer
+	eventChecker     action.EventChecker
 }
 
 // NewService builds a fully wired Service from the given config rules.
@@ -40,7 +39,7 @@ type Service struct {
 func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error) {
 	var (
 		stencil      schemaregistry.StencilClient
-		schemaCache  *deserialization.SchemaCache
+		schemaCache  deserialization.SchemaRegistryCache
 		deserializer *deserialization.Deserializer
 	)
 
@@ -61,8 +60,14 @@ func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error
 
 	var chain Chain
 	var duplicateChecker action.DuplicateChecker
+	var eventChecker action.EventChecker
 
 	if config.PolicyCfg.Enabled {
+		if config.PolicyCfg.EventVerificationEnabled {
+			eventChecker = eventchecker.NewEventCache(ctx)
+			eventChecker.Start()
+		}
+
 		dropCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionDrop))
 		overrideCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionOverrideTimestamp))
 		deactivateCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionDeactivate))
@@ -80,7 +85,7 @@ func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error
 		}
 
 		chain = Chain{
-			action.NewDeactivate(deactivateCache, action.DefaultChain()),
+			action.NewDeactivate(deactivateCache, action.DefaultChain(), eventChecker),
 			action.NewDrop(dropCache, action.DefaultChain()),
 			action.NewOverrideTimestamp(overrideCache, action.DefaultChain()),
 		}
@@ -100,27 +105,11 @@ func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error
 		}
 	}
 
-	store, err := NewRegistrationStore(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	actions := []Action{
-		action.NewDeactivate(deactivateCache, action.DefaultChain()),
-		action.NewDrop(dropCache, action.DefaultChain()),
-		action.NewOverrideTimestamp(overrideCache, action.DefaultChain()),
-		action.NewDedup(stencil, checker),
-	}
-	if store != nil {
-		actions = append([]Action{action.NewCheckRegistration(store)}, actions...)
-		store.Refresh(ctx)
-	}
-
 	return &Service{
-		chain:            actions,
+		chain:            chain,
 		duplicateChecker: duplicateChecker,
 		deserializer:     deserializer,
+		eventChecker:     eventChecker,
 	}, nil
 }
 
@@ -138,6 +127,10 @@ func (s *Service) Close() {
 		if err := s.duplicateChecker.Close(); err != nil {
 			logger.Errorf("failed to close duplicate checker: %v", err)
 		}
+	}
+
+	if s.eventChecker != nil {
+		s.eventChecker.Close()
 	}
 }
 
@@ -157,6 +150,15 @@ func (s *Service) CompassHealthCheck() error {
 	}
 
 	return s.deserializer.HealthCheck()
+}
+
+// MSLHealthCheck checks the health of the event checker client.
+func (s *Service) MSLHealthCheck() error {
+	if s == nil || s.eventChecker == nil {
+		return nil
+	}
+
+	return s.eventChecker.HealthCheck()
 }
 
 // Apply runs the event batch through the action pipeline and returns only events

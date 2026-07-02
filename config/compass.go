@@ -20,10 +20,10 @@ type compassConfig struct {
 	HTTPRequestTimeout time.Duration
 	// ProjectIDLocation is the project location for the Compass API.
 	ProjectIDLocation string
-	// StartupMaxRetry is the maximum number of retries for the initial schema cache sync.
-	StartupMaxRetry int
-	// StartupRetryBackoff is the backoff duration between schema cache sync retries.
-	StartupRetryBackoff time.Duration
+	// HTTPMaxRetry is the maximum number of retries for the HTTP requests.
+	HTTPMaxRetry int
+	// HTTPRetryBackoff is the backoff duration between HTTP request retries.
+	HTTPRetryBackoff time.Duration
 }
 
 func compassConfigLoader() {
@@ -32,16 +32,16 @@ func compassConfigLoader() {
 	viper.SetDefault("COMPASS_SYNC_INTERVAL", "1h")
 	viper.SetDefault("COMPASS_HTTP_REQUEST_TIMEOUT", "5s")
 	viper.SetDefault("COMPASS_PROJECT_ID_LOCATION", "")
-	viper.SetDefault("COMPASS_STARTUP_MAX_RETRY", 3)
-	viper.SetDefault("COMPASS_STARTUP_RETRY_BACKOFF", "200ms")
+	viper.SetDefault("COMPASS_HTTP_MAX_RETRY", 3)
+	viper.SetDefault("COMPASS_HTTP_RETRY_BACKOFF", "200ms")
 
 	CompassCfg = compassConfig{
-		HTTPHost:            viper.GetString("COMPASS_HTTP_HOST"),
-		AuthEmail:           viper.GetString("COMPASS_AUTH_EMAIL"),
-		SyncInterval:        viper.GetDuration("COMPASS_SYNC_INTERVAL"),
-		HTTPRequestTimeout:  viper.GetDuration("COMPASS_HTTP_REQUEST_TIMEOUT"),
-		ProjectIDLocation:   viper.GetString("COMPASS_PROJECT_ID_LOCATION"),
-		StartupMaxRetry:     viper.GetInt("COMPASS_STARTUP_MAX_RETRY"),
-		StartupRetryBackoff: viper.GetDuration("COMPASS_STARTUP_RETRY_BACKOFF"),
+		HTTPHost:           viper.GetString("COMPASS_HTTP_HOST"),
+		AuthEmail:          viper.GetString("COMPASS_AUTH_EMAIL"),
+		SyncInterval:       viper.GetDuration("COMPASS_SYNC_INTERVAL"),
+		HTTPRequestTimeout: viper.GetDuration("COMPASS_HTTP_REQUEST_TIMEOUT"),
+		ProjectIDLocation:  viper.GetString("COMPASS_PROJECT_ID_LOCATION"),
+		HTTPMaxRetry:       viper.GetInt("COMPASS_HTTP_MAX_RETRY"),
+		HTTPRetryBackoff:   viper.GetDuration("COMPASS_HTTP_RETRY_BACKOFF"),
 	}
 }

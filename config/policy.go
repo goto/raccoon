@@ -164,26 +164,15 @@ type policyConfig struct {
 	// Set via POLICY_PUBLISHER_MAPPING as a JSON object string, e.g.:
 	//   POLICY_PUBLISHER_MAPPING='{"customer":"gojek","driver":"gopartner"}'
 	PublisherMapping map[string]string
-	// EnableCheckVerification controls whether events verification wrt MSL is enabled.
-	EnableCheckVerification bool
-	// MSLBaseURL is the base URL of the MSL service for fetching registered events.
-	MSLBaseURL string
-	// PublisherRefreshInHours is the interval for refreshing publishers from MSL.
-	// Defaults to 24h.
-	PublisherRefreshInHours time.Duration
-	// EventRefreshInMinutes is the interval for refreshing registered events from MSL.
-	// Defaults to 30m.
-	EventRefreshInMinutes time.Duration
+	// EventVerificationEnabled controls whether events verification is enabled.
+	EventVerificationEnabled bool
 }
 
 func policyConfigLoader() {
 	viper.SetDefault("POLICY_ENABLED", "false")
 	viper.SetDefault("POLICY_CONFIG", "[]")
 	viper.SetDefault("POLICY_PUBLISHER_MAPPING", "")
-	viper.SetDefault("POLICY_ENABLE_CHECK_VERIFICATION", "false")
-	viper.SetDefault("POLICY_MSL_BASE_URL", "http://localhost:8082")
-	viper.SetDefault("POLICY_PUBLISHER_REFRESH_IN_HOURS", "24")
-	viper.SetDefault("POLICY_EVENT_REFRESH_IN_MIN", "30")
+	viper.SetDefault("POLICY_EVENT_VERIFICATION_ENABLED", "false")
 
 	var rules []PolicyRule
 	rawConfig := util.MustGetString("POLICY_CONFIG")
@@ -204,25 +193,10 @@ func policyConfigLoader() {
 		}
 	}
 
-	// Read them as integers since your .env sets them to 24 and 30
-	// If the keys are missing, fallback to defaults (24 and 30)
-	pubHours := viper.GetInt("POLICY_PUBLISHER_REFRESH_IN_HOURS")
-	if pubHours == 0 {
-		pubHours = 24
-	}
-
-	eventMin := viper.GetInt("POLICY_EVENT_REFRESH_IN_MIN")
-	if eventMin == 0 {
-		eventMin = 30
-	}
-
 	PolicyCfg = policyConfig{
-		Enabled:                 util.MustGetBool("POLICY_ENABLED"),
-		Rules:                   rules,
-		PublisherMapping:        publisherMapping,
-		EnableCheckVerification: util.MustGetBool("POLICY_ENABLE_CHECK_VERIFICATION"),
-		MSLBaseURL:              util.MustGetString("POLICY_MSL_BASE_URL"),
-		PublisherRefreshInHours: time.Duration(pubHours) * time.Hour,
-		EventRefreshInMinutes:   time.Duration(eventMin) * time.Minute,
+		Enabled:                  util.MustGetBool("POLICY_ENABLED"),
+		Rules:                    rules,
+		PublisherMapping:         publisherMapping,
+		EventVerificationEnabled: util.MustGetBool("POLICY_EVENT_VERIFICATION_ENABLED"),
 	}
 }

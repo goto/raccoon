@@ -50,8 +50,8 @@ func TestSchemaCache_FetchSchemaMap_Success(t *testing.T) {
 	config.CompassCfg.AuthEmail = "auth-email"
 	config.CompassCfg.SyncInterval = time.Minute
 	config.CompassCfg.HTTPRequestTimeout = time.Second
-	config.CompassCfg.StartupMaxRetry = 3
-	config.CompassCfg.StartupRetryBackoff = 200 * time.Millisecond
+	config.CompassCfg.HTTPMaxRetry = 3
+	config.CompassCfg.HTTPRetryBackoff = 200 * time.Millisecond
 
 	ctx := context.Background()
 	cache := NewSchemaCache(ctx)
@@ -80,8 +80,8 @@ func TestSchemaCache_FetchSchemaMap_Non200(t *testing.T) {
 	config.CompassCfg.AuthEmail = "auth-email"
 	config.CompassCfg.SyncInterval = time.Minute
 	config.CompassCfg.HTTPRequestTimeout = time.Second
-	config.CompassCfg.StartupMaxRetry = 3
-	config.CompassCfg.StartupRetryBackoff = 200 * time.Millisecond
+	config.CompassCfg.HTTPMaxRetry = 3
+	config.CompassCfg.HTTPRetryBackoff = 200 * time.Millisecond
 
 	ctx := context.Background()
 	cache := NewSchemaCache(ctx)
@@ -103,8 +103,8 @@ func TestSchemaCache_FetchSchemaMap_NonJSON(t *testing.T) {
 	config.CompassCfg.AuthEmail = "auth-email"
 	config.CompassCfg.SyncInterval = time.Minute
 	config.CompassCfg.HTTPRequestTimeout = time.Second
-	config.CompassCfg.StartupMaxRetry = 3
-	config.CompassCfg.StartupRetryBackoff = 200 * time.Millisecond
+	config.CompassCfg.HTTPMaxRetry = 3
+	config.CompassCfg.HTTPRetryBackoff = 200 * time.Millisecond
 
 	ctx := context.Background()
 	cache := NewSchemaCache(ctx)

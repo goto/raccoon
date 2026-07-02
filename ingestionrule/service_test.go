@@ -11,8 +11,8 @@ import (
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule"
-	checkregistration "github.com/goto/raccoon/ingestionrule/action/checkregistration"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -43,15 +43,11 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func disableRegistrationStore(t *testing.T) {
-	original := ingestionrule.NewRegistrationStore
-
-	ingestionrule.NewRegistrationStore = func(context.Context) (*checkregistration.Store, error) {
-		return nil, nil
-	}
-
+func disableEventChecker(t *testing.T) {
+	original := config.PolicyCfg.EventVerificationEnabled
+	config.PolicyCfg.EventVerificationEnabled = false
 	t.Cleanup(func() {
-		ingestionrule.NewRegistrationStore = original
+		config.PolicyCfg.EventVerificationEnabled = original
 	})
 }
 
@@ -96,7 +92,7 @@ func buildRules(pastDrop, pastOverride time.Duration, withDeactivate bool) []con
 }
 
 func TestService_Apply_DropTakesPriorityOverOverride(t *testing.T) {
-	disableRegistrationStore(t)
+	disableEventChecker(t)
 	rules := buildRules(time.Hour, time.Hour, false)
 	svc, err := ingestionrule.NewService(context.Background(), rules)
 	assert.NoError(t, err)
@@ -109,7 +105,7 @@ func TestService_Apply_DropTakesPriorityOverOverride(t *testing.T) {
 }
 
 func TestService_Apply_OverrideWhenNoDrop(t *testing.T) {
-	disableRegistrationStore(t)
+	disableEventChecker(t)
 	rules := []config.PolicyRule{
 		{
 			Resource: config.PolicyResourceEvent,
@@ -134,7 +130,7 @@ func TestService_Apply_OverrideWhenNoDrop(t *testing.T) {
 }
 
 func TestService_Apply_PassthroughWhenNoPolicy(t *testing.T) {
-	disableRegistrationStore(t)
+	disableEventChecker(t)
 
 	svc, err := ingestionrule.NewService(context.Background(), nil)
 	assert.NoError(t, err)
@@ -146,7 +142,7 @@ func TestService_Apply_PassthroughWhenNoPolicy(t *testing.T) {
 }
 
 func TestService_Apply_MixedBatch(t *testing.T) {
-	disableRegistrationStore(t)
+	disableEventChecker(t)
 	rules := buildRules(time.Hour, 0, false)
 	svc, err := ingestionrule.NewService(context.Background(), rules)
 	assert.NoError(t, err)
@@ -159,7 +155,7 @@ func TestService_Apply_MixedBatch(t *testing.T) {
 }
 
 func TestService_Apply_DeactivateDropsEvent(t *testing.T) {
-	disableRegistrationStore(t)
+	disableEventChecker(t)
 
 	svc, err := ingestionrule.NewService(context.Background(), buildRules(0, 0, true))
 
@@ -172,7 +168,7 @@ func TestService_Apply_DeactivateDropsEvent(t *testing.T) {
 }
 
 func TestService_Apply_DeactivateTakesPriorityOverDrop(t *testing.T) {
-	disableRegistrationStore(t)
+	disableEventChecker(t)
 	// Both DEACTIVE and DROP rules target the same event.
 	// DEACTIVE runs first and removes it; DROP never sees it.
 	rules := buildRules(time.Hour, 0, true)
@@ -186,7 +182,7 @@ func TestService_Apply_DeactivateTakesPriorityOverDrop(t *testing.T) {
 }
 
 func TestService_Apply_DeactivatePassthroughWhenNoMatch(t *testing.T) {
-	disableRegistrationStore(t)
+	disableEventChecker(t)
 
 	svc, err := ingestionrule.NewService(context.Background(), buildRules(0, 0, true))
 	assert.NoError(t, err)
@@ -200,7 +196,7 @@ func TestService_Apply_DeactivatePassthroughWhenNoMatch(t *testing.T) {
 }
 
 func TestService_Apply_UnknownActionTypeSkipped(t *testing.T) {
-	disableRegistrationStore(t)
+	disableEventChecker(t)
 	rules := []config.PolicyRule{
 		{
 			Resource: config.PolicyResourceEvent,
@@ -345,20 +341,27 @@ func TestService_CompassHealthCheck(t *testing.T) {
 	assert.NoError(t, nilSvc.CompassHealthCheck())
 }
 
-func TestService_WithoutRegistrationStore(t *testing.T) {
-	original := ingestionrule.NewRegistrationStore
-	defer func() {
-		ingestionrule.NewRegistrationStore = original
-	}()
+func setupMockMSLServer(t *testing.T, responseJSON string) *httptest.Server {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/v1/events", r.URL.Path)
+		assert.Equal(t, "grp", r.URL.Query().Get("publisher"))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(responseJSON))
+	}))
+	return server
+}
 
-	ingestionrule.NewRegistrationStore = func(context.Context) (*checkregistration.Store, error) {
-		return nil, nil
-	}
+func TestService_WithoutRegistrationStore(t *testing.T) {
+	originalEnable := config.PolicyCfg.EventVerificationEnabled
+	config.PolicyCfg.EventVerificationEnabled = false
+	defer func() {
+		config.PolicyCfg.EventVerificationEnabled = originalEnable
+	}()
 
 	svc, err := ingestionrule.NewService(
 		context.Background(),
 		nil,
-		testOverrideEventType,
 	)
 
 	assert.NoError(t, err)
@@ -368,33 +371,51 @@ func TestService_WithoutRegistrationStore(t *testing.T) {
 		[]*pb.Event{{EventName: "click"}},
 		"grp",
 	)
-	// checkregistration is not in the chain, so the event should pass through unmodified.
+	// checkregistration/eventchecker is not enabled, so the event should pass through unmodified.
 	assert.Len(t, chain, 1)
 }
 
 func TestService_WithRegistrationStore(t *testing.T) {
-	original := ingestionrule.NewRegistrationStore
+	originalEnable := config.PolicyCfg.EventVerificationEnabled
+	config.PolicyCfg.EventVerificationEnabled = true
+	originalHost := config.MslCfg.HTTPHost
+	originalMapping := config.PolicyCfg.PublisherMapping
+	config.PolicyCfg.PublisherMapping = map[string]string{
+		"grp": "grp",
+	}
 	defer func() {
-		ingestionrule.NewRegistrationStore = original
+		config.PolicyCfg.EventVerificationEnabled = originalEnable
+		config.MslCfg.HTTPHost = originalHost
+		config.PolicyCfg.PublisherMapping = originalMapping
 	}()
 
-	store := &checkregistration.Store{}
-	// pre-populate the store with a registered event for testing
-	store.RegisteredEvents.Store(map[string]struct{}{
-		"grp:click:app": {},
-	})
+	// The event we are sending is EventName: "click", Product: "app", and resolving to TopicName: "clickstream-click-log"
+	// Key format: publisher:topic:product:eventName
+	responseJSON := `{
+		"success": true,
+		"data": {
+			"event1": {
+				"publisher": "grp",
+				"product": "app",
+				"name": "click",
+				"source": {
+					"table": "clickstream_click_log"
+				}
+			}
+		}
+	}`
 
-	ingestionrule.NewRegistrationStore = func(context.Context) (*checkregistration.Store, error) {
-		return store, nil
-	}
+	mockServer := setupMockMSLServer(t, responseJSON)
+	defer mockServer.Close()
+
+	config.MslCfg.HTTPHost = mockServer.URL
 
 	svc, err := ingestionrule.NewService(
 		context.Background(),
 		nil,
-		testOverrideEventType,
 	)
-
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	defer svc.Close()
 
 	result := svc.Apply(
 		context.Background(),
@@ -402,37 +423,52 @@ func TestService_WithRegistrationStore(t *testing.T) {
 			{
 				EventName: "click",
 				Product:   "app",
+				Type:      "click",
 			},
 		},
 		"grp",
 	)
-	// checkregistration is in the chain, so the event should not be dropped and should pass through unmodified.
+
+	// Since the event is registered (Active), it should not be dropped and should pass through unmodified.
 	assert.Len(t, result, 1)
+	assert.Equal(t, "click", result[0].EventName)
 }
 
 func TestService_WithRegistrationStore_ActionOrder(t *testing.T) {
-	originalEnable := config.PolicyCfg.EnableCheckVerification
+	originalEnable := config.PolicyCfg.EventVerificationEnabled
+	originalHost := config.MslCfg.HTTPHost
 	originalMapping := config.PolicyCfg.PublisherMapping
 
-	config.PolicyCfg.EnableCheckVerification = true
+	config.PolicyCfg.EventVerificationEnabled = true
 	config.PolicyCfg.PublisherMapping = map[string]string{
 		"grp": "grp",
 	}
 
 	defer func() {
-		config.PolicyCfg.EnableCheckVerification = originalEnable
+		config.PolicyCfg.EventVerificationEnabled = originalEnable
+		config.MslCfg.HTTPHost = originalHost
 		config.PolicyCfg.PublisherMapping = originalMapping
 	}()
 
-	store := &checkregistration.Store{}
-	// pre-populate the store with a registered event for testing
-	store.RegisteredEvents.Store(map[string]struct{}{
-		"grp:other:app": {},
-	})
+	// Mock server returns event other than "click"
+	responseJSON := `{
+		"success": true,
+		"data": {
+			"event1": {
+				"publisher": "grp",
+				"product": "app",
+				"name": "other",
+				"source": {
+					"table": "clickstream_other_log"
+				}
+			}
+		}
+	}`
 
-	ingestionrule.NewRegistrationStore = func(context.Context) (*checkregistration.Store, error) {
-		return store, nil
-	}
+	mockServer := setupMockMSLServer(t, responseJSON)
+	defer mockServer.Close()
+
+	config.MslCfg.HTTPHost = mockServer.URL
 
 	rules := []config.PolicyRule{
 		{
@@ -457,21 +493,21 @@ func TestService_WithRegistrationStore_ActionOrder(t *testing.T) {
 	svc, err := ingestionrule.NewService(
 		context.Background(),
 		rules,
-		testOverrideEventType,
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	defer svc.Close()
 
 	events := []*pb.Event{
 		{
 			EventName:      "click",
 			Product:        "app",
+			Type:           "click",
 			EventTimestamp: timestampProto(time.Now().Add(-2 * time.Hour)),
 		},
 	}
 
 	result := svc.Apply(context.Background(), events, "grp")
 
-	// Event should be dropped by CheckRegistration because it is not registered.
-	// OverrideTimestamp gets a chance to modify it.
+	// Event should be dropped by Deactivate/EventChecker because it is not registered.
 	assert.Empty(t, result)
 }
