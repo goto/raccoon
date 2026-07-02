@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/cespare/xxhash/v2"
 
 	"github.com/goto/raccoon/config"
 	httpwrapper "github.com/goto/raccoon/ingestionrule/http"
@@ -132,9 +135,9 @@ func (e *EventCache) loadEventMap(ctx context.Context) (map[string]EventStatus, 
 			continue
 		}
 
-		for _, e := range res.events {
-			key := e.Publisher + ":" + strings.ReplaceAll(e.TableName, "_", "-") + ":" + e.Product + ":" + e.EventName
-			newEvents[key] = e.Status
+		for _, evt := range res.events {
+			key := e.buildCacheKey(evt)
+			newEvents[key] = evt.Status
 		}
 	}
 
@@ -184,4 +187,35 @@ func (e *EventCache) fetchEvents(ctx context.Context, publisher string) ([]Event
 	}
 
 	return events, nil
+}
+
+// buildCacheKey constructs a deterministic, fixed-length unique identifier
+// for an event payload to be stored in in-memory cache.
+//
+// Algorithm & Performance:
+// It utilizes the xxHash v2 (XXH64) non-cryptographic hashing algorithm.
+// XXH64 uses highly optimized 64-bit arithmetic and assembly language, operating near
+// RAM speed limits while maintaining an exceptionally low collision probability suitable
+// for high-throughput deduplication keys.
+//
+// Key Format:
+// The generated string is always a contiguous 16-character lowercase hexadecimal string
+// representing the complete 64-bit signature ($8 \text{ bytes} \times 2 \text{ hex characters/byte}$)
+// padded with leading zeros if necessary
+func (e *EventCache) buildCacheKey(event Event) string {
+	d := xxhash.New()
+
+	const keySeparator = ":"
+
+	// key: <publisher>:<topic>:<product>:<event_name>
+	_, _ = io.WriteString(d, event.Publisher)
+	_, _ = io.WriteString(d, keySeparator)
+	_, _ = io.WriteString(d, strings.ReplaceAll(event.TableName, "_", "-"))
+	_, _ = io.WriteString(d, keySeparator)
+	_, _ = io.WriteString(d, event.Product)
+	_, _ = io.WriteString(d, keySeparator)
+	_, _ = io.WriteString(d, event.EventName)
+	hash := d.Sum64()
+
+	return fmt.Sprintf("%016x", hash)
 }

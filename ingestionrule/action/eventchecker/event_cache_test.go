@@ -2,8 +2,17 @@ package eventchecker
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/ingestionrule/action/eventchecker/mocks"
 	"github.com/goto/raccoon/ingestionrule/synccache"
+	"github.com/goto/raccoon/metrics"
 )
 
 func NewTestEventCache(registeredEvents map[string]EventStatus) *EventCache {
@@ -16,4 +25,120 @@ func NewTestEventCache(registeredEvents map[string]EventStatus) *EventCache {
 		registeredEvents,
 	)
 	return s
+}
+
+func TestEventCache_LoadEventMap_Success(t *testing.T) {
+	metrics.SetVoid()
+	mockClient := mocks.NewHTTPClient(t)
+
+	jsonResponse := `{
+		"success": true,
+		"data": {
+			"event1": {
+				"publisher": "grp",
+				"product": "app",
+				"name": "click",
+				"source": {
+					"table": "clickstream_click_log"
+				}
+			}
+		}
+	}`
+
+	mockClient.On("DoRequest", mock.Anything, mock.Anything).Return(json.RawMessage(jsonResponse), nil)
+
+	originalMapping := config.PolicyCfg.PublisherMapping
+	config.PolicyCfg.PublisherMapping = map[string]string{
+		"grp": "grp",
+	}
+	defer func() {
+		config.PolicyCfg.PublisherMapping = originalMapping
+	}()
+
+	config.MslCfg.HTTPHost = "http://msl.io"
+
+	ctx := context.Background()
+	cache := NewEventCache(ctx)
+	cache.httpClient = mockClient
+
+	newMap, err := cache.loadEventMap(ctx)
+	assert.NoError(t, err)
+
+	status, ok := newMap["grp:clickstream-click-log:app:click"]
+	assert.True(t, ok)
+	assert.Equal(t, EventStatusActive, status)
+}
+
+func TestEventCache_LoadEventMap_Error(t *testing.T) {
+	metrics.SetVoid()
+	mockClient := mocks.NewHTTPClient(t)
+
+	mockClient.On("DoRequest", mock.Anything, mock.Anything).Return(nil, fmt.Errorf("received non-200 status code: 500"))
+
+	originalMapping := config.PolicyCfg.PublisherMapping
+	config.PolicyCfg.PublisherMapping = map[string]string{
+		"grp": "grp",
+	}
+	defer func() {
+		config.PolicyCfg.PublisherMapping = originalMapping
+	}()
+
+	config.MslCfg.HTTPHost = "http://msl.io"
+
+	ctx := context.Background()
+	cache := NewEventCache(ctx)
+	cache.httpClient = mockClient
+
+	_, err := cache.loadEventMap(ctx)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "received non-200 status code: 500")
+}
+
+func TestEventCache_HealthCheck_Success(t *testing.T) {
+	metrics.SetVoid()
+	mockClient := mocks.NewHTTPClient(t)
+
+	mockClient.On("DoRequest", mock.Anything, mock.Anything).Return(json.RawMessage("OK"), nil)
+
+	config.MslCfg.HTTPHost = "http://msl.io"
+	ctx := context.Background()
+	cache := NewEventCache(ctx)
+	cache.httpClient = mockClient
+
+	err := cache.HealthCheck()
+	assert.NoError(t, err)
+}
+
+func TestEventCache_HealthCheck_Error(t *testing.T) {
+	metrics.SetVoid()
+	mockClient := mocks.NewHTTPClient(t)
+
+	mockClient.On("DoRequest", mock.Anything, mock.Anything).Return(nil, fmt.Errorf("msl health check returned status code: 500"))
+
+	config.MslCfg.HTTPHost = "http://msl.io"
+	ctx := context.Background()
+	cache := NewEventCache(ctx)
+	cache.httpClient = mockClient
+
+	err := cache.HealthCheck()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "msl health check returned status code: 500")
+}
+
+func TestEventCache_GetEvents(t *testing.T) {
+	metrics.SetVoid()
+	cache := NewTestEventCache(map[string]EventStatus{
+		"grp:clickstream-click-log:app:click": EventStatusActive,
+	})
+
+	status, ok := cache.GetEvents("grp:clickstream-click-log:app:click")
+	assert.True(t, ok)
+	assert.Equal(t, EventStatusActive, status)
+
+	_, ok = cache.GetEvents("grp:clickstream-other-log:app:other")
+	assert.False(t, ok)
+
+	var nilCache *EventCache
+	_, ok = nilCache.GetEvents("grp:clickstream-click-log:app:click")
+	assert.False(t, ok)
 }
