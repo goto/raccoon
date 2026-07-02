@@ -23,6 +23,9 @@ import (
 // Use the action-level metric (action.MetricEvalLatency) for per-action breakdown.
 const MetricEvalDuration = action.MetricEvalLatency
 
+// metricExternalHttpCount is the count of external HTTP requests made by the client.
+const metricExternalHttpCount = action.MetricExternalHttpClientCount
+
 // Service is the policy enforcement entry point.
 // Service handlers in grpc, rest, websocket, and mqtt packages each hold a *Service
 // and call Apply to filter events before forwarding them to the buffer channel.
@@ -51,7 +54,7 @@ func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error
 		}
 
 		if config.DeserializationCfg.Enabled {
-			schemaCache = deserialization.NewSchemaCache(ctx)
+			schemaCache = deserialization.NewSchemaCache(ctx, metricExternalHttpCount)
 			schemaCache.Start()
 		}
 
@@ -64,7 +67,7 @@ func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error
 
 	if config.PolicyCfg.Enabled {
 		if config.PolicyCfg.EventVerificationEnabled {
-			eventChecker = eventchecker.NewEventCache(ctx)
+			eventChecker = eventchecker.NewEventCache(ctx, metricExternalHttpCount)
 			eventChecker.Start()
 		}
 

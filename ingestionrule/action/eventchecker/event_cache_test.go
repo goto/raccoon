@@ -58,13 +58,20 @@ func TestEventCache_LoadEventMap_Success(t *testing.T) {
 	config.MslCfg.HTTPHost = "http://msl.io"
 
 	ctx := context.Background()
-	cache := NewEventCache(ctx)
+	cache := NewEventCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
 	newMap, err := cache.loadEventMap(ctx)
 	assert.NoError(t, err)
 
-	status, ok := newMap["grp:clickstream-click-log:app:click"]
+	expectedHashedKey := cache.buildCacheKey(Event{
+		Publisher: "grp",
+		TableName: "clickstream_click_log",
+		Product:   "app",
+		EventName: "click",
+	})
+
+	status, ok := newMap[expectedHashedKey]
 	assert.True(t, ok)
 	assert.Equal(t, EventStatusActive, status)
 }
@@ -86,7 +93,7 @@ func TestEventCache_LoadEventMap_Error(t *testing.T) {
 	config.MslCfg.HTTPHost = "http://msl.io"
 
 	ctx := context.Background()
-	cache := NewEventCache(ctx)
+	cache := NewEventCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
 	_, err := cache.loadEventMap(ctx)
@@ -102,7 +109,7 @@ func TestEventCache_HealthCheck_Success(t *testing.T) {
 
 	config.MslCfg.HTTPHost = "http://msl.io"
 	ctx := context.Background()
-	cache := NewEventCache(ctx)
+	cache := NewEventCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
 	err := cache.HealthCheck()
@@ -117,7 +124,7 @@ func TestEventCache_HealthCheck_Error(t *testing.T) {
 
 	config.MslCfg.HTTPHost = "http://msl.io"
 	ctx := context.Background()
-	cache := NewEventCache(ctx)
+	cache := NewEventCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
 	err := cache.HealthCheck()
@@ -127,18 +134,29 @@ func TestEventCache_HealthCheck_Error(t *testing.T) {
 
 func TestEventCache_GetEvents(t *testing.T) {
 	metrics.SetVoid()
+
+	event := Event{
+		Publisher: "grp",
+		TableName: "clickstream_click_log",
+		Product:   "app",
+		EventName: "click",
+	}
+
+	cacheHelper := &EventCache{}
+	hashedKey := cacheHelper.buildCacheKey(event)
+
 	cache := NewTestEventCache(map[string]EventStatus{
-		"grp:clickstream-click-log:app:click": EventStatusActive,
+		hashedKey: EventStatusActive,
 	})
 
-	status, ok := cache.GetEvents("grp:clickstream-click-log:app:click")
+	status, ok := cache.GetEvents(hashedKey)
 	assert.True(t, ok)
 	assert.Equal(t, EventStatusActive, status)
 
-	_, ok = cache.GetEvents("grp:clickstream-other-log:app:other")
+	_, ok = cache.GetEvents("some-other-hash")
 	assert.False(t, ok)
 
 	var nilCache *EventCache
-	_, ok = nilCache.GetEvents("grp:clickstream-click-log:app:click")
+	_, ok = nilCache.GetEvents(hashedKey)
 	assert.False(t, ok)
 }

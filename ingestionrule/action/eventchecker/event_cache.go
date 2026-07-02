@@ -16,6 +16,7 @@ import (
 	httpwrapper "github.com/goto/raccoon/ingestionrule/http"
 	"github.com/goto/raccoon/ingestionrule/synccache"
 	"github.com/goto/raccoon/logger"
+	"github.com/goto/raccoon/metrics"
 )
 
 // HTTPClient is an interface for making HTTP requests.
@@ -28,27 +29,29 @@ type EventCache struct {
 	cache      *synccache.Cache[map[string]EventStatus]
 	httpClient HTTPClient
 	httpHost   string
+	metricName string
 }
 
-func NewEventCache(ctx context.Context) *EventCache {
-	e := &EventCache{
+func NewEventCache(ctx context.Context, metricName string) *EventCache {
+	ec := &EventCache{
 		httpClient: httpwrapper.NewHTTPClient(
 			config.MslCfg.HTTPRequestTimeout,
 			config.MslCfg.HTTPMaxRetry,
 			config.MslCfg.HTTPRetryBackoff,
 		),
-		httpHost: strings.TrimSuffix(config.MslCfg.HTTPHost, "/"),
+		httpHost:   strings.TrimSuffix(config.MslCfg.HTTPHost, "/"),
+		metricName: metricName,
 	}
 
-	e.cache = synccache.NewCache(
+	ec.cache = synccache.NewCache(
 		ctx,
 		"event cache",
-		e.loadEventMap,
+		ec.loadEventMap,
 		config.MslCfg.SyncInterval,
 		make(map[string]EventStatus),
 	)
 
-	return e
+	return ec
 }
 
 func (e *EventCache) Start() {
@@ -100,7 +103,7 @@ func (e *EventCache) HealthCheck() error {
 	return nil
 }
 
-// loadEventMap fetches events for all configured publishers concurrently.
+// loadEventMap fetches events for all configured publishers concurrently and load into event map.
 func (e *EventCache) loadEventMap(ctx context.Context) (map[string]EventStatus, error) {
 	var publishers []string
 	for _, pub := range config.PolicyCfg.PublisherMapping {
@@ -128,12 +131,15 @@ func (e *EventCache) loadEventMap(ctx context.Context) (map[string]EventStatus, 
 	newEvents := make(map[string]EventStatus)
 	var errs []error
 
-	for i := 0; i < len(publishers); i++ {
+	for range publishers {
 		res := <-results
 		if res.err != nil {
 			errs = append(errs, fmt.Errorf("failed to fetch events for publisher %s: %v", res.publisher, res.err))
+			metrics.Increment(e.metricName, fmt.Sprintf("status=failed,type=fetch_msl_events,reason=%s", res.err.Error()))
 			continue
 		}
+
+		metrics.Increment(e.metricName, "status=success,type=fetch_msl_events")
 
 		for _, evt := range res.events {
 			key := e.buildCacheKey(evt)

@@ -91,7 +91,7 @@ func (c *Cache[T]) worker() {
 			return
 		case <-ticker.C:
 			if err := c.Sync(); err != nil {
-				logger.Errorf("%s sync failed: %v", c.name, err)
+				logger.Errorf("%q sync failed: %v", c.name, err)
 			}
 		}
 	}

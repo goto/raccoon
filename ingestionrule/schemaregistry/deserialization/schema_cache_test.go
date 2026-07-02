@@ -54,7 +54,7 @@ func TestSchemaCache_FetchSchemaMap_Success(t *testing.T) {
 	config.CompassCfg.HTTPRetryBackoff = 200 * time.Millisecond
 
 	ctx := context.Background()
-	cache := NewSchemaCache(ctx)
+	cache := NewSchemaCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
 	err := cache.sync()
@@ -84,7 +84,7 @@ func TestSchemaCache_FetchSchemaMap_Non200(t *testing.T) {
 	config.CompassCfg.HTTPRetryBackoff = 200 * time.Millisecond
 
 	ctx := context.Background()
-	cache := NewSchemaCache(ctx)
+	cache := NewSchemaCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
 	err := cache.sync()
@@ -107,7 +107,7 @@ func TestSchemaCache_FetchSchemaMap_NonJSON(t *testing.T) {
 	config.CompassCfg.HTTPRetryBackoff = 200 * time.Millisecond
 
 	ctx := context.Background()
-	cache := NewSchemaCache(ctx)
+	cache := NewSchemaCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
 	err := cache.sync()
@@ -124,7 +124,7 @@ func TestSchemaCache_HealthCheck_Success(t *testing.T) {
 
 	config.CompassCfg.HTTPHost = "http://compass.io"
 	ctx := context.Background()
-	cache := NewSchemaCache(ctx)
+	cache := NewSchemaCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
 	err := cache.HealthCheck()
@@ -139,7 +139,7 @@ func TestSchemaCache_HealthCheck_Error(t *testing.T) {
 
 	config.CompassCfg.HTTPHost = "http://compass.io"
 	ctx := context.Background()
-	cache := NewSchemaCache(ctx)
+	cache := NewSchemaCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
 	err := cache.HealthCheck()

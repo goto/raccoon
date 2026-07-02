@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	buf.build/gen/go/gotocompany/proton/grpc/go v1.6.1-20260310055733-14c36949d393.1
 	buf.build/gen/go/gotocompany/proton/protocolbuffers/go v1.36.11-20260310055733-14c36949d393.1
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/gojek/courier-go v0.7.9
 	github.com/gojek/courier-go/consul v0.7.9
 	github.com/gojekfarm/xtools/xproto v0.10.0
@@ -27,7 +28,6 @@ require (
 	github.com/BurntSushi/toml v1.2.1 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/confluentinc/confluent-kafka-go v1.4.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fatih/color v1.16.0 // indirect

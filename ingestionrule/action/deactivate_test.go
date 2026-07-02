@@ -2,9 +2,12 @@ package action_test
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"testing"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/goto/raccoon/config"
@@ -13,6 +16,20 @@ import (
 	"github.com/goto/raccoon/ingestionrule/action/eventchecker"
 	"github.com/goto/raccoon/model"
 )
+
+func buildHashKey(publisher, topic, product, eventName string) string {
+	h := xxhash.New()
+	const keySeparator = ":"
+	_, _ = io.WriteString(h, publisher)
+	_, _ = io.WriteString(h, keySeparator)
+	_, _ = io.WriteString(h, topic)
+	_, _ = io.WriteString(h, keySeparator)
+	_, _ = io.WriteString(h, product)
+	_, _ = io.WriteString(h, keySeparator)
+	_, _ = io.WriteString(h, eventName)
+	hash := h.Sum64()
+	return fmt.Sprintf("%016x", hash)
+}
 
 func buildDeactivateEventCache(name, product, publisher string) *cache.Cache {
 	return cache.NewCache([]config.PolicyRule{
@@ -117,9 +134,9 @@ func TestDeactivate_WithEventChecker(t *testing.T) {
 
 	mockChecker := &mockEventChecker{
 		events: map[string]eventchecker.EventStatus{
-			"pub-a:clickstream-click-log:app:click":       eventchecker.EventStatusActive,
-			"pub-a:clickstream-scroll-log:app:scroll":     eventchecker.EventStatusInactive,
-			"pub-a:clickstream-pageview-log:app:pageview": eventchecker.EventStatusDeprecated,
+			buildHashKey("pub-a", "clickstream-click-log", "app", "click"):       eventchecker.EventStatusActive,
+			buildHashKey("pub-a", "clickstream-scroll-log", "app", "scroll"):     eventchecker.EventStatusInactive,
+			buildHashKey("pub-a", "clickstream-pageview-log", "app", "pageview"): eventchecker.EventStatusDeprecated,
 		},
 	}
 

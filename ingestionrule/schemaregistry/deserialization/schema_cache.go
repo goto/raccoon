@@ -12,6 +12,7 @@ import (
 	"github.com/goto/raccoon/config"
 	httpwrapper "github.com/goto/raccoon/ingestionrule/http"
 	"github.com/goto/raccoon/ingestionrule/synccache"
+	"github.com/goto/raccoon/metrics"
 )
 
 // HTTPClient is an interface for making HTTP requests.
@@ -32,9 +33,10 @@ type SchemaCache struct {
 		httpHost  string
 		authEmail string
 	}
+	metricName string
 }
 
-func NewSchemaCache(ctx context.Context) *SchemaCache {
+func NewSchemaCache(ctx context.Context, metricName string) *SchemaCache {
 	sc := &SchemaCache{
 		ctx: ctx,
 		httpClient: httpwrapper.NewHTTPClient(
@@ -46,12 +48,13 @@ func NewSchemaCache(ctx context.Context) *SchemaCache {
 			httpHost:  strings.TrimSuffix(config.CompassCfg.HTTPHost, "/"),
 			authEmail: config.CompassCfg.AuthEmail,
 		},
+		metricName: metricName,
 	}
 
 	sc.cache = synccache.NewCache(
 		ctx,
 		"schema cache",
-		sc.fetchSchemaMap,
+		sc.loadSchemaMap,
 		config.CompassCfg.SyncInterval,
 		make(map[string]string),
 	)
@@ -119,8 +122,27 @@ func (c *SchemaCache) Get(topic string) (string, bool) {
 	return protoClass, ok
 }
 
-// fetchSchemaMap fetches the latest schema map from Compass and returns it.
-func (c *SchemaCache) fetchSchemaMap(ctx context.Context) (map[string]string, error) {
+// loadSchemaMap fetches the latest assets from Compass and load into schema map.
+func (c *SchemaCache) loadSchemaMap(ctx context.Context) (map[string]string, error) {
+	schemas, err := c.fetchAssets(ctx)
+	if err != nil {
+		metrics.Increment(c.metricName, fmt.Sprintf("status=failed,type=fetch_compass_assets,reason=%s", err.Error()))
+		return nil, err
+	}
+
+	newMap := make(map[string]string)
+	for _, item := range schemas {
+		if len(item.Data.Attributes.Schemas) >= 1 && item.Data.Attributes.Schemas[0].Name != "" {
+			newMap[item.Name] = item.Data.Attributes.Schemas[0].Name
+		}
+	}
+
+	metrics.Increment(c.metricName, "status=success,type=fetch_compass_assets")
+
+	return newMap, nil
+}
+// fetchAssets retrieves list of assets from Compass API.
+func (c *SchemaCache) fetchAssets(ctx context.Context) ([]compassItem, error) {
 	if c.httpConfig.httpHost == "" {
 		return nil, errors.New("compass HTTP host is empty")
 	}
@@ -153,12 +175,5 @@ func (c *SchemaCache) fetchSchemaMap(ctx context.Context) (map[string]string, er
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	newMap := make(map[string]string)
-	for _, item := range parsedResp.Data {
-		if len(item.Data.Attributes.Schemas) >= 1 && item.Data.Attributes.Schemas[0].Name != "" {
-			newMap[item.Name] = item.Data.Attributes.Schemas[0].Name
-		}
-	}
-
-	return newMap, nil
+	return parsedResp.Data, nil
 }
