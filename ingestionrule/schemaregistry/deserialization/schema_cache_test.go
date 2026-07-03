@@ -57,14 +57,11 @@ func TestSchemaCache_FetchSchemaMap_Success(t *testing.T) {
 	cache := NewSchemaCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
-	err := cache.sync()
+	res, err := cache.loadSchemaMap(ctx)
 	assert.NoError(t, err)
 
-	val, ok := cache.Get("topic-a")
-	assert.True(t, ok)
-	assert.Equal(t, "proto.ClassA", val)
-
-	_, ok = cache.Get("topic-b")
+	assert.Equal(t, "proto.ClassA", res["topic-a"])
+	_, ok := res["topic-b"]
 	assert.False(t, ok)
 }
 
@@ -87,7 +84,7 @@ func TestSchemaCache_FetchSchemaMap_Non200(t *testing.T) {
 	cache := NewSchemaCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
-	err := cache.sync()
+	_, err := cache.loadSchemaMap(ctx)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "received non-200 status code: 500")
 	assert.Contains(t, err.Error(), errorBody)
@@ -110,7 +107,7 @@ func TestSchemaCache_FetchSchemaMap_NonJSON(t *testing.T) {
 	cache := NewSchemaCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
-	err := cache.sync()
+	_, err := cache.loadSchemaMap(ctx)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "received non-json response type: \"text/plain\"")
 	assert.Contains(t, err.Error(), "some plain text")

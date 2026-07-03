@@ -1,4 +1,4 @@
-package eventchecker
+package eventregistry
 
 type eventsResponse struct {
 	Success bool                      `json:"success"`

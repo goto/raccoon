@@ -1,4 +1,4 @@
-package eventchecker
+package eventregistry
 
 import (
 	"context"
@@ -19,6 +19,16 @@ import (
 	"github.com/goto/raccoon/metrics"
 )
 
+const (
+	endpointPathEvents = "/v1/events"
+	endpointPathPing   = "/ping"
+)
+
+const (
+	queryParamPublisher = "publisher"
+	queryParamType      = "type"
+)
+
 // HTTPClient is an interface for making HTTP requests.
 type HTTPClient interface {
 	// DoRequest sends an HTTP request.
@@ -35,11 +45,11 @@ type EventCache struct {
 func NewEventCache(ctx context.Context, metricName string) *EventCache {
 	ec := &EventCache{
 		httpClient: httpwrapper.NewHTTPClient(
-			config.MslCfg.HTTPRequestTimeout,
-			config.MslCfg.HTTPMaxRetry,
-			config.MslCfg.HTTPRetryBackoff,
+			config.MetadataLayerCfg.HTTPRequestTimeout,
+			config.MetadataLayerCfg.HTTPMaxRetry,
+			config.MetadataLayerCfg.HTTPRetryBackoff,
 		),
-		httpHost:   strings.TrimSuffix(config.MslCfg.HTTPHost, "/"),
+		httpHost:   strings.TrimSuffix(config.MetadataLayerCfg.HTTPHost, "/"),
 		metricName: metricName,
 	}
 
@@ -47,8 +57,9 @@ func NewEventCache(ctx context.Context, metricName string) *EventCache {
 		ctx,
 		"event cache",
 		ec.loadEventMap,
-		config.MslCfg.SyncInterval,
+		config.MetadataLayerCfg.SyncInterval,
 		make(map[string]EventStatus),
+		true,
 	)
 
 	return ec
@@ -68,6 +79,13 @@ func (e *EventCache) Close() {
 	}
 
 	e.cache.Close()
+}
+
+func (e *EventCache) HasSynced() bool {
+	if e == nil || e.cache == nil {
+		return false
+	}
+	return e.cache.HasSynced()
 }
 
 func (e *EventCache) GetEvents(key string) (EventStatus, bool) {
@@ -94,7 +112,7 @@ func (e *EventCache) HealthCheck() error {
 	_, err := e.httpClient.DoRequest(context.Background(), httpwrapper.Request{
 		Method:  http.MethodGet,
 		BaseURL: e.httpHost,
-		Path:    "/ping",
+		Path:    endpointPathPing,
 	})
 	if err != nil {
 		return fmt.Errorf("event cache health check request failed: %w", err)
@@ -162,14 +180,16 @@ func (e *EventCache) fetchEvents(ctx context.Context, publisher string) ([]Event
 		return nil, errors.New("MSL HTTP host is empty")
 	}
 
+	const eventType = "clickstream"
+
 	q := url.Values{}
-	q.Set("publisher", publisher)
-	q.Set("type", "clickstream")
+	q.Set(queryParamPublisher, publisher)
+	q.Set(queryParamType, eventType)
 
 	bodyData, err := e.httpClient.DoRequest(ctx, httpwrapper.Request{
 		Method:      http.MethodGet,
 		BaseURL:     e.httpHost,
-		Path:        "/v1/events",
+		Path:        endpointPathEvents,
 		QueryParams: q,
 	})
 	if err != nil {

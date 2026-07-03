@@ -1,4 +1,4 @@
-package eventchecker
+package eventregistry
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/goto/raccoon/config"
-	"github.com/goto/raccoon/ingestionrule/action/eventchecker/mocks"
+	"github.com/goto/raccoon/ingestionrule/action/eventregistry/mocks"
 	"github.com/goto/raccoon/ingestionrule/synccache"
 	"github.com/goto/raccoon/metrics"
 )
@@ -23,6 +23,7 @@ func NewTestEventCache(registeredEvents map[string]EventStatus) *EventCache {
 		func(ctx context.Context) (map[string]EventStatus, error) { return registeredEvents, nil },
 		0,
 		registeredEvents,
+		false,
 	)
 	return s
 }
@@ -55,7 +56,7 @@ func TestEventCache_LoadEventMap_Success(t *testing.T) {
 		config.PolicyCfg.PublisherMapping = originalMapping
 	}()
 
-	config.MslCfg.HTTPHost = "http://msl.io"
+	config.MetadataLayerCfg.HTTPHost = "http://msl.io"
 
 	ctx := context.Background()
 	cache := NewEventCache(ctx, "test-metric")
@@ -90,7 +91,7 @@ func TestEventCache_LoadEventMap_Error(t *testing.T) {
 		config.PolicyCfg.PublisherMapping = originalMapping
 	}()
 
-	config.MslCfg.HTTPHost = "http://msl.io"
+	config.MetadataLayerCfg.HTTPHost = "http://msl.io"
 
 	ctx := context.Background()
 	cache := NewEventCache(ctx, "test-metric")
@@ -107,7 +108,7 @@ func TestEventCache_HealthCheck_Success(t *testing.T) {
 
 	mockClient.On("DoRequest", mock.Anything, mock.Anything).Return(json.RawMessage("OK"), nil)
 
-	config.MslCfg.HTTPHost = "http://msl.io"
+	config.MetadataLayerCfg.HTTPHost = "http://msl.io"
 	ctx := context.Background()
 	cache := NewEventCache(ctx, "test-metric")
 	cache.httpClient = mockClient
@@ -122,7 +123,7 @@ func TestEventCache_HealthCheck_Error(t *testing.T) {
 
 	mockClient.On("DoRequest", mock.Anything, mock.Anything).Return(nil, fmt.Errorf("msl health check returned status code: 500"))
 
-	config.MslCfg.HTTPHost = "http://msl.io"
+	config.MetadataLayerCfg.HTTPHost = "http://msl.io"
 	ctx := context.Background()
 	cache := NewEventCache(ctx, "test-metric")
 	cache.httpClient = mockClient

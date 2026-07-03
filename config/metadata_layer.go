@@ -6,11 +6,11 @@ import (
 	"github.com/spf13/viper"
 )
 
-// MslCfg holds runtime configuration for the event registration cache feature.
-var MslCfg mslConfig
+// MetadataLayerCfg holds runtime configuration for the event registration cache feature.
+var MetadataLayerCfg metadataLayerCfg
 
-// mslConfig
-type mslConfig struct {
+// metadataLayerCfg
+type metadataLayerCfg struct {
 	// HTTPHost is the base URL for the MSL API.
 	HTTPHost string
 	// SyncInterval is the interval at which the event cache is updated.
@@ -23,14 +23,14 @@ type mslConfig struct {
 	HTTPRetryBackoff time.Duration
 }
 
-func mslConfigLoader() {
+func metadataLayerConfigLoader() {
 	viper.SetDefault("MSL_HTTP_HOST", "")
 	viper.SetDefault("MSL_SYNC_INTERVAL", "30m")
 	viper.SetDefault("MSL_HTTP_REQUEST_TIMEOUT", "2m")
 	viper.SetDefault("MSL_HTTP_MAX_RETRY", 3)
-	viper.SetDefault("MSL_HTTP_RETRY_BACKOFF", "2s")
+	viper.SetDefault("MSL_HTTP_RETRY_BACKOFF", "200ms")
 
-	MslCfg = mslConfig{
+	MetadataLayerCfg = metadataLayerCfg{
 		HTTPHost:           viper.GetString("MSL_HTTP_HOST"),
 		SyncInterval:       viper.GetDuration("MSL_SYNC_INTERVAL"),
 		HTTPRequestTimeout: viper.GetDuration("MSL_HTTP_REQUEST_TIMEOUT"),

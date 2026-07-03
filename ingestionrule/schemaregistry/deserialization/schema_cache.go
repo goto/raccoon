@@ -57,6 +57,7 @@ func NewSchemaCache(ctx context.Context, metricName string) *SchemaCache {
 		sc.loadSchemaMap,
 		config.CompassCfg.SyncInterval,
 		make(map[string]string),
+		false,
 	)
 
 	return sc
@@ -69,14 +70,6 @@ func (c *SchemaCache) Start() {
 	}
 
 	c.cache.Start()
-}
-
-func (c *SchemaCache) sync() error {
-	if c == nil {
-		return nil
-	}
-
-	return c.cache.Sync()
 }
 
 // Close cancels the schema cache's background worker and frees resources.

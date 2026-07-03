@@ -5,7 +5,7 @@
 package mocks
 
 import (
-	"github.com/goto/raccoon/ingestionrule/action/eventchecker"
+	"github.com/goto/raccoon/ingestionrule/action/eventregistry"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -70,22 +70,22 @@ func (_c *EventChecker_Close_Call) RunAndReturn(run func()) *EventChecker_Close_
 }
 
 // GetEvents provides a mock function for the type EventChecker
-func (_mock *EventChecker) GetEvents(key string) (eventchecker.EventStatus, bool) {
+func (_mock *EventChecker) GetEvents(key string) (eventregistry.EventStatus, bool) {
 	ret := _mock.Called(key)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetEvents")
 	}
 
-	var r0 eventchecker.EventStatus
+	var r0 eventregistry.EventStatus
 	var r1 bool
-	if returnFunc, ok := ret.Get(0).(func(string) (eventchecker.EventStatus, bool)); ok {
+	if returnFunc, ok := ret.Get(0).(func(string) (eventregistry.EventStatus, bool)); ok {
 		return returnFunc(key)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string) eventchecker.EventStatus); ok {
+	if returnFunc, ok := ret.Get(0).(func(string) eventregistry.EventStatus); ok {
 		r0 = returnFunc(key)
 	} else {
-		r0 = ret.Get(0).(eventchecker.EventStatus)
+		r0 = ret.Get(0).(eventregistry.EventStatus)
 	}
 	if returnFunc, ok := ret.Get(1).(func(string) bool); ok {
 		r1 = returnFunc(key)
@@ -119,12 +119,12 @@ func (_c *EventChecker_GetEvents_Call) Run(run func(key string)) *EventChecker_G
 	return _c
 }
 
-func (_c *EventChecker_GetEvents_Call) Return(eventStatus eventchecker.EventStatus, b bool) *EventChecker_GetEvents_Call {
+func (_c *EventChecker_GetEvents_Call) Return(eventStatus eventregistry.EventStatus, b bool) *EventChecker_GetEvents_Call {
 	_c.Call.Return(eventStatus, b)
 	return _c
 }
 
-func (_c *EventChecker_GetEvents_Call) RunAndReturn(run func(key string) (eventchecker.EventStatus, bool)) *EventChecker_GetEvents_Call {
+func (_c *EventChecker_GetEvents_Call) RunAndReturn(run func(key string) (eventregistry.EventStatus, bool)) *EventChecker_GetEvents_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -203,5 +203,49 @@ func (_c *EventChecker_Start_Call) Return() *EventChecker_Start_Call {
 
 func (_c *EventChecker_Start_Call) RunAndReturn(run func()) *EventChecker_Start_Call {
 	_c.Run(run)
+	return _c
+}
+
+// HasSynced provides a mock function for the type EventChecker
+func (_mock *EventChecker) HasSynced() bool {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for HasSynced")
+	}
+
+	var r0 bool
+	if returnFunc, ok := ret.Get(0).(func() bool); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+	return r0
+}
+
+// EventChecker_HasSynced_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'HasSynced'
+type EventChecker_HasSynced_Call struct {
+	*mock.Call
+}
+
+// HasSynced is a helper method to define mock.On call
+func (_e *EventChecker_Expecter) HasSynced() *EventChecker_HasSynced_Call {
+	return &EventChecker_HasSynced_Call{Call: _e.mock.On("HasSynced")}
+}
+
+func (_c *EventChecker_HasSynced_Call) Run(run func()) *EventChecker_HasSynced_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *EventChecker_HasSynced_Call) Return(_a0 bool) *EventChecker_HasSynced_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *EventChecker_HasSynced_Call) RunAndReturn(run func() bool) *EventChecker_HasSynced_Call {
+	_c.Call.Return(run)
 	return _c
 }

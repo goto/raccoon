@@ -11,7 +11,7 @@ import (
 	"github.com/goto/raccoon/ingestionrule/action"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
 	evalcache "github.com/goto/raccoon/ingestionrule/action/eval/cache"
-	"github.com/goto/raccoon/ingestionrule/action/eventchecker"
+	"github.com/goto/raccoon/ingestionrule/action/eventregistry"
 	"github.com/goto/raccoon/ingestionrule/schemaregistry"
 	"github.com/goto/raccoon/ingestionrule/schemaregistry/deserialization"
 	"github.com/goto/raccoon/logger"
@@ -67,7 +67,7 @@ func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error
 
 	if config.PolicyCfg.Enabled {
 		if config.PolicyCfg.EventVerificationEnabled {
-			eventChecker = eventchecker.NewEventCache(ctx, metricExternalHttpCount)
+			eventChecker = eventregistry.NewEventCache(ctx, metricExternalHttpCount)
 			eventChecker.Start()
 		}
 

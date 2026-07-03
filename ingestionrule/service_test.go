@@ -373,21 +373,21 @@ func TestService_WithoutRegistrationStore(t *testing.T) {
 		[]*pb.Event{{EventName: "click"}},
 		"grp",
 	)
-	// checkregistration/eventchecker is not enabled, so the event should pass through unmodified.
+	// checkregistration/eventregistry is not enabled, so the event should pass through unmodified.
 	assert.Len(t, chain, 1)
 }
 
 func TestService_WithRegistrationStore(t *testing.T) {
 	originalEnable := config.PolicyCfg.EventVerificationEnabled
 	config.PolicyCfg.EventVerificationEnabled = true
-	originalHost := config.MslCfg.HTTPHost
+	originalHost := config.MetadataLayerCfg.HTTPHost
 	originalMapping := config.PolicyCfg.PublisherMapping
 	config.PolicyCfg.PublisherMapping = map[string]string{
 		"grp": "grp",
 	}
 	defer func() {
 		config.PolicyCfg.EventVerificationEnabled = originalEnable
-		config.MslCfg.HTTPHost = originalHost
+		config.MetadataLayerCfg.HTTPHost = originalHost
 		config.PolicyCfg.PublisherMapping = originalMapping
 	}()
 
@@ -410,7 +410,7 @@ func TestService_WithRegistrationStore(t *testing.T) {
 	mockServer := setupMockMSLServer(t, responseJSON)
 	defer mockServer.Close()
 
-	config.MslCfg.HTTPHost = mockServer.URL
+	config.MetadataLayerCfg.HTTPHost = mockServer.URL
 
 	svc, err := ingestionrule.NewService(
 		context.Background(),
@@ -418,6 +418,7 @@ func TestService_WithRegistrationStore(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer svc.Close()
+	time.Sleep(100 * time.Millisecond)
 
 	result := svc.Apply(
 		context.Background(),
@@ -438,7 +439,7 @@ func TestService_WithRegistrationStore(t *testing.T) {
 
 func TestService_WithRegistrationStore_ActionOrder(t *testing.T) {
 	originalEnable := config.PolicyCfg.EventVerificationEnabled
-	originalHost := config.MslCfg.HTTPHost
+	originalHost := config.MetadataLayerCfg.HTTPHost
 	originalMapping := config.PolicyCfg.PublisherMapping
 
 	config.PolicyCfg.EventVerificationEnabled = true
@@ -448,7 +449,7 @@ func TestService_WithRegistrationStore_ActionOrder(t *testing.T) {
 
 	defer func() {
 		config.PolicyCfg.EventVerificationEnabled = originalEnable
-		config.MslCfg.HTTPHost = originalHost
+		config.MetadataLayerCfg.HTTPHost = originalHost
 		config.PolicyCfg.PublisherMapping = originalMapping
 	}()
 
@@ -470,7 +471,7 @@ func TestService_WithRegistrationStore_ActionOrder(t *testing.T) {
 	mockServer := setupMockMSLServer(t, responseJSON)
 	defer mockServer.Close()
 
-	config.MslCfg.HTTPHost = mockServer.URL
+	config.MetadataLayerCfg.HTTPHost = mockServer.URL
 
 	rules := []config.PolicyRule{
 		{
@@ -498,6 +499,7 @@ func TestService_WithRegistrationStore_ActionOrder(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer svc.Close()
+	time.Sleep(100 * time.Millisecond)
 
 	events := []*pb.Event{
 		{

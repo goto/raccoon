@@ -13,7 +13,7 @@ import (
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
-	"github.com/goto/raccoon/ingestionrule/action/eventchecker"
+	"github.com/goto/raccoon/ingestionrule/action/eventregistry"
 	"github.com/goto/raccoon/model"
 )
 
@@ -113,17 +113,18 @@ func TestDeactivate_DropsMatchingTopicRule(t *testing.T) {
 }
 
 type mockEventChecker struct {
-	events map[string]eventchecker.EventStatus
+	events map[string]eventregistry.EventStatus
 }
 
-func (m *mockEventChecker) GetEvents(key string) (eventchecker.EventStatus, bool) {
+func (m *mockEventChecker) GetEvents(key string) (eventregistry.EventStatus, bool) {
 	status, ok := m.events[key]
 	return status, ok
 }
 
-func (m *mockEventChecker) Close() {}
-func (m *mockEventChecker) Start() {}
+func (m *mockEventChecker) Close()             {}
+func (m *mockEventChecker) Start()             {}
 func (m *mockEventChecker) HealthCheck() error { return nil }
+func (m *mockEventChecker) HasSynced() bool    { return true }
 
 func TestDeactivate_WithEventChecker(t *testing.T) {
 	originalEnable := config.PolicyCfg.EventVerificationEnabled
@@ -133,10 +134,10 @@ func TestDeactivate_WithEventChecker(t *testing.T) {
 	}()
 
 	mockChecker := &mockEventChecker{
-		events: map[string]eventchecker.EventStatus{
-			buildHashKey("pub-a", "clickstream-click-log", "app", "click"):       eventchecker.EventStatusActive,
-			buildHashKey("pub-a", "clickstream-scroll-log", "app", "scroll"):     eventchecker.EventStatusInactive,
-			buildHashKey("pub-a", "clickstream-pageview-log", "app", "pageview"): eventchecker.EventStatusDeprecated,
+		events: map[string]eventregistry.EventStatus{
+			buildHashKey("pub-a", "clickstream-click-log", "app", "click"):       eventregistry.EventStatusActive,
+			buildHashKey("pub-a", "clickstream-scroll-log", "app", "scroll"):     eventregistry.EventStatusInactive,
+			buildHashKey("pub-a", "clickstream-pageview-log", "app", "pageview"): eventregistry.EventStatusDeprecated,
 		},
 	}
 

@@ -9,7 +9,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
-	"github.com/goto/raccoon/ingestionrule/action/eventchecker"
+	"github.com/goto/raccoon/ingestionrule/action/eventregistry"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/model"
@@ -18,13 +18,15 @@ import (
 // EventChecker defines the interface to retrieve event status from the cache.
 type EventChecker interface {
 	// GetEvents retrieves the status of an event from the cache.
-	GetEvents(key string) (eventchecker.EventStatus, bool)
+	GetEvents(key string) (eventregistry.EventStatus, bool)
 	// HealthCheck checks the health of the event checker.
 	HealthCheck() error
 	// Close closes the event checker.
 	Close()
 	// Start starts the event checker
 	Start()
+	// HasSynced returns true if the cache has successfully synced at least once.
+	HasSynced() bool
 }
 
 // Deactivate is a policy action that unconditionally drops events matching the
@@ -59,13 +61,17 @@ func (d *Deactivate) Apply(ctx context.Context, events []*model.EventWithMetadat
 		}
 
 		if d.eventChecker != nil && config.PolicyCfg.EventVerificationEnabled {
+			if !d.eventChecker.HasSynced() {
+				filtered = append(filtered, meta)
+				continue
+			}
+
 			eventKey := d.buildCacheKey(*meta)
 			status, ok := d.eventChecker.GetEvents(eventKey)
-			if !ok || status == eventchecker.EventStatusInactive || status == eventchecker.EventStatusDeprecated {
+			if !ok || status == eventregistry.EventStatusInactive || status == eventregistry.EventStatusDeprecated {
 				logger.Debugf("[deactivate.Apply] deactivating event: publisher=%s, event_type=%s, product=%s, event_name=%s, app_version=%s, platform=%s",
 					meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.AppVersion, meta.Platform)
-				metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, connGroup, meta.Type))
-				continue
+				metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_REGISTRY_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, connGroup, meta.Type))
 			}
 		}
 
