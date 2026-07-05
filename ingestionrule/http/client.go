@@ -76,10 +76,12 @@ func (c *HTTPClient) DoRequest(ctx context.Context, request Request) (json.RawMe
 	var finalErr error
 	var bodyData []byte
 
+	reqIdentifier := fmt.Sprintf("[%s %s]", request.Method, request.Path)
+
 	for attempt := 0; attempt < maxRetry; attempt++ {
 		req, err := createRequest(ctx, request, fullURL)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", errCreateRequest, err)
+			return nil, fmt.Errorf("%s %s: %w", reqIdentifier, errCreateRequest, err)
 		}
 
 		bodyData, finalErr = c.doSingleRequest(req)
@@ -88,11 +90,11 @@ func (c *HTTPClient) DoRequest(ctx context.Context, request Request) (json.RawMe
 		}
 
 		if attempt < maxRetry-1 {
-			logger.Infof("HTTP request attempt %d failed: %v. Retrying in %v...", attempt+1, finalErr, backoff)
+			logger.Infof("HTTP request %s attempt %d failed: %v. Retrying in %v...", reqIdentifier, attempt+1, finalErr, backoff)
 			select {
 			case <-ctx.Done():
-				logger.Errorf("context cancelled during HTTP request retries: %v", ctx.Err())
-				return nil, ctx.Err()
+				logger.Errorf("context cancelled during HTTP request %s retries: %v", reqIdentifier, ctx.Err())
+				return nil, fmt.Errorf("%s: %w", reqIdentifier, ctx.Err())
 			case <-time.After(backoff):
 			}
 

@@ -12,6 +12,7 @@ import (
 	"github.com/goto/raccoon/config"
 	httpwrapper "github.com/goto/raccoon/ingestionrule/http"
 	"github.com/goto/raccoon/ingestionrule/synccache"
+	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 )
 
@@ -131,9 +132,11 @@ func (c *SchemaCache) loadSchemaMap(ctx context.Context) (map[string]string, err
 	}
 
 	metrics.Increment(c.metricName, "status=success,type=fetch_compass_assets")
+	logger.Infof("schema cache successfully loaded %d proto classes", len(newMap))
 
 	return newMap, nil
 }
+
 // fetchAssets retrieves list of assets from Compass API.
 func (c *SchemaCache) fetchAssets(ctx context.Context) ([]compassItem, error) {
 	if c.httpConfig.httpHost == "" {
