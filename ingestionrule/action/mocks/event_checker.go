@@ -36,6 +36,75 @@ func (_m *EventChecker) EXPECT() *EventChecker_Expecter {
 	return &EventChecker_Expecter{mock: &_m.Mock}
 }
 
+// BuildCacheKey provides a mock function for the type EventChecker
+func (_mock *EventChecker) BuildCacheKey(publisher string, topic string, product string, eventName string) string {
+	ret := _mock.Called(publisher, topic, product, eventName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for BuildCacheKey")
+	}
+
+	var r0 string
+	if returnFunc, ok := ret.Get(0).(func(string, string, string, string) string); ok {
+		r0 = returnFunc(publisher, topic, product, eventName)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+	return r0
+}
+
+// EventChecker_BuildCacheKey_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'BuildCacheKey'
+type EventChecker_BuildCacheKey_Call struct {
+	*mock.Call
+}
+
+// BuildCacheKey is a helper method to define mock.On call
+//   - publisher string
+//   - topic string
+//   - product string
+//   - eventName string
+func (_e *EventChecker_Expecter) BuildCacheKey(publisher interface{}, topic interface{}, product interface{}, eventName interface{}) *EventChecker_BuildCacheKey_Call {
+	return &EventChecker_BuildCacheKey_Call{Call: _e.mock.On("BuildCacheKey", publisher, topic, product, eventName)}
+}
+
+func (_c *EventChecker_BuildCacheKey_Call) Run(run func(publisher string, topic string, product string, eventName string)) *EventChecker_BuildCacheKey_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 string
+		if args[3] != nil {
+			arg3 = args[3].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *EventChecker_BuildCacheKey_Call) Return(s string) *EventChecker_BuildCacheKey_Call {
+	_c.Call.Return(s)
+	return _c
+}
+
+func (_c *EventChecker_BuildCacheKey_Call) RunAndReturn(run func(publisher string, topic string, product string, eventName string) string) *EventChecker_BuildCacheKey_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Close provides a mock function for the type EventChecker
 func (_mock *EventChecker) Close() {
 	_mock.Called()
@@ -129,6 +198,50 @@ func (_c *EventChecker_GetEvents_Call) RunAndReturn(run func(key string) (eventr
 	return _c
 }
 
+// HasSynced provides a mock function for the type EventChecker
+func (_mock *EventChecker) HasSynced() bool {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for HasSynced")
+	}
+
+	var r0 bool
+	if returnFunc, ok := ret.Get(0).(func() bool); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+	return r0
+}
+
+// EventChecker_HasSynced_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'HasSynced'
+type EventChecker_HasSynced_Call struct {
+	*mock.Call
+}
+
+// HasSynced is a helper method to define mock.On call
+func (_e *EventChecker_Expecter) HasSynced() *EventChecker_HasSynced_Call {
+	return &EventChecker_HasSynced_Call{Call: _e.mock.On("HasSynced")}
+}
+
+func (_c *EventChecker_HasSynced_Call) Run(run func()) *EventChecker_HasSynced_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *EventChecker_HasSynced_Call) Return(b bool) *EventChecker_HasSynced_Call {
+	_c.Call.Return(b)
+	return _c
+}
+
+func (_c *EventChecker_HasSynced_Call) RunAndReturn(run func() bool) *EventChecker_HasSynced_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // HealthCheck provides a mock function for the type EventChecker
 func (_mock *EventChecker) HealthCheck() error {
 	ret := _mock.Called()
@@ -203,49 +316,5 @@ func (_c *EventChecker_Start_Call) Return() *EventChecker_Start_Call {
 
 func (_c *EventChecker_Start_Call) RunAndReturn(run func()) *EventChecker_Start_Call {
 	_c.Run(run)
-	return _c
-}
-
-// HasSynced provides a mock function for the type EventChecker
-func (_mock *EventChecker) HasSynced() bool {
-	ret := _mock.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for HasSynced")
-	}
-
-	var r0 bool
-	if returnFunc, ok := ret.Get(0).(func() bool); ok {
-		r0 = returnFunc()
-	} else {
-		r0 = ret.Get(0).(bool)
-	}
-	return r0
-}
-
-// EventChecker_HasSynced_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'HasSynced'
-type EventChecker_HasSynced_Call struct {
-	*mock.Call
-}
-
-// HasSynced is a helper method to define mock.On call
-func (_e *EventChecker_Expecter) HasSynced() *EventChecker_HasSynced_Call {
-	return &EventChecker_HasSynced_Call{Call: _e.mock.On("HasSynced")}
-}
-
-func (_c *EventChecker_HasSynced_Call) Run(run func()) *EventChecker_HasSynced_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *EventChecker_HasSynced_Call) Return(_a0 bool) *EventChecker_HasSynced_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *EventChecker_HasSynced_Call) RunAndReturn(run func() bool) *EventChecker_HasSynced_Call {
-	_c.Call.Return(run)
 	return _c
 }

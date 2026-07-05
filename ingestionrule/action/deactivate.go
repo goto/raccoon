@@ -3,10 +3,8 @@ package action
 import (
 	"context"
 	"fmt"
-	"io"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
 	"github.com/goto/raccoon/ingestionrule/action/eventregistry"
@@ -27,6 +25,8 @@ type EventChecker interface {
 	Start()
 	// HasSynced returns true if the cache has successfully synced at least once.
 	HasSynced() bool
+	// BuildCacheKey builds the cache key for the given event.
+	BuildCacheKey(publisher, topic, product, eventName string) string
 }
 
 // Deactivate is a policy action that unconditionally drops events matching the
@@ -66,7 +66,7 @@ func (d *Deactivate) Apply(ctx context.Context, events []*model.EventWithMetadat
 				continue
 			}
 
-			eventKey := d.buildCacheKey(*meta)
+			eventKey := d.eventChecker.BuildCacheKey(meta.Publisher, meta.TopicName, meta.Product, meta.EventName)
 			status, ok := d.eventChecker.GetEvents(eventKey)
 			if !ok || status == eventregistry.EventStatusInactive || status == eventregistry.EventStatusDeprecated {
 				logger.Debugf("[deactivate.Apply] deactivating event: publisher=%s, event_type=%s, product=%s, event_name=%s, app_version=%s, platform=%s",
@@ -81,37 +81,4 @@ func (d *Deactivate) Apply(ctx context.Context, events []*model.EventWithMetadat
 	metrics.Timing(MetricEvalLatency, time.Since(start).Milliseconds(), fmt.Sprintf("action=DEACTIVATE,conn_group=%s", connGroup))
 
 	return filtered
-}
-
-// buildCacheKey builds the cache key for the given event. The generated string is always a contiguous 16-character lowercase hexadecimal string
-// (e.g., "3b0fe0c74e55b798").
-//
-// Key Format:
-// The cache key is constructed using a fixed sequence of event attributes:
-//  1. Publisher identifier
-//  2. Topic name
-//  3. Product name
-//  4. Event name
-//
-// Each attribute is separated by a colon (":") before hashing.
-//
-// This composite key ensures that events from different publishers, topics, products,
-// or event types will have unique cache keys, enabling effective deduplication
-// and policy enforcement.
-func (d *Deactivate) buildCacheKey(event model.EventWithMetadata) string {
-	h := xxhash.New()
-
-	const keySeparator = ":"
-
-	// key: <publisher>:<topic>:<product>:<event_name>
-	_, _ = io.WriteString(h, event.Publisher)
-	_, _ = io.WriteString(h, keySeparator)
-	_, _ = io.WriteString(h, event.TopicName)
-	_, _ = io.WriteString(h, keySeparator)
-	_, _ = io.WriteString(h, event.Product)
-	_, _ = io.WriteString(h, keySeparator)
-	_, _ = io.WriteString(h, event.EventName)
-	hash := h.Sum64()
-
-	return fmt.Sprintf("%016x", hash)
 }

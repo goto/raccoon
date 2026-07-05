@@ -121,6 +121,37 @@ func (e *EventCache) HealthCheck() error {
 	return nil
 }
 
+// BuildCacheKey constructs a deterministic, fixed-length unique identifier
+// for an event payload to be stored in in-memory cache.
+//
+// Algorithm & Performance:
+// It utilizes the xxHash v2 (XXH64) non-cryptographic hashing algorithm.
+// XXH64 uses highly optimized 64-bit arithmetic and assembly language, operating near
+// RAM speed limits while maintaining an exceptionally low collision probability suitable
+// for high-throughput deduplication keys.
+//
+// Key Format:
+// The generated string is always a contiguous 16-character lowercase hexadecimal string
+// representing the complete 64-bit signature ($8 \text{ bytes} \times 2 \text{ hex characters/byte}$)
+// padded with leading zeros if necessary
+func (e *EventCache) BuildCacheKey(publisher, topic, product, eventName string) string {
+	d := xxhash.New()
+
+	const keySeparator = ":"
+
+	// key: <publisher>:<topic>:<product>:<event_name>
+	_, _ = io.WriteString(d, publisher)
+	_, _ = io.WriteString(d, keySeparator)
+	_, _ = io.WriteString(d, topic)
+	_, _ = io.WriteString(d, keySeparator)
+	_, _ = io.WriteString(d, product)
+	_, _ = io.WriteString(d, keySeparator)
+	_, _ = io.WriteString(d, eventName)
+	hash := d.Sum64()
+
+	return fmt.Sprintf("%016x", hash)
+}
+
 // loadEventMap fetches events for all configured publishers concurrently and load into event map.
 func (e *EventCache) loadEventMap(ctx context.Context) (map[string]EventStatus, error) {
 	var publishers []string
@@ -160,7 +191,7 @@ func (e *EventCache) loadEventMap(ctx context.Context) (map[string]EventStatus, 
 		metrics.Increment(e.metricName, "status=success,type=fetch_msl_events")
 
 		for _, evt := range res.events {
-			key := e.buildCacheKey(evt)
+			key := e.BuildCacheKey(evt.Publisher, strings.ReplaceAll(evt.TableName, "_", "-"), evt.Product, evt.EventName)
 			newEvents[key] = evt.Status
 		}
 	}
@@ -213,35 +244,4 @@ func (e *EventCache) fetchEvents(ctx context.Context, publisher string) ([]Event
 	}
 
 	return events, nil
-}
-
-// buildCacheKey constructs a deterministic, fixed-length unique identifier
-// for an event payload to be stored in in-memory cache.
-//
-// Algorithm & Performance:
-// It utilizes the xxHash v2 (XXH64) non-cryptographic hashing algorithm.
-// XXH64 uses highly optimized 64-bit arithmetic and assembly language, operating near
-// RAM speed limits while maintaining an exceptionally low collision probability suitable
-// for high-throughput deduplication keys.
-//
-// Key Format:
-// The generated string is always a contiguous 16-character lowercase hexadecimal string
-// representing the complete 64-bit signature ($8 \text{ bytes} \times 2 \text{ hex characters/byte}$)
-// padded with leading zeros if necessary
-func (e *EventCache) buildCacheKey(event Event) string {
-	d := xxhash.New()
-
-	const keySeparator = ":"
-
-	// key: <publisher>:<topic>:<product>:<event_name>
-	_, _ = io.WriteString(d, event.Publisher)
-	_, _ = io.WriteString(d, keySeparator)
-	_, _ = io.WriteString(d, strings.ReplaceAll(event.TableName, "_", "-"))
-	_, _ = io.WriteString(d, keySeparator)
-	_, _ = io.WriteString(d, event.Product)
-	_, _ = io.WriteString(d, keySeparator)
-	_, _ = io.WriteString(d, event.EventName)
-	hash := d.Sum64()
-
-	return fmt.Sprintf("%016x", hash)
 }

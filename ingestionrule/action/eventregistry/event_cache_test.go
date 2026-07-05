@@ -65,12 +65,7 @@ func TestEventCache_LoadEventMap_Success(t *testing.T) {
 	newMap, err := cache.loadEventMap(ctx)
 	assert.NoError(t, err)
 
-	expectedHashedKey := cache.buildCacheKey(Event{
-		Publisher: "grp",
-		TableName: "clickstream_click_log",
-		Product:   "app",
-		EventName: "click",
-	})
+	expectedHashedKey := cache.BuildCacheKey("grp", "clickstream-click-log", "app", "click")
 
 	status, ok := newMap[expectedHashedKey]
 	assert.True(t, ok)
@@ -136,15 +131,8 @@ func TestEventCache_HealthCheck_Error(t *testing.T) {
 func TestEventCache_GetEvents(t *testing.T) {
 	metrics.SetVoid()
 
-	event := Event{
-		Publisher: "grp",
-		TableName: "clickstream_click_log",
-		Product:   "app",
-		EventName: "click",
-	}
-
 	cacheHelper := &EventCache{}
-	hashedKey := cacheHelper.buildCacheKey(event)
+	hashedKey := cacheHelper.BuildCacheKey("grp", "clickstream-click-log", "app", "click")
 
 	cache := NewTestEventCache(map[string]EventStatus{
 		hashedKey: EventStatusActive,

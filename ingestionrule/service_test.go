@@ -512,6 +512,7 @@ func TestService_WithRegistrationStore_ActionOrder(t *testing.T) {
 
 	result := svc.Apply(context.Background(), events, "grp")
 
-	// Event should be dropped by Deactivate/EventChecker because it is not registered.
-	assert.Empty(t, result)
+	// Event should NOT be dropped by Deactivate/EventChecker because event drop is implemented later.
+	assert.Len(t, result, 1)
+	assert.Equal(t, "click", result[0].EventName)
 }

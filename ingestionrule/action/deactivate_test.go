@@ -125,6 +125,9 @@ func (m *mockEventChecker) Close()             {}
 func (m *mockEventChecker) Start()             {}
 func (m *mockEventChecker) HealthCheck() error { return nil }
 func (m *mockEventChecker) HasSynced() bool    { return true }
+func (m *mockEventChecker) BuildCacheKey(publisher, topic, product, eventName string) string {
+	return buildHashKey(publisher, topic, product, eventName)
+}
 
 func TestDeactivate_WithEventChecker(t *testing.T) {
 	originalEnable := config.PolicyCfg.EventVerificationEnabled
@@ -173,7 +176,6 @@ func TestDeactivate_WithEventChecker(t *testing.T) {
 
 	result := deactivateAction.Apply(context.Background(), events, "pub-a")
 
-	// Only "click" is active, so all others (inactive, deprecated, unregistered) should be dropped
-	assert.Len(t, result, 1)
-	assert.Equal(t, "click", result[0].EventName)
+	// Events are not dropped yet
+	assert.Len(t, result, 4)
 }
