@@ -41,7 +41,8 @@ func TestEventCache_LoadEventMap_Success(t *testing.T) {
 				"name": "click",
 				"source": {
 					"table": "clickstream_click_log"
-				}
+				},
+				"status": "ACTIVE"
 			}
 		}
 	}`

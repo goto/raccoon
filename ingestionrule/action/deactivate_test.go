@@ -113,10 +113,13 @@ func TestDeactivate_DropsMatchingTopicRule(t *testing.T) {
 }
 
 type mockEventChecker struct {
-	events map[string]eventregistry.EventStatus
+	events          map[string]eventregistry.EventStatus
+	hasSynced       bool
+	getEventsCalled bool
 }
 
 func (m *mockEventChecker) GetEvents(key string) (eventregistry.EventStatus, bool) {
+	m.getEventsCalled = true
 	status, ok := m.events[key]
 	return status, ok
 }
@@ -124,7 +127,7 @@ func (m *mockEventChecker) GetEvents(key string) (eventregistry.EventStatus, boo
 func (m *mockEventChecker) Close()             {}
 func (m *mockEventChecker) Start()             {}
 func (m *mockEventChecker) HealthCheck() error { return nil }
-func (m *mockEventChecker) HasSynced() bool    { return true }
+func (m *mockEventChecker) HasSynced() bool    { return m.hasSynced }
 func (m *mockEventChecker) BuildCacheKey(publisher, topic, product, eventName string) string {
 	return buildHashKey(publisher, topic, product, eventName)
 }
@@ -137,6 +140,7 @@ func TestDeactivate_WithEventChecker(t *testing.T) {
 	}()
 
 	mockChecker := &mockEventChecker{
+		hasSynced: true,
 		events: map[string]eventregistry.EventStatus{
 			buildHashKey("pub-a", "clickstream-click-log", "app", "click"):       eventregistry.EventStatusActive,
 			buildHashKey("pub-a", "clickstream-scroll-log", "app", "scroll"):     eventregistry.EventStatusInactive,
@@ -178,4 +182,36 @@ func TestDeactivate_WithEventChecker(t *testing.T) {
 
 	// Events are not dropped yet
 	assert.Len(t, result, 4)
+}
+
+func TestDeactivate_WithEventChecker_NotSynced(t *testing.T) {
+	originalEnable := config.PolicyCfg.EventVerificationEnabled
+	config.PolicyCfg.EventVerificationEnabled = true
+	defer func() {
+		config.PolicyCfg.EventVerificationEnabled = originalEnable
+	}()
+
+	mockChecker := &mockEventChecker{
+		hasSynced: false,
+		events: map[string]eventregistry.EventStatus{
+			buildHashKey("pub-a", "clickstream-click-log", "app", "click"): eventregistry.EventStatusActive,
+		},
+	}
+
+	c := cache.NewCache(nil)
+	deactivateAction := action.NewDeactivate(c, action.DefaultChain(), mockChecker)
+
+	events := []*model.EventWithMetadata{
+		{
+			EventName: "click",
+			Product:   "app",
+			Publisher: "pub-a",
+			TopicName: "clickstream-click-log",
+		},
+	}
+
+	result := deactivateAction.Apply(context.Background(), events, "pub-a")
+
+	assert.Len(t, result, 1)
+	assert.False(t, mockChecker.getEventsCalled, "GetEvents should not be called when HasSynced is false")
 }

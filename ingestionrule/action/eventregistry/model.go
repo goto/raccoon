@@ -10,6 +10,7 @@ type payloadReadAll struct {
 	Product   string        `json:"product"`
 	Name      string        `json:"name"`
 	Source    payloadSource `json:"source"`
+	Status    string        `json:"status"`
 }
 
 type payloadSource struct {

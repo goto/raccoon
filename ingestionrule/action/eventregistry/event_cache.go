@@ -235,11 +235,11 @@ func (e *EventCache) fetchEvents(ctx context.Context, publisher string) ([]Event
 	events := make([]Event, 0, len(resp.Data))
 	for _, e := range resp.Data {
 		events = append(events, Event{
-			Product:   e.Product,
-			EventName: e.Name,
 			Publisher: e.Publisher,
 			TableName: e.Source.Table,
-			Status:    EventStatusActive,
+			Product:   e.Product,
+			EventName: e.Name,
+			Status:    EventStatus(e.Status),
 		})
 	}
 
