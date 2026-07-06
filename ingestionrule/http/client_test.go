@@ -103,7 +103,7 @@ func TestHTTPClient_DoRequest_ContextCancelled(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, resp)
-	assert.Equal(t, context.Canceled, err)
+	assert.ErrorIs(t, err, context.Canceled)
 }
 
 func TestHTTPClient_DoRequest_QueryParamsAndHeaders(t *testing.T) {
