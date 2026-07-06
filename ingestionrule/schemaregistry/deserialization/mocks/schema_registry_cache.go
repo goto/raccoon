@@ -171,3 +171,36 @@ func (_c *SchemaRegistryCache_HealthCheck_Call) RunAndReturn(run func() error) *
 	_c.Call.Return(run)
 	return _c
 }
+
+// Start provides a mock function for the type SchemaRegistryCache
+func (_mock *SchemaRegistryCache) Start() {
+	_mock.Called()
+	return
+}
+
+// SchemaRegistryCache_Start_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Start'
+type SchemaRegistryCache_Start_Call struct {
+	*mock.Call
+}
+
+// Start is a helper method to define mock.On call
+func (_e *SchemaRegistryCache_Expecter) Start() *SchemaRegistryCache_Start_Call {
+	return &SchemaRegistryCache_Start_Call{Call: _e.mock.On("Start")}
+}
+
+func (_c *SchemaRegistryCache_Start_Call) Run(run func()) *SchemaRegistryCache_Start_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SchemaRegistryCache_Start_Call) Return() *SchemaRegistryCache_Start_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *SchemaRegistryCache_Start_Call) RunAndReturn(run func()) *SchemaRegistryCache_Start_Call {
+	_c.Run(run)
+	return _c
+}

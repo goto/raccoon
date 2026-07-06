@@ -50,21 +50,18 @@ func TestSchemaCache_FetchSchemaMap_Success(t *testing.T) {
 	config.CompassCfg.AuthEmail = "auth-email"
 	config.CompassCfg.SyncInterval = time.Minute
 	config.CompassCfg.HTTPRequestTimeout = time.Second
-	config.CompassCfg.StartupMaxRetry = 3
-	config.CompassCfg.StartupRetryBackoff = 200 * time.Millisecond
+	config.CompassCfg.HTTPMaxRetry = 3
+	config.CompassCfg.HTTPRetryBackoff = 200 * time.Millisecond
 
 	ctx := context.Background()
-	cache := NewSchemaCache(ctx)
+	cache := NewSchemaCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
-	err := cache.sync()
+	res, err := cache.loadSchemaMap(ctx)
 	assert.NoError(t, err)
 
-	val, ok := cache.Get("topic-a")
-	assert.True(t, ok)
-	assert.Equal(t, "proto.ClassA", val)
-
-	_, ok = cache.Get("topic-b")
+	assert.Equal(t, "proto.ClassA", res["topic-a"])
+	_, ok := res["topic-b"]
 	assert.False(t, ok)
 }
 
@@ -80,14 +77,14 @@ func TestSchemaCache_FetchSchemaMap_Non200(t *testing.T) {
 	config.CompassCfg.AuthEmail = "auth-email"
 	config.CompassCfg.SyncInterval = time.Minute
 	config.CompassCfg.HTTPRequestTimeout = time.Second
-	config.CompassCfg.StartupMaxRetry = 3
-	config.CompassCfg.StartupRetryBackoff = 200 * time.Millisecond
+	config.CompassCfg.HTTPMaxRetry = 3
+	config.CompassCfg.HTTPRetryBackoff = 200 * time.Millisecond
 
 	ctx := context.Background()
-	cache := NewSchemaCache(ctx)
+	cache := NewSchemaCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
-	err := cache.sync()
+	_, err := cache.loadSchemaMap(ctx)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "received non-200 status code: 500")
 	assert.Contains(t, err.Error(), errorBody)
@@ -103,14 +100,14 @@ func TestSchemaCache_FetchSchemaMap_NonJSON(t *testing.T) {
 	config.CompassCfg.AuthEmail = "auth-email"
 	config.CompassCfg.SyncInterval = time.Minute
 	config.CompassCfg.HTTPRequestTimeout = time.Second
-	config.CompassCfg.StartupMaxRetry = 3
-	config.CompassCfg.StartupRetryBackoff = 200 * time.Millisecond
+	config.CompassCfg.HTTPMaxRetry = 3
+	config.CompassCfg.HTTPRetryBackoff = 200 * time.Millisecond
 
 	ctx := context.Background()
-	cache := NewSchemaCache(ctx)
+	cache := NewSchemaCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
-	err := cache.sync()
+	_, err := cache.loadSchemaMap(ctx)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "received non-json response type: \"text/plain\"")
 	assert.Contains(t, err.Error(), "some plain text")
@@ -124,7 +121,7 @@ func TestSchemaCache_HealthCheck_Success(t *testing.T) {
 
 	config.CompassCfg.HTTPHost = "http://compass.io"
 	ctx := context.Background()
-	cache := NewSchemaCache(ctx)
+	cache := NewSchemaCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
 	err := cache.HealthCheck()
@@ -139,7 +136,7 @@ func TestSchemaCache_HealthCheck_Error(t *testing.T) {
 
 	config.CompassCfg.HTTPHost = "http://compass.io"
 	ctx := context.Background()
-	cache := NewSchemaCache(ctx)
+	cache := NewSchemaCache(ctx, "test-metric")
 	cache.httpClient = mockClient
 
 	err := cache.HealthCheck()

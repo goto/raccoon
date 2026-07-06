@@ -54,6 +54,8 @@ type SchemaRegistryCache interface {
 	Close()
 	// HealthCheck checks the health of the schema registry
 	HealthCheck() error
+	// Start starts the schema cache
+	Start()
 }
 
 type Deserializer struct {
@@ -251,13 +253,14 @@ func (d *Deserializer) extractBaseMetadata(
 	}
 
 	// override event type if prefix mapping exist and event type is in expected format, otherwise use the original event type
+	eventType := d.overrideEventType(event.GetType())
 	return model.EventWithMetadata{
-		TopicName:      fmt.Sprintf(topicFormat, d.overrideEventType(event.GetType())),
+		TopicName:      fmt.Sprintf(topicFormat, eventType),
 		Publisher:      resolvePublisher(connGroup, publisherMap),
 		Product:        event.GetProduct(),
 		EventName:      event.GetEventName(),
 		EventTimestamp: ts,
-		Type:           d.overrideEventType(event.GetType()),
+		Type:           eventType,
 		Platform:       event.GetPlatform().String(),
 		AppVersion:     event.GetAppVersion(),
 		IsExclusive:    event.GetIsExclusive(),
@@ -296,7 +299,10 @@ func getStringField(
 			metricNameEventDeserializationEmptyField,
 			fmt.Sprintf("field_name=%s,conn_group=%s,event_type=%s,product=%s,event_name=%s", fieldName, connGroup, meta.Type, meta.Product, meta.EventName),
 		)
-		logger.Infof("field %q is empty", fieldName)
+		logger.Debugf(
+			"field %q is empty for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
+			fieldName, meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.Platform, meta.AppVersion,
+		)
 	}
 
 	return val, nil

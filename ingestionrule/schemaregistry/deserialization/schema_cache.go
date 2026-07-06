@@ -8,11 +8,10 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync/atomic"
-	"time"
 
 	"github.com/goto/raccoon/config"
-	httpwrapper "github.com/goto/raccoon/ingestionrule/schemaregistry/deserialization/http"
+	httpwrapper "github.com/goto/raccoon/ingestionrule/http"
+	"github.com/goto/raccoon/ingestionrule/synccache"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 )
@@ -27,89 +26,51 @@ type httpConfig struct {
 	authEmail string
 }
 
-type startupConfig struct {
-	startupMaxRetry     int
-	startupRetryBackoff time.Duration
-}
-
 type SchemaCache struct {
-	schemaMap     atomic.Value
-	ctx           context.Context
-	cancel        context.CancelFunc
-	httpClient    HTTPClient
-	httpConfig    httpConfig
-	startupConfig startupConfig
-	syncInterval  time.Duration
+	ctx        context.Context
+	cache      *synccache.Cache[map[string]string]
+	httpClient HTTPClient
+	httpConfig struct {
+		httpHost  string
+		authEmail string
+	}
+	metricName string
 }
 
-func NewSchemaCache(ctx context.Context) *SchemaCache {
-	cCtx, cancel := context.WithCancel(ctx)
-	c := &SchemaCache{
-		httpClient: httpwrapper.NewHTTPClient(config.CompassCfg.HTTPRequestTimeout),
-		ctx:        cCtx,
-		cancel:     cancel,
+func NewSchemaCache(ctx context.Context, metricName string) *SchemaCache {
+	sc := &SchemaCache{
+		ctx: ctx,
+		httpClient: httpwrapper.NewHTTPClient(
+			config.CompassCfg.HTTPRequestTimeout,
+			config.CompassCfg.HTTPMaxRetry,
+			config.CompassCfg.HTTPRetryBackoff,
+		),
 		httpConfig: httpConfig{
 			httpHost:  strings.TrimSuffix(config.CompassCfg.HTTPHost, "/"),
 			authEmail: config.CompassCfg.AuthEmail,
 		},
-		startupConfig: startupConfig{
-			startupMaxRetry:     config.CompassCfg.StartupMaxRetry,
-			startupRetryBackoff: config.CompassCfg.StartupRetryBackoff,
-		},
-		syncInterval: config.CompassCfg.SyncInterval,
+		metricName: metricName,
 	}
 
-	c.schemaMap.Store(make(map[string]string))
+	sc.cache = synccache.NewCache(
+		ctx,
+		"schema cache",
+		sc.loadSchemaMap,
+		config.CompassCfg.SyncInterval,
+		make(map[string]string),
+		false,
+	)
 
-	return c
+	return sc
 }
 
 // Start performs the initial sync synchronously with exponential backoff retries.
-// If it fails after the maximum configured attempts, it logs the failure and still launches the periodic background worker.
-// If it succeeds, it launches the periodic background worker.
 func (c *SchemaCache) Start() {
 	if c == nil {
 		return
 	}
 
-	var (
-		maxRetry = c.startupConfig.startupMaxRetry
-		backoff  = c.startupConfig.startupRetryBackoff
-	)
-
-	const backoffMultiplier = 2
-
-	var err error
-
-	for attempt := range maxRetry {
-		err = c.sync()
-		if err == nil {
-			if c.syncInterval > 0 {
-				go c.worker()
-			}
-
-			return
-		}
-
-		logger.Errorf("schema cache initial sync attempt %d failed: %v", attempt+1, err)
-
-		if attempt < maxRetry-1 {
-			select {
-			case <-c.ctx.Done():
-				logger.Errorf("context cancelled during schema cache startup: %v", c.ctx.Err())
-				return
-			case <-time.After(backoff):
-			}
-
-			backoff *= backoffMultiplier
-		}
-	}
-
-	logger.Errorf("failed to fetch schema cache after %d attempts: %v. Cache will be empty initially and rely on fallback config.", maxRetry, err)
-
-	if c.syncInterval > 0 {
-		go c.worker()
-	}
+	c.cache.Start()
 }
 
 // Close cancels the schema cache's background worker and frees resources.
@@ -118,7 +79,7 @@ func (c *SchemaCache) Close() {
 		return
 	}
 
-	c.cancel()
+	c.cache.Close()
 }
 
 // HealthCheck checks the health of the compass API by sending a GET request to the /ping endpoint.
@@ -149,55 +110,35 @@ func (c *SchemaCache) Get(topic string) (string, bool) {
 		return "", false
 	}
 
-	val := c.schemaMap.Load()
-	if val == nil {
-		return "", false
-	}
-
-	m, ok := val.(map[string]string)
-	if !ok {
-		return "", false
-	}
-
+	m := c.cache.Get()
 	protoClass, ok := m[topic]
 
 	return protoClass, ok
 }
 
-// worker runs in a background goroutine and periodically fetches and updates the schema map.
-func (c *SchemaCache) worker() {
-	ticker := time.NewTicker(c.syncInterval)
-	defer ticker.Stop()
+// loadSchemaMap fetches the latest assets from Compass and load into schema map.
+func (c *SchemaCache) loadSchemaMap(ctx context.Context) (map[string]string, error) {
+	schemas, err := c.fetchAssets(ctx)
+	if err != nil {
+		metrics.Increment(c.metricName, fmt.Sprintf("status=failed,type=fetch_compass_assets,reason=%s", err.Error()))
+		return nil, err
+	}
 
-	for {
-		select {
-		case <-c.ctx.Done():
-			return
-		case <-ticker.C:
-			if err := c.sync(); err != nil {
-				logger.Errorf("schema cache sync failed: %v", err)
-			}
+	newMap := make(map[string]string)
+	for _, item := range schemas {
+		if len(item.Data.Attributes.Schemas) >= 1 && item.Data.Attributes.Schemas[0].Name != "" {
+			newMap[item.Name] = item.Data.Attributes.Schemas[0].Name
 		}
 	}
+
+	metrics.Increment(c.metricName, "status=success,type=fetch_compass_assets")
+	logger.Infof("schema cache successfully loaded %d proto classes", len(newMap))
+
+	return newMap, nil
 }
 
-// sync fetches the latest schema map from Compass and updates the local cache.
-func (c *SchemaCache) sync() error {
-	newMap, err := c.fetchSchemaMap()
-	if err != nil {
-		const metricNameSchemaSyncFailureCount = "schema_sync_failure_count"
-
-		metrics.Increment(metricNameSchemaSyncFailureCount, "")
-		return err
-	}
-
-	c.schemaMap.Store(newMap)
-
-	return nil
-}
-
-// fetchSchemaMap fetches the latest schema map from Compass and returns it.
-func (c *SchemaCache) fetchSchemaMap() (map[string]string, error) {
+// fetchAssets retrieves list of assets from Compass API.
+func (c *SchemaCache) fetchAssets(ctx context.Context) ([]compassItem, error) {
 	if c.httpConfig.httpHost == "" {
 		return nil, errors.New("compass HTTP host is empty")
 	}
@@ -214,7 +155,7 @@ func (c *SchemaCache) fetchSchemaMap() (map[string]string, error) {
 		headers["X-Auth-Email"] = c.httpConfig.authEmail
 	}
 
-	bodyData, err := c.httpClient.DoRequest(c.ctx, httpwrapper.Request{
+	bodyData, err := c.httpClient.DoRequest(ctx, httpwrapper.Request{
 		Method:      http.MethodGet,
 		BaseURL:     c.httpConfig.httpHost,
 		Path:        "/v1beta1/search",
@@ -230,12 +171,5 @@ func (c *SchemaCache) fetchSchemaMap() (map[string]string, error) {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	newMap := make(map[string]string)
-	for _, item := range parsedResp.Data {
-		if len(item.Data.Attributes.Schemas) >= 1 && item.Data.Attributes.Schemas[0].Name != "" {
-			newMap[item.Name] = item.Data.Attributes.Schemas[0].Name
-		}
-	}
-
-	return newMap, nil
+	return parsedResp.Data, nil
 }

@@ -9,11 +9,11 @@ import (
 	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-	"github.com/stretchr/testify/assert"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestMain(m *testing.M) {
@@ -35,19 +35,29 @@ func TestMain(m *testing.M) {
 	originalExcludeList := config.DeserializationCfg.ExcludeEventTypeList
 	config.DeserializationCfg.ExcludeEventTypeList = []string{"click", "scroll", ""}
 
+	originalPattern := config.EventDistribution.PublisherPattern
+	config.EventDistribution.PublisherPattern = "clickstream-%s-log"
+
 	code := m.Run()
 
 	config.StencilCfg = originalCfg
 	config.PolicyCfg.Enabled = originalPolicyCfgEnabled
 	config.DeserializationCfg.ExcludeEventTypeList = originalExcludeList
+	config.EventDistribution.PublisherPattern = originalPattern
 	os.Exit(code)
+}
+
+func disableEventChecker(t *testing.T) {
+	original := config.PolicyCfg.EventVerificationEnabled
+	config.PolicyCfg.EventVerificationEnabled = false
+	t.Cleanup(func() {
+		config.PolicyCfg.EventVerificationEnabled = original
+	})
 }
 
 func timestampProto(t time.Time) *timestamppb.Timestamp {
 	return timestamppb.New(t)
 }
-
-const testOverrideEventType = "invalid-et"
 
 func buildRules(pastDrop, pastOverride time.Duration, withDeactivate bool) []config.PolicyRule {
 	var rules []config.PolicyRule
@@ -84,6 +94,7 @@ func buildRules(pastDrop, pastOverride time.Duration, withDeactivate bool) []con
 }
 
 func TestService_Apply_DropTakesPriorityOverOverride(t *testing.T) {
+	disableEventChecker(t)
 	rules := buildRules(time.Hour, time.Hour, false)
 	svc, err := ingestionrule.NewService(context.Background(), rules)
 	assert.NoError(t, err)
@@ -96,6 +107,7 @@ func TestService_Apply_DropTakesPriorityOverOverride(t *testing.T) {
 }
 
 func TestService_Apply_OverrideWhenNoDrop(t *testing.T) {
+	disableEventChecker(t)
 	rules := []config.PolicyRule{
 		{
 			Resource: config.PolicyResourceEvent,
@@ -120,6 +132,8 @@ func TestService_Apply_OverrideWhenNoDrop(t *testing.T) {
 }
 
 func TestService_Apply_PassthroughWhenNoPolicy(t *testing.T) {
+	disableEventChecker(t)
+
 	svc, err := ingestionrule.NewService(context.Background(), nil)
 	assert.NoError(t, err)
 
@@ -130,6 +144,7 @@ func TestService_Apply_PassthroughWhenNoPolicy(t *testing.T) {
 }
 
 func TestService_Apply_MixedBatch(t *testing.T) {
+	disableEventChecker(t)
 	rules := buildRules(time.Hour, 0, false)
 	svc, err := ingestionrule.NewService(context.Background(), rules)
 	assert.NoError(t, err)
@@ -142,7 +157,10 @@ func TestService_Apply_MixedBatch(t *testing.T) {
 }
 
 func TestService_Apply_DeactivateDropsEvent(t *testing.T) {
+	disableEventChecker(t)
+
 	svc, err := ingestionrule.NewService(context.Background(), buildRules(0, 0, true))
+
 	assert.NoError(t, err)
 
 	events := []*pb.Event{
@@ -152,6 +170,7 @@ func TestService_Apply_DeactivateDropsEvent(t *testing.T) {
 }
 
 func TestService_Apply_DeactivateTakesPriorityOverDrop(t *testing.T) {
+	disableEventChecker(t)
 	// Both DEACTIVE and DROP rules target the same event.
 	// DEACTIVE runs first and removes it; DROP never sees it.
 	rules := buildRules(time.Hour, 0, true)
@@ -165,6 +184,8 @@ func TestService_Apply_DeactivateTakesPriorityOverDrop(t *testing.T) {
 }
 
 func TestService_Apply_DeactivatePassthroughWhenNoMatch(t *testing.T) {
+	disableEventChecker(t)
+
 	svc, err := ingestionrule.NewService(context.Background(), buildRules(0, 0, true))
 	assert.NoError(t, err)
 
@@ -177,6 +198,7 @@ func TestService_Apply_DeactivatePassthroughWhenNoMatch(t *testing.T) {
 }
 
 func TestService_Apply_UnknownActionTypeSkipped(t *testing.T) {
+	disableEventChecker(t)
 	rules := []config.PolicyRule{
 		{
 			Resource: config.PolicyResourceEvent,
@@ -319,4 +341,178 @@ func TestService_CompassHealthCheck(t *testing.T) {
 	// A nil service should return nil error (no-op)
 	var nilSvc *ingestionrule.Service
 	assert.NoError(t, nilSvc.CompassHealthCheck())
+}
+
+func setupMockMSLServer(t *testing.T, responseJSON string) *httptest.Server {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/v1/events", r.URL.Path)
+		assert.Equal(t, "grp", r.URL.Query().Get("publisher"))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(responseJSON))
+	}))
+	return server
+}
+
+func TestService_WithoutRegistrationStore(t *testing.T) {
+	originalEnable := config.PolicyCfg.EventVerificationEnabled
+	config.PolicyCfg.EventVerificationEnabled = false
+	defer func() {
+		config.PolicyCfg.EventVerificationEnabled = originalEnable
+	}()
+
+	svc, err := ingestionrule.NewService(
+		context.Background(),
+		nil,
+	)
+
+	assert.NoError(t, err)
+
+	chain := svc.Apply(
+		context.Background(),
+		[]*pb.Event{{EventName: "click"}},
+		"grp",
+	)
+	// checkregistration/eventregistry is not enabled, so the event should pass through unmodified.
+	assert.Len(t, chain, 1)
+}
+
+func TestService_WithRegistrationStore(t *testing.T) {
+	originalEnable := config.PolicyCfg.EventVerificationEnabled
+	config.PolicyCfg.EventVerificationEnabled = true
+	originalHost := config.MetadataLayerCfg.HTTPHost
+	originalMapping := config.PolicyCfg.PublisherMapping
+	config.PolicyCfg.PublisherMapping = map[string]string{
+		"grp": "grp",
+	}
+	defer func() {
+		config.PolicyCfg.EventVerificationEnabled = originalEnable
+		config.MetadataLayerCfg.HTTPHost = originalHost
+		config.PolicyCfg.PublisherMapping = originalMapping
+	}()
+
+	// The event we are sending is EventName: "click", Product: "app", and resolving to TopicName: "clickstream-click-log"
+	// Key format: publisher:topic:product:eventName
+	responseJSON := `{
+		"success": true,
+		"data": {
+			"event1": {
+				"publisher": "grp",
+				"product": "app",
+				"name": "click",
+				"source": {
+					"table": "clickstream_click_log"
+				}
+			}
+		}
+	}`
+
+	mockServer := setupMockMSLServer(t, responseJSON)
+	defer mockServer.Close()
+
+	config.MetadataLayerCfg.HTTPHost = mockServer.URL
+
+	svc, err := ingestionrule.NewService(
+		context.Background(),
+		nil,
+	)
+	require.NoError(t, err)
+	defer svc.Close()
+	time.Sleep(100 * time.Millisecond)
+
+	result := svc.Apply(
+		context.Background(),
+		[]*pb.Event{
+			{
+				EventName: "click",
+				Product:   "app",
+				Type:      "click",
+			},
+		},
+		"grp",
+	)
+
+	// Since the event is registered (Active), it should not be dropped and should pass through unmodified.
+	assert.Len(t, result, 1)
+	assert.Equal(t, "click", result[0].EventName)
+}
+
+func TestService_WithRegistrationStore_ActionOrder(t *testing.T) {
+	originalEnable := config.PolicyCfg.EventVerificationEnabled
+	originalHost := config.MetadataLayerCfg.HTTPHost
+	originalMapping := config.PolicyCfg.PublisherMapping
+
+	config.PolicyCfg.EventVerificationEnabled = true
+	config.PolicyCfg.PublisherMapping = map[string]string{
+		"grp": "grp",
+	}
+
+	defer func() {
+		config.PolicyCfg.EventVerificationEnabled = originalEnable
+		config.MetadataLayerCfg.HTTPHost = originalHost
+		config.PolicyCfg.PublisherMapping = originalMapping
+	}()
+
+	// Mock server returns event other than "click"
+	responseJSON := `{
+		"success": true,
+		"data": {
+			"event1": {
+				"publisher": "grp",
+				"product": "app",
+				"name": "other",
+				"source": {
+					"table": "clickstream_other_log"
+				}
+			}
+		}
+	}`
+
+	mockServer := setupMockMSLServer(t, responseJSON)
+	defer mockServer.Close()
+
+	config.MetadataLayerCfg.HTTPHost = mockServer.URL
+
+	rules := []config.PolicyRule{
+		{
+			Resource: config.PolicyResourceEvent,
+			Details: config.PolicyDetails{
+				Name:      "click",
+				Product:   "app",
+				Publisher: "grp",
+			},
+			Action: config.PolicyActionConfig{
+				Type:          config.PolicyActionOverrideTimestamp,
+				ConditionType: config.PolicyConditionTimestampThreshold,
+				EventTimestampThreshold: config.PolicyTimestampThreshold{
+					Past: config.PolicyDuration{
+						Duration: time.Hour,
+					},
+				},
+			},
+		},
+	}
+
+	svc, err := ingestionrule.NewService(
+		context.Background(),
+		rules,
+	)
+	require.NoError(t, err)
+	defer svc.Close()
+	time.Sleep(100 * time.Millisecond)
+
+	events := []*pb.Event{
+		{
+			EventName:      "click",
+			Product:        "app",
+			Type:           "click",
+			EventTimestamp: timestampProto(time.Now().Add(-2 * time.Hour)),
+		},
+	}
+
+	result := svc.Apply(context.Background(), events, "grp")
+
+	// Event should NOT be dropped by Deactivate/EventChecker because event drop is implemented later.
+	assert.Len(t, result, 1)
+	assert.Equal(t, "click", result[0].EventName)
 }

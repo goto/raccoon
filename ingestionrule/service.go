@@ -11,6 +11,7 @@ import (
 	"github.com/goto/raccoon/ingestionrule/action"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
 	evalcache "github.com/goto/raccoon/ingestionrule/action/eval/cache"
+	"github.com/goto/raccoon/ingestionrule/action/eventregistry"
 	"github.com/goto/raccoon/ingestionrule/schemaregistry"
 	"github.com/goto/raccoon/ingestionrule/schemaregistry/deserialization"
 	"github.com/goto/raccoon/logger"
@@ -22,6 +23,9 @@ import (
 // Use the action-level metric (action.MetricEvalLatency) for per-action breakdown.
 const MetricEvalDuration = action.MetricEvalLatency
 
+// metricExternalHttpCount is the count of external HTTP requests made by the client.
+const metricExternalHttpCount = action.MetricExternalHttpClientCount
+
 // Service is the policy enforcement entry point.
 // Service handlers in grpc, rest, websocket, and mqtt packages each hold a *Service
 // and call Apply to filter events before forwarding them to the buffer channel.
@@ -29,6 +33,7 @@ type Service struct {
 	chain            Chain
 	duplicateChecker action.DuplicateChecker
 	deserializer     *deserialization.Deserializer
+	eventChecker     action.EventChecker
 }
 
 // NewService builds a fully wired Service from the given config rules.
@@ -37,7 +42,7 @@ type Service struct {
 func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error) {
 	var (
 		stencil      schemaregistry.StencilClient
-		schemaCache  *deserialization.SchemaCache
+		schemaCache  deserialization.SchemaRegistryCache
 		deserializer *deserialization.Deserializer
 	)
 
@@ -49,7 +54,7 @@ func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error
 		}
 
 		if config.DeserializationCfg.Enabled {
-			schemaCache = deserialization.NewSchemaCache(ctx)
+			schemaCache = deserialization.NewSchemaCache(ctx, metricExternalHttpCount)
 			schemaCache.Start()
 		}
 
@@ -58,8 +63,14 @@ func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error
 
 	var chain Chain
 	var duplicateChecker action.DuplicateChecker
+	var eventChecker action.EventChecker
 
 	if config.PolicyCfg.Enabled {
+		if config.PolicyCfg.EventVerificationEnabled {
+			eventChecker = eventregistry.NewEventCache(ctx, metricExternalHttpCount)
+			eventChecker.Start()
+		}
+
 		dropCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionDrop))
 		overrideCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionOverrideTimestamp))
 		deactivateCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionDeactivate))
@@ -77,7 +88,7 @@ func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error
 		}
 
 		chain = Chain{
-			action.NewDeactivate(deactivateCache, action.DefaultChain()),
+			action.NewDeactivate(deactivateCache, action.DefaultChain(), eventChecker),
 			action.NewDrop(dropCache, action.DefaultChain()),
 			action.NewOverrideTimestamp(overrideCache, action.DefaultChain()),
 		}
@@ -101,6 +112,7 @@ func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error
 		chain:            chain,
 		duplicateChecker: duplicateChecker,
 		deserializer:     deserializer,
+		eventChecker:     eventChecker,
 	}, nil
 }
 
@@ -118,6 +130,10 @@ func (s *Service) Close() {
 		if err := s.duplicateChecker.Close(); err != nil {
 			logger.Errorf("failed to close duplicate checker: %v", err)
 		}
+	}
+
+	if s.eventChecker != nil {
+		s.eventChecker.Close()
 	}
 }
 
@@ -137,6 +153,15 @@ func (s *Service) CompassHealthCheck() error {
 	}
 
 	return s.deserializer.HealthCheck()
+}
+
+// MSLHealthCheck checks the health of the event checker client.
+func (s *Service) MSLHealthCheck() error {
+	if s == nil || s.eventChecker == nil {
+		return nil
+	}
+
+	return s.eventChecker.HealthCheck()
 }
 
 // Apply runs the event batch through the action pipeline and returns only events

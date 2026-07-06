@@ -9,3 +9,6 @@ const MetricEventLossCount = "clickstream_data_loss"
 
 // metricEventOverrideCount counts events forwarded to the override topic.
 const metricEventOverrideCount = "clickstream_data_override"
+
+// MetricExternalHttpClientCount counts external HTTP requests made by the client.
+const MetricExternalHttpClientCount = "external_http_client_count"

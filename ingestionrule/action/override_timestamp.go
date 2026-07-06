@@ -35,8 +35,6 @@ func NewOverrideTimestamp(
 	}
 }
 
-const metricNameEventOverrideErrorCount = "event_override_error_count"
-
 const protoFieldEventTimestamp = "event_timestamp"
 
 // Apply evaluates every event in the batch. Events whose condition is breached
@@ -47,8 +45,6 @@ func (o *OverrideTimestamp) Apply(_ context.Context, events []*model.EventWithMe
 
 	for _, meta := range events {
 		if o.evalChain.Run(*meta, o.cache) {
-			logger.Infof("[override_timestamp.Apply] overriding timestamp: event_name=%s, product=%s, publisher=%s, topic=%s, original_event_timestamp=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp)
-
 			parsedMsg := meta.ProtoMsg
 			if parsedMsg == nil {
 				continue
@@ -58,7 +54,7 @@ func (o *OverrideTimestamp) Apply(_ context.Context, events []*model.EventWithMe
 			fieldDesc := ref.Descriptor().Fields().ByName(protoFieldEventTimestamp)
 			if fieldDesc == nil {
 				logger.Errorf("[override_timestamp.Apply] event_timestamp field not found in schema for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s", meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.Platform, meta.AppVersion)
-				metrics.Increment(metricNameEventOverrideErrorCount, fmt.Sprintf("reason=timestamp_field_not_found,conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, meta.Type, meta.Product, meta.EventName))
+				metrics.Increment(metricEventOverrideCount, fmt.Sprintf("type=timestamp_field_not_found,conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, meta.Type, meta.Product, meta.EventName))
 				continue
 			}
 
@@ -70,11 +66,14 @@ func (o *OverrideTimestamp) Apply(_ context.Context, events []*model.EventWithMe
 			newBytes, err := proto.Marshal(parsedMsg)
 			if err != nil {
 				logger.Errorf("[override_timestamp.Apply] failed to serialize overridden event for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %v", meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.Platform, meta.AppVersion, err)
-				metrics.Increment(metricNameEventOverrideErrorCount, fmt.Sprintf("type=serialize_error,conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, meta.Type, meta.Product, meta.EventName))
+				metrics.Increment(metricEventOverrideCount, fmt.Sprintf("type=serialize_error,conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, meta.Type, meta.Product, meta.EventName))
 				continue
 			}
 
-			logger.Infof("[override_timestamp.Apply] overriding timestamp: event_name=%s, product=%s, publisher=%s, topic=%s, original_event_timestamp=%s, new_event_timestamp=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp, serverProcessTime)
+			logger.Debugf(
+				"[override_timestamp.Apply] overriding timestamp: event_name=%s, product=%s, publisher=%s, topic=%s, app_version=%s, platform=%s, original_event_timestamp=%s, new_event_timestamp=%s",
+				meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.AppVersion, meta.Platform, meta.EventTimestamp, serverProcessTime,
+			)
 
 			meta.EventBytes = newBytes
 			meta.EventTimestamp = serverProcessTime

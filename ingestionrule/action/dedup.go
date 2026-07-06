@@ -57,15 +57,6 @@ func (d *Dedup) Apply(ctx context.Context, events []*model.EventWithMetadata, co
 
 	for i, meta := range events {
 		if meta.EventGUID == "" || meta.Publisher == "" {
-			logger.Errorf(
-				"dedup: missing event_guid or publisher value for publisher=%s,product=%s,event_name=%s,event_type=%s,platform=%s,app_version=%s",
-				meta.Publisher,
-				meta.Product,
-				meta.EventName,
-				meta.Type,
-				meta.Platform,
-				meta.AppVersion,
-			)
 			states[i] = processState{isValid: false}
 			continue
 		}

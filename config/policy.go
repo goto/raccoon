@@ -23,8 +23,8 @@ type PolicyActionType = string
 type PolicyConditionType = string
 
 const (
-	PolicyResourceEvent PolicyResourceType = "event"
-	PolicyResourceTopic PolicyResourceType = "topic"
+	PolicyResourceEvent  PolicyResourceType = "event"
+	PolicyResourceTopic  PolicyResourceType = "topic"
 	PolicyResourceGlobal PolicyResourceType = "global"
 
 	PolicyActionDrop              PolicyActionType = "DROP"
@@ -164,12 +164,15 @@ type policyConfig struct {
 	// Set via POLICY_PUBLISHER_MAPPING as a JSON object string, e.g.:
 	//   POLICY_PUBLISHER_MAPPING='{"customer":"gojek","driver":"gopartner"}'
 	PublisherMapping map[string]string
+	// EventVerificationEnabled controls whether events verification is enabled.
+	EventVerificationEnabled bool
 }
 
 func policyConfigLoader() {
 	viper.SetDefault("POLICY_ENABLED", "false")
 	viper.SetDefault("POLICY_CONFIG", "[]")
 	viper.SetDefault("POLICY_PUBLISHER_MAPPING", "")
+	viper.SetDefault("POLICY_EVENT_VERIFICATION_ENABLED", "false")
 
 	var rules []PolicyRule
 	rawConfig := util.MustGetString("POLICY_CONFIG")
@@ -191,8 +194,9 @@ func policyConfigLoader() {
 	}
 
 	PolicyCfg = policyConfig{
-		Enabled:          util.MustGetBool("POLICY_ENABLED"),
-		Rules:            rules,
-		PublisherMapping: publisherMapping,
+		Enabled:                  util.MustGetBool("POLICY_ENABLED"),
+		Rules:                    rules,
+		PublisherMapping:         publisherMapping,
+		EventVerificationEnabled: util.MustGetBool("POLICY_EVENT_VERIFICATION_ENABLED"),
 	}
 }
