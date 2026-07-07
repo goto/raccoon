@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -38,9 +39,31 @@ func TestDedup_Apply_BypassDeduplicationWhenNotWhitelisted(t *testing.T) {
 	assert.Equal(t, events, d.Apply(context.Background(), events, "group-1"))
 }
 
+func TestDedup_Apply_BypassDeduplicationWhenCacheDurationNotFound(t *testing.T) {
+	// Configure whitelist to include group-1, but no cache duration mapping.
+	config.DedupCfg.WhitelistConnGroup = map[string]struct{}{
+		"group-1": {},
+	}
+	config.DedupCfg.ConnGroupCacheDuration = map[string]time.Duration{}
+
+	mc := mocks.NewDuplicateChecker(t)
+	d := action.NewDedup(mc)
+	events := []*model.EventWithMetadata{{Type: "click"}}
+	assert.Equal(t, events, d.Apply(context.Background(), events, "group-1"))
+}
+
 func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 	config.DedupCfg.WhitelistConnGroup = map[string]struct{}{
 		"customer": {},
+	}
+	config.DedupCfg.ProtoClassNameMapping = map[string]string{
+		"component": "ClickEventProto",
+	}
+	config.PolicyCfg.PublisherMapping = map[string]string{
+		"customer": "customer-publisher",
+	}
+	config.DedupCfg.ConnGroupCacheDuration = map[string]time.Duration{
+		"customer": 5 * time.Minute,
 	}
 
 	// 1. Success case: event is not a duplicate.
@@ -53,7 +76,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 				EventName: "click",
 				Product:   "clickstream",
 			},
-		}).Return([]bool{false}, nil)
+		}, 5*time.Minute).Return([]bool{false}, nil)
 
 		d := action.NewDedup(mc)
 
@@ -81,7 +104,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 				EventName: "click",
 				Product:   "clickstream",
 			},
-		}).Return([]bool{true}, nil)
+		}, 5*time.Minute).Return([]bool{true}, nil)
 
 		d := action.NewDedup(mc)
 
@@ -107,7 +130,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 			{Publisher: "customer-publisher", EventGUID: "guid-1", EventName: "click", Product: "clickstream"},
 			{Publisher: "customer-publisher", EventGUID: "guid-2", EventName: "click", Product: "clickstream"},
 			{Publisher: "customer-publisher", EventGUID: "guid-3", EventName: "click", Product: "clickstream"},
-		}).Return([]bool{false, true, true}, nil) // 1 unique, 2 duplicates
+		}, 5*time.Minute).Return([]bool{false, true, true}, nil) // 1 unique, 2 duplicates
 
 		d := action.NewDedup(mc)
 
@@ -156,7 +179,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 				EventName: "click",
 				Product:   "clickstream",
 			},
-		}).Return(nil, errors.New("redis error"))
+		}, 5*time.Minute).Return(nil, errors.New("redis error"))
 
 		d := action.NewDedup(mc)
 
@@ -173,11 +196,44 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 		res := d.Apply(context.Background(), events, "customer")
 		assert.Len(t, res, 1) // Bypassed and allowed through
 	})
+
+	// 5. Conversion case: identifier fields are not strings but can be converted.
+	t.Run("EventWithNonStringIdentifiers", func(t *testing.T) {
+		mc := mocks.NewDuplicateChecker(t)
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventWithMetadata{
+			{
+				Publisher: "customer-publisher",
+				EventGUID: "789",
+			},
+		}, 5*time.Minute).Return([]bool{false}, nil)
+
+		d := action.NewDedup(mc)
+
+		events := []*model.EventWithMetadata{
+			{
+				Publisher: "customer-publisher",
+				EventGUID: "789",
+				Type:      "component",
+			},
+		}
+
+		res := d.Apply(context.Background(), events, "customer")
+		assert.Len(t, res, 1)
+	})
 }
 
 func TestDedup_Apply_ErrorsAndBypasses(t *testing.T) {
 	config.DedupCfg.WhitelistConnGroup = map[string]struct{}{
 		"customer": {},
+	}
+	config.DedupCfg.ProtoClassNameMapping = map[string]string{
+		"component": "ClickEventProto",
+	}
+	config.PolicyCfg.PublisherMapping = map[string]string{
+		"customer": "customer-publisher",
+	}
+	config.DedupCfg.ConnGroupCacheDuration = map[string]time.Duration{
+		"customer": 5 * time.Minute,
 	}
 
 	// 1. Empty metadata fields (empty EventGUID)
