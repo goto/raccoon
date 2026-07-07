@@ -8,13 +8,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
 	"github.com/goto/raccoon/ingestionrule/action/mocks"
-	"github.com/goto/raccoon/ingestionrule/schemaregistry"
 	"github.com/goto/raccoon/model"
 )
 
