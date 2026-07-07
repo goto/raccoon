@@ -52,12 +52,24 @@ func dedupConfigLoader() {
 		}
 	}
 
-	connGroupCacheDuration := make(map[string]time.Duration)
+	rawDurationMap := make(map[string]string)
 	rawConnGroupCacheDuration := util.MustGetString("DEDUP_CONN_GROUP_CACHE_DURATION")
+
 	if rawConnGroupCacheDuration != "" {
-		if err := json.Unmarshal([]byte(rawConnGroupCacheDuration), &connGroupCacheDuration); err != nil {
-			panic("config: invalid DEDUP_CONN_GROUP_CACHE_DURATION: " + err.Error())
+		if err := json.Unmarshal([]byte(rawConnGroupCacheDuration), &rawDurationMap); err != nil {
+			panic("config: invalid DEDUP_CONN_GROUP_CACHE_DURATION JSON format: " + err.Error())
 		}
+	}
+
+	connGroupCacheDuration := make(map[string]time.Duration)
+
+	for key, stringDuration := range rawDurationMap {
+		duration, err := time.ParseDuration(stringDuration)
+		if err != nil {
+			panic("config: invalid duration string '" + stringDuration + "' for key " + key + ": " + err.Error())
+		}
+		
+		connGroupCacheDuration[key] = duration
 	}
 
 	DedupCfg = dedupConfig{
