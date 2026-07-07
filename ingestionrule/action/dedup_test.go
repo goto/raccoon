@@ -8,13 +8,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
 	"github.com/goto/raccoon/ingestionrule/action/dedup/cache"
 	"github.com/goto/raccoon/ingestionrule/action/mocks"
-	"github.com/goto/raccoon/ingestionrule/schemaregistry"
 	"github.com/goto/raccoon/model"
 )
 
@@ -34,6 +32,19 @@ func TestDedup_Apply_BypassDeduplicationWhenNotWhitelisted(t *testing.T) {
 	config.DedupCfg.WhitelistConnGroup = map[string]struct{}{
 		"group-whitelisted": {},
 	}
+
+	mc := mocks.NewDuplicateChecker(t)
+	d := action.NewDedup(mc)
+	events := []*model.EventWithMetadata{{Type: "click"}}
+	assert.Equal(t, events, d.Apply(context.Background(), events, "group-1"))
+}
+
+func TestDedup_Apply_BypassDeduplicationWhenCacheDurationNotFound(t *testing.T) {
+	// Configure whitelist to include group-1, but no cache duration mapping.
+	config.DedupCfg.WhitelistConnGroup = map[string]struct{}{
+		"group-1": {},
+	}
+	config.DedupCfg.ConnGroupCacheDuration = map[string]time.Duration{}
 
 	mc := mocks.NewDuplicateChecker(t)
 	d := action.NewDedup(mc)
@@ -115,7 +126,7 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 	t.Run("BatchWithMultipleDuplicates", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
 
-		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventWithMetadata{
 			{Publisher: "customer-publisher", EventGUID: "guid-1", EventName: "click", Product: "clickstream"},
 			{Publisher: "customer-publisher", EventGUID: "guid-2", EventName: "click", Product: "clickstream"},
 			{Publisher: "customer-publisher", EventGUID: "guid-3", EventName: "click", Product: "clickstream"},
@@ -189,38 +200,20 @@ func TestDedup_Apply_DeduplicationWorkflow(t *testing.T) {
 	// 5. Conversion case: identifier fields are not strings but can be converted.
 	t.Run("EventWithNonStringIdentifiers", func(t *testing.T) {
 		mc := mocks.NewDuplicateChecker(t)
-		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventMetadata{
+		mc.EXPECT().AreDuplicates(mock.Anything, []cache.EventWithMetadata{
 			{
 				Publisher: "customer-publisher",
 				EventGUID: "789",
 			},
 		}, 5*time.Minute).Return([]bool{false}, nil)
 
-		parsedMsg := &mockMessage{
-			fields: map[string]any{
-				"meta": &mockMessage{
-					fields: map[string]any{
-						"event_guid": []byte("789"),
-					},
-				},
-			},
-		}
+		d := action.NewDedup(mc)
 
-		ms := &mockStencilClient{
-			parseFunc: func(className string, data []byte) (protoreflect.ProtoMessage, error) {
-				return parsedMsg, nil
-			},
-		}
-
-		d := action.NewDedup(
-			schemaregistry.StencilClient{Client: ms},
-			mc,
-		)
-
-		events := []*pb.Event{
+		events := []*model.EventWithMetadata{
 			{
-				Type:       "component",
-				EventBytes: []byte("event-payload"),
+				Publisher: "customer-publisher",
+				EventGUID: "789",
+				Type:      "component",
 			},
 		}
 
