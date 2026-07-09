@@ -179,7 +179,7 @@ func (d *Deserializer) enrichEventMetadata(
 		meta.EventGUID = eventGUID
 	}
 
-	eventName, err := getStringField(ref, protoFieldEventName, connGroup, meta, false)
+	eventName, err := getStringField(ref, protoFieldEventName, connGroup, meta, true)
 	if err != nil {
 		errs = append(errs, err)
 	} else {
