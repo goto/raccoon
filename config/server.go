@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"time"
 
 	"github.com/goto/raccoon/config/util"
@@ -68,7 +69,12 @@ type consumer struct {
 	WriteTimeoutInSec  time.Duration // Timeout duration (in seconds) for write operations
 	PoolSize           int           // Number of concurrent consumers to consume from MQTT topic
 	TopicFormat        string        // Format or pattern for subscribing to MQTT topics (e.g., "share/raccoon/{service}")
+	TopicFormatV2      string        // Format or pattern for subscribing to the v2 MQTT topics
 	KeepAlive          time.Duration // Amount of time that the client should wait before sending a PING request to the broker
+
+	// V1AppNames is the set of source apps whose v2 topic includes a persona
+	// segment; connGroup is derived from the persona for these apps.
+	V1AppNames map[string]struct{}
 }
 
 func serverConfigLoader() {
@@ -134,7 +140,17 @@ func serverMQTTConfigLoader() {
 	viper.SetDefault("SERVER_MQTT_CONSUMER_LOG_LEVEL", "warn")
 	viper.SetDefault("SERVER_MQTT_CONSUMER_POOL_SIZE", 1)
 	viper.SetDefault("SERVER_MQTT_CONSUMER_TOPIC_FORMAT", "default-topic")
+	viper.SetDefault("SERVER_MQTT_CONSUMER_TOPIC_FORMAT_V2", "default-topic-v2")
+	viper.SetDefault("SERVER_MQTT_CONSUMER_V1_APP_NAMES", "a,b")
 	viper.SetDefault("SERVER_MQTT_CONNECTION_GROUP", "default")
+
+	rawv1AppNames := util.MustGetString("SERVER_MQTT_CONSUMER_V1_APP_NAMES")
+	v1AppNames := make(map[string]struct{})
+	for _, sourceApp := range strings.Split(rawv1AppNames, ",") {
+		if sourceApp = strings.TrimSpace(sourceApp); sourceApp != "" {
+			v1AppNames[sourceApp] = struct{}{}
+		}
+	}
 
 	ServerMQTT = serverMQTT{
 		Enable: util.MustGetBool("SERVER_MQTT_ENABLED"),
@@ -154,7 +170,9 @@ func serverMQTTConfigLoader() {
 			WriteTimeoutInSec:  util.MustGetDuration("SERVER_MQTT_CONSUMER_WRITE_TIMEOUT_IN_SEC", time.Second),
 			PoolSize:           util.MustGetInt("SERVER_MQTT_CONSUMER_POOL_SIZE"),
 			TopicFormat:        util.MustGetString("SERVER_MQTT_CONSUMER_TOPIC_FORMAT"),
+			TopicFormatV2:      util.MustGetString("SERVER_MQTT_CONSUMER_TOPIC_FORMAT_V2"),
 			KeepAlive:          util.MustGetDuration("SERVER_MQTT_CONSUMER_KEEP_ALIVE_IN_SEC", time.Second),
+			V1AppNames:         v1AppNames,
 		},
 	}
 }

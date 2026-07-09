@@ -14,11 +14,17 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/goto/raccoon/collection"
+	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/serialization"
 )
 
 func TestHandler_MQTTHandler(t *testing.T) {
+	config.ServerMQTT.ConsumerConfig.V1AppNames = map[string]struct{}{
+		"a": {},
+		"b": {},
+	}
+
 	req := pb.SendEventRequest{
 		ReqGuid: "test-1",
 		Events:  []*pb.Event{makeEvent("click", "data123")},
@@ -49,6 +55,41 @@ func TestHandler_MQTTHandler(t *testing.T) {
 		{
 			name:              "invalid topic - insufficient length",
 			topic:             "clickstream/v1",
+			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
+			expectCollectCall: true, // Collects with empty group
+			expectedGroup:     "",
+		},
+		{
+			name:              "v2 topic - whitelisted source app maps to persona",
+			topic:             "clickstream/v2/a/x/1",
+			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
+			expectCollectCall: true,
+			expectedGroup:     "x",
+		},
+		{
+			name:              "v2 topic - non-whitelisted source app used as-is",
+			topic:             "clickstream/v2/c/x/1",
+			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
+			expectCollectCall: true,
+			expectedGroup:     "c",
+		},
+		{
+			name:              "v2 topic - another non-whitelisted source app used as-is",
+			topic:             "clickstream/v2/d/x/1",
+			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
+			expectCollectCall: true,
+			expectedGroup:     "d",
+		},
+		{
+			name:              "v2 topic - second whitelisted source app maps to persona",
+			topic:             "clickstream/v2/b/y/2",
+			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
+			expectCollectCall: true,
+			expectedGroup:     "y",
+		},
+		{
+			name:              "invalid v2 topic - insufficient length",
+			topic:             "clickstream/v2/a/x",
 			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
 			expectCollectCall: true, // Collects with empty group
 			expectedGroup:     "",
