@@ -249,8 +249,10 @@ func TestDeactivate_WithEventChecker_Fallback(t *testing.T) {
 		Publisher: "pub-a",
 		TopicName: "clickstream-click-log",
 	}}
-	deactivateAction.Apply(context.Background(), events, "pub-a")
+	res := deactivateAction.Apply(context.Background(), events, "pub-a")
 	assert.Equal(t, []string{activeKey}, mockChecker.queriedKeys)
+	assert.Len(t, res, 1)
+	assert.Equal(t, "click", res[0].EventName)
 
 	// 2. Full key exists and inactive
 	mockChecker.queriedKeys = nil
@@ -260,8 +262,10 @@ func TestDeactivate_WithEventChecker_Fallback(t *testing.T) {
 		Publisher: "pub-a",
 		TopicName: "clickstream-scroll-log",
 	}}
-	deactivateAction.Apply(context.Background(), events, "pub-a")
+	res = deactivateAction.Apply(context.Background(), events, "pub-a")
 	assert.Equal(t, []string{inactiveKey}, mockChecker.queriedKeys)
+	assert.Len(t, res, 1)
+	assert.Equal(t, "scroll", res[0].EventName)
 
 	// 3. Full key not found, fallback key exists and active
 	mockChecker.queriedKeys = nil
@@ -271,12 +275,14 @@ func TestDeactivate_WithEventChecker_Fallback(t *testing.T) {
 		Publisher: "pub-a",
 		TopicName: "clickstream-click-log",
 	}}
-	deactivateAction.Apply(context.Background(), events, "pub-a")
+	res = deactivateAction.Apply(context.Background(), events, "pub-a")
 	expectedKeys := []string{
 		buildHashKey("clickstream-click-log", "app", "fallback-active"),
 		fallbackActiveKey,
 	}
 	assert.Equal(t, expectedKeys, mockChecker.queriedKeys)
+	assert.Len(t, res, 1)
+	assert.Equal(t, "fallback-active", res[0].EventName)
 
 	// 4. Full key not found, fallback key exists and inactive
 	mockChecker.queriedKeys = nil
@@ -286,12 +292,14 @@ func TestDeactivate_WithEventChecker_Fallback(t *testing.T) {
 		Publisher: "pub-a",
 		TopicName: "clickstream-click-log",
 	}}
-	deactivateAction.Apply(context.Background(), events, "pub-a")
+	res = deactivateAction.Apply(context.Background(), events, "pub-a")
 	expectedKeys = []string{
 		buildHashKey("clickstream-click-log", "app", "fallback-inactive"),
 		fallbackInactiveKey,
 	}
 	assert.Equal(t, expectedKeys, mockChecker.queriedKeys)
+	assert.Len(t, res, 1)
+	assert.Equal(t, "fallback-inactive", res[0].EventName)
 
 	// 5. Neither key found
 	mockChecker.queriedKeys = nil
@@ -301,10 +309,12 @@ func TestDeactivate_WithEventChecker_Fallback(t *testing.T) {
 		Publisher: "pub-a",
 		TopicName: "clickstream-click-log",
 	}}
-	deactivateAction.Apply(context.Background(), events, "pub-a")
+	res = deactivateAction.Apply(context.Background(), events, "pub-a")
 	expectedKeys = []string{
 		buildHashKey("clickstream-click-log", "app", "completely-unknown"),
 		buildHashKey("", "app", "completely-unknown"),
 	}
 	assert.Equal(t, expectedKeys, mockChecker.queriedKeys)
+	assert.Len(t, res, 1)
+	assert.Equal(t, "completely-unknown", res[0].EventName)
 }
