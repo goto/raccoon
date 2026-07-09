@@ -34,17 +34,14 @@ func TestEventCache_LoadEventMap_Success(t *testing.T) {
 
 	jsonResponse := `{
 		"success": true,
-		"data": {
-			"event1": {
-				"publisher": "grp",
-				"product": "app",
+		"data": [
+			{
 				"name": "click",
-				"source": {
-					"table": "clickstream_click_log"
-				},
+				"product": "app",
+				"table": "clickstream_click_log",
 				"status": "ACTIVE"
 			}
-		}
+		]
 	}`
 
 	mockClient.On("DoRequest", mock.Anything, mock.Anything).Return(json.RawMessage(jsonResponse), nil)
@@ -66,7 +63,7 @@ func TestEventCache_LoadEventMap_Success(t *testing.T) {
 	newMap, err := cache.loadEventMap(ctx)
 	assert.NoError(t, err)
 
-	expectedHashedKey := cache.BuildCacheKey("grp", "clickstream-click-log", "app", "click")
+	expectedHashedKey := cache.BuildCacheKey("clickstream-click-log", "app", "click")
 
 	status, ok := newMap[expectedHashedKey]
 	assert.True(t, ok)
@@ -133,7 +130,7 @@ func TestEventCache_GetEvents(t *testing.T) {
 	metrics.SetVoid()
 
 	cacheHelper := &EventCache{}
-	hashedKey := cacheHelper.BuildCacheKey("grp", "clickstream-click-log", "app", "click")
+	hashedKey := cacheHelper.BuildCacheKey("clickstream-click-log", "app", "click")
 
 	cache := NewTestEventCache(map[string]EventStatus{
 		hashedKey: EventStatusActive,

@@ -1,30 +1,15 @@
 package eventregistry
 
 type eventsResponse struct {
-	Success bool                      `json:"success"`
-	Data    map[string]payloadReadAll `json:"data"`
+	Success bool    `json:"success"`
+	Data    []event `json:"data"`
 }
 
-type payloadReadAll struct {
-	Publisher string        `json:"publisher"`
-	Product   string        `json:"product"`
-	Name      string        `json:"name"`
-	Source    payloadSource `json:"source"`
-	Status    string        `json:"status"`
-}
-
-type payloadSource struct {
-	Project string `json:"project"`
-	Schema  string `json:"schema"`
-	Table   string `json:"table"`
-}
-
-type Event struct {
-	Publisher string
-	Product   string
-	EventName string
-	TableName string
-	Status    EventStatus
+type event struct {
+	Name    string      `json:"name"`
+	Product string      `json:"product"`
+	Table   string      `json:"table"`
+	Status  EventStatus `json:"status"`
 }
 
 const (

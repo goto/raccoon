@@ -30,10 +30,12 @@ func (m *mockStencilClient) Parse(className string, data []byte) (protoreflect.P
 	return nil, errors.New("parse not implemented")
 }
 
-func (m *mockStencilClient) Serialize(string, interface{}) ([]byte, error)             { return nil, nil }
-func (m *mockStencilClient) GetDescriptor(string) (protoreflect.MessageDescriptor, error) { return nil, nil }
-func (m *mockStencilClient) Close()                                                      {}
-func (m *mockStencilClient) Refresh()                                                    {}
+func (m *mockStencilClient) Serialize(string, interface{}) ([]byte, error) { return nil, nil }
+func (m *mockStencilClient) GetDescriptor(string) (protoreflect.MessageDescriptor, error) {
+	return nil, nil
+}
+func (m *mockStencilClient) Close()   {}
+func (m *mockStencilClient) Refresh() {}
 
 func TestDeserializeEvents(t *testing.T) {
 	metrics.SetVoid()
@@ -729,4 +731,3 @@ func TestDeserializer_EnrichEventMetadata_ErrorsJoin(t *testing.T) {
 	assert.Contains(t, errs[1].Error(), `failed to extract "product" value: field "product" does not exist`)
 	assert.Contains(t, errs[2].Error(), `field "event_timestamp" not found`)
 }
-
