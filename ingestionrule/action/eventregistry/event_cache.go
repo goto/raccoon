@@ -141,7 +141,7 @@ func (e *EventCache) BuildCacheKey(topic, product, eventName string) string {
 
 	// key for linked events: <topic>:<product>:<event_name>
 	// key for unlinked events: <product>:<event_name>
-	if topic == "" {
+	if topic != "" {
 		_, _ = io.WriteString(d, topic)
 		_, _ = io.WriteString(d, keySeparator)
 	}
