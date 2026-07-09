@@ -200,6 +200,34 @@ func TestDeserializeEvents(t *testing.T) {
 			},
 		},
 		{
+			name: "error - event_name field empty",
+			events: []*pb.Event{
+				{
+					Type:       "click_event",
+					Product:    "my_product",
+					EventName:  "test_event",
+					EventBytes: []byte("event-bytes-data"),
+				},
+			},
+			connGroup:    "group-1",
+			publisherMap: publisherMap,
+			topicFormat:  "topic-%s",
+			parseFunc: func(class string, data []byte) (protoreflect.ProtoMessage, error) {
+				// Return an Event message with empty event_name to trigger mandatory field validation error
+				return &testpb.Event{
+					EventName:      "",
+					Product:        testpb.Product_Generic,
+					EventTimestamp: tsProto,
+					Meta: &testpb.Meta{
+						EventGuid: "some-guid-123",
+					},
+				}, nil
+			},
+			verify: func(t *testing.T, results []*model.EventWithMetadata) {
+				require.Empty(t, results)
+			},
+		},
+		{
 			name: "error - product field invalid/missing",
 			events: []*pb.Event{
 				{
@@ -666,8 +694,8 @@ func TestDeserializer_EnrichEventMetadata_ErrorsJoin(t *testing.T) {
 		"click_event": "gojek.de.raccoon.Meta",
 	}
 
-	// Use &testpb.Meta{} which lacks both "product" and "event_timestamp" fields,
-	// causing both GetEnumStringValue and GetTimestampFieldValue to return errors.
+	// Use &testpb.Meta{} which lacks "event_name", "product" and "event_timestamp" fields,
+	// causing all three to return errors during deserialization.
 	clientMock := &mockStencilClient{
 		parseFunc: func(class string, data []byte) (protoreflect.ProtoMessage, error) {
 			return &testpb.Meta{
@@ -686,6 +714,7 @@ func TestDeserializer_EnrichEventMetadata_ErrorsJoin(t *testing.T) {
 	require.Error(t, err)
 
 	errStr := err.Error()
+	assert.Contains(t, errStr, `failed to extract "event_name" value: field "event_name" not found in path`)
 	assert.Contains(t, errStr, `failed to extract "product" value: field "product" does not exist`)
 	assert.Contains(t, errStr, `field "event_timestamp" not found`)
 
@@ -695,8 +724,9 @@ func TestDeserializer_EnrichEventMetadata_ErrorsJoin(t *testing.T) {
 	unwrapped, ok := err.(unpacker)
 	require.True(t, ok, "expected err to implement Unwrap() []error")
 	errs := unwrapped.Unwrap()
-	require.Len(t, errs, 2)
-	assert.Contains(t, errs[0].Error(), `failed to extract "product" value: field "product" does not exist`)
-	assert.Contains(t, errs[1].Error(), `field "event_timestamp" not found`)
+	require.Len(t, errs, 3)
+	assert.Contains(t, errs[0].Error(), `failed to extract "event_name" value: field "event_name" not found in path`)
+	assert.Contains(t, errs[1].Error(), `failed to extract "product" value: field "product" does not exist`)
+	assert.Contains(t, errs[2].Error(), `field "event_timestamp" not found`)
 }
 
