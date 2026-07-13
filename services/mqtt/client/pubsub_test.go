@@ -93,6 +93,43 @@ func TestMqttPubSubClient_IsConnected(t *testing.T) {
 	})
 }
 
+func TestRegisterHandler(t *testing.T) {
+	handler := func(ctx context.Context, ps courier.PubSub, msg *courier.Message) {}
+
+	t.Run("subscribes to both v1 and v2 topics when v2 topic format is configured", func(t *testing.T) {
+		config.ServerMQTT.ConsumerConfig.TopicFormat = "clickstream/v1/+/+"
+		config.ServerMQTT.ConsumerConfig.TopicFormatV2 = "clickstream/v2/+/+/+"
+		t.Cleanup(func() {
+			config.ServerMQTT.ConsumerConfig.TopicFormat = ""
+			config.ServerMQTT.ConsumerConfig.TopicFormatV2 = ""
+		})
+
+		ps := new(subscribeRecorder)
+		ps.On("Subscribe", "clickstream/v1/+/+").Return(nil).Once()
+		ps.On("Subscribe", "clickstream/v2/+/+/+").Return(nil).Once()
+
+		registerHandler(context.Background(), handler)(ps)
+
+		ps.AssertExpectations(t)
+	})
+
+	t.Run("subscribes only to v1 topic when v2 topic format is empty", func(t *testing.T) {
+		config.ServerMQTT.ConsumerConfig.TopicFormat = "clickstream/v1/+/+"
+		config.ServerMQTT.ConsumerConfig.TopicFormatV2 = ""
+		t.Cleanup(func() {
+			config.ServerMQTT.ConsumerConfig.TopicFormat = ""
+		})
+
+		ps := new(subscribeRecorder)
+		ps.On("Subscribe", "clickstream/v1/+/+").Return(nil).Once()
+
+		registerHandler(context.Background(), handler)(ps)
+
+		ps.AssertExpectations(t)
+		ps.AssertNotCalled(t, "Subscribe", "")
+	})
+}
+
 func TestNewMqttPubSubClient(t *testing.T) {
 
 	t.Run("new pubsub client should be created", func(t *testing.T) {
@@ -146,4 +183,31 @@ type MockPubSub struct {
 func (m *MockPubSub) Subscribe(ctx context.Context, c courier.PubSub, message *courier.Message) {
 	m.Called(ctx, c, message)
 	return
+}
+
+// subscribeRecorder implements courier.PubSub so registerHandler's Subscribe
+// calls can be asserted against directly.
+type subscribeRecorder struct {
+	mock.Mock
+}
+
+func (m *subscribeRecorder) Publish(ctx context.Context, topic string, message interface{}, opts ...courier.Option) error {
+	return nil
+}
+
+func (m *subscribeRecorder) Subscribe(ctx context.Context, topic string, callback courier.MessageHandler, opts ...courier.Option) error {
+	args := m.Called(topic)
+	return args.Error(0)
+}
+
+func (m *subscribeRecorder) SubscribeMultiple(ctx context.Context, topicsWithQos map[string]courier.QOSLevel, callback courier.MessageHandler) error {
+	return nil
+}
+
+func (m *subscribeRecorder) Unsubscribe(ctx context.Context, topics ...string) error {
+	return nil
+}
+
+func (m *subscribeRecorder) IsConnected() bool {
+	return true
 }
