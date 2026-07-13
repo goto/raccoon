@@ -97,16 +97,16 @@ func TestRegisterHandler(t *testing.T) {
 	handler := func(ctx context.Context, ps courier.PubSub, msg *courier.Message) {}
 
 	t.Run("subscribes to both v1 and v2 topics when v2 topic format is configured", func(t *testing.T) {
-		config.ServerMQTT.ConsumerConfig.TopicFormat = "clickstream/v1/+/+"
-		config.ServerMQTT.ConsumerConfig.TopicFormatV2 = "clickstream/v2/+/+/+"
+		config.ServerMQTT.ConsumerConfig.TopicFormat = "ex/v1/+/+"
+		config.ServerMQTT.ConsumerConfig.TopicFormatV2 = "ex/v2/+/+/+"
 		t.Cleanup(func() {
 			config.ServerMQTT.ConsumerConfig.TopicFormat = ""
 			config.ServerMQTT.ConsumerConfig.TopicFormatV2 = ""
 		})
 
 		ps := new(subscribeRecorder)
-		ps.On("Subscribe", "clickstream/v1/+/+").Return(nil).Once()
-		ps.On("Subscribe", "clickstream/v2/+/+/+").Return(nil).Once()
+		ps.On("Subscribe", "ex/v1/+/+").Return(nil).Once()
+		ps.On("Subscribe", "ex/v2/+/+/+").Return(nil).Once()
 
 		registerHandler(context.Background(), handler)(ps)
 
@@ -114,14 +114,14 @@ func TestRegisterHandler(t *testing.T) {
 	})
 
 	t.Run("subscribes only to v1 topic when v2 topic format is empty", func(t *testing.T) {
-		config.ServerMQTT.ConsumerConfig.TopicFormat = "clickstream/v1/+/+"
+		config.ServerMQTT.ConsumerConfig.TopicFormat = "ex/v1/+/+"
 		config.ServerMQTT.ConsumerConfig.TopicFormatV2 = ""
 		t.Cleanup(func() {
 			config.ServerMQTT.ConsumerConfig.TopicFormat = ""
 		})
 
 		ps := new(subscribeRecorder)
-		ps.On("Subscribe", "clickstream/v1/+/+").Return(nil).Once()
+		ps.On("Subscribe", "ex/v1/+/+").Return(nil).Once()
 
 		registerHandler(context.Background(), handler)(ps)
 
