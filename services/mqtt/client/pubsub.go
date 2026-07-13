@@ -94,9 +94,9 @@ func NewMqttPubSubClient(ctx context.Context, handler courier.MessageHandler, cl
 // registerHandler registers the subscription handler when the client connects.
 func registerHandler(ctx context.Context, handler courier.MessageHandler) func(courier.PubSub) {
 	return func(ps courier.PubSub) {
-		topics := []string{
-			config.ServerMQTT.ConsumerConfig.TopicFormat,
-			config.ServerMQTT.ConsumerConfig.TopicFormatV2,
+		topics := []string{config.ServerMQTT.ConsumerConfig.TopicFormat}
+		if config.ServerMQTT.ConsumerConfig.TopicFormatV2 != "" {
+			topics = append(topics, config.ServerMQTT.ConsumerConfig.TopicFormatV2)
 		}
 		for _, topic := range topics {
 			if err := ps.Subscribe(ctx, topic, handler, courier.QOSOne); err != nil {
