@@ -8,8 +8,6 @@ import (
 	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-	"github.com/spf13/cast"
-	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action"
@@ -41,9 +39,9 @@ var errProtoClassNotFound = errors.New("failed to find proto class")
 
 const (
 	// errDeserializationInvalidContent is returned when event proto content is invalid.
-	errDeserializationInvalidContent = "DESERIALIZATION_ERROR | INVALID_CONTENT"
-	// errDeserializationProtoNotFound is returned when proto class name is not found.
-	errDeserializationProtoNotFound = "DESERIALIZATION_ERROR | PROTO_NOT_FOUND"
+	errDeserializationInvalidContent = "DESERIALIZATION_ERROR_INVALID_CONTENT"
+	// errProtoNotFound is returned when proto class name is not found.
+	errProtoNotFound = "PROTO_CLASS_NOT_FOUND"
 )
 
 // SchemaRegistryCache is an interface for retrieving proto class names for topics.
@@ -94,7 +92,12 @@ func (d *Deserializer) Deserialize(
 
 			reason := errDeserializationInvalidContent
 			if errors.Is(err, errProtoClassNotFound) {
-				reason = errDeserializationProtoNotFound
+				reason = errProtoNotFound
+			} else {
+				var missingFieldErr *protoutil.ErrMandatoryFieldMissing
+				if errors.As(err, &missingFieldErr) {
+					reason = fmt.Sprintf("MANDATORY_FIELD_%s_NOT_FOUND", strings.ReplaceAll(missingFieldErr.FieldName, ".", "_"))
+				}
 			}
 			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=%s,conn_group=%s,product=%s,event_name=%s,event_type=%s", reason, connGroup, meta.Product, meta.EventName, meta.Type))
 
@@ -193,7 +196,7 @@ func (d *Deserializer) enrichEventMetadata(
 		meta.Product = product
 	}
 
-	ts, err := protoutil.GetTimestampFieldValue(ref, protoFieldEventTimestamp)
+	ts, err := getTimestampField(ref, protoFieldEventTimestamp)
 	if err != nil {
 		errs = append(errs, err)
 	} else {
@@ -266,65 +269,4 @@ func (d *Deserializer) extractBaseMetadata(
 		IsExclusive:    event.GetIsExclusive(),
 		EventBytes:     event.GetEventBytes(),
 	}
-}
-
-// isPublisherWhitelisted checks if the publisher is whitelisted for the given config.
-func isPublisherWhitelisted(whitelist []string, publisher string) bool {
-	if len(whitelist) == 0 {
-		return true
-	}
-
-	return slices.Contains(whitelist, publisher)
-}
-
-// getStringField is a helper function to safely extract and convert to string.
-func getStringField(
-	ref protoreflect.Message,
-	fieldName, connGroup string,
-	meta model.EventWithMetadata,
-	isMandatory bool,
-) (string, error) {
-	rawVal, err := protoutil.GetFieldValue(ref, strings.Split(fieldName, "."), isMandatory)
-	if err != nil {
-		return "", fmt.Errorf("failed to extract %q value: %w", fieldName, err)
-	}
-
-	val, err := cast.ToStringE(rawVal)
-	if err != nil {
-		return "", fmt.Errorf("failed to convert %q value to string: %w", fieldName, err)
-	}
-
-	if val == "" {
-		metrics.Increment(
-			metricNameEventDeserializationEmptyField,
-			fmt.Sprintf("field_name=%s,conn_group=%s,event_type=%s,product=%s,event_name=%s", fieldName, connGroup, meta.Type, meta.Product, meta.EventName),
-		)
-		logger.Debugf(
-			"field %q is empty for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s",
-			fieldName, meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.Platform, meta.AppVersion,
-		)
-	}
-
-	return val, nil
-}
-
-// getEnumField is a helper function to safely extract the string name of an enum field.
-func getEnumField(ref protoreflect.Message, fieldName string) (string, error) {
-	rawVal, err := protoutil.GetEnumStringValue(ref, fieldName)
-	if err != nil {
-		return "", fmt.Errorf("failed to extract %q value: %w", fieldName, err)
-	}
-
-	return rawVal, nil
-}
-
-// resolvePublisher maps a conn_group to a publisher name using the provided map.
-// Falls back to the conn_group itself when no mapping is found.
-func resolvePublisher(connGroup string, publisherMap map[string]string) string {
-	if pub, ok := publisherMap[connGroup]; ok {
-		return pub
-	}
-
-	logger.Errorf("policy: no publisher mapping found for conn_group %q, falling back to conn_group", connGroup)
-	return connGroup
 }

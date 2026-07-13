@@ -74,7 +74,7 @@ func (d *Deactivate) Apply(ctx context.Context, events []*model.EventWithMetadat
 				if !ok {
 					logger.Debugf("[deactivate.Apply] deactivating event: publisher=%s, event_type=%s, product=%s, event_name=%s, app_version=%s, platform=%s",
 						meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.AppVersion, meta.Platform)
-					metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_REGISTRY_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, connGroup, meta.Type))
+					metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_UNREGISTERED_EVENT,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, connGroup, meta.Type))
 
 					filtered = append(filtered, meta) // TODO: Remove this line, once the new mode has been implemented in MSL
 					continue
@@ -87,7 +87,8 @@ func (d *Deactivate) Apply(ctx context.Context, events []*model.EventWithMetadat
 			if status == eventregistry.EventStatusInactive || status == eventregistry.EventStatusDeprecated {
 				logger.Debugf("[deactivate.Apply] deactivating event: publisher=%s, event_type=%s, product=%s, event_name=%s, app_version=%s, platform=%s",
 					meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.AppVersion, meta.Platform)
-				metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_REGISTRY_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, connGroup, meta.Type))
+				metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_%s_EVENT,event_name=%s,product=%s,conn_group=%s,event_type=%s",
+					status, meta.EventName, meta.Product, connGroup, meta.Type))
 				// TODO: Add continue, once the new mode has been implemented in MSL
 			}
 		}
