@@ -75,11 +75,11 @@ func TestHandler_MQTTHandler(t *testing.T) {
 			expectedGroup:     "p-q",
 		},
 		{
-			name:              "v2 topic - unmapped source app used as-is",
+			name:              "v2 topic - unmapped source app is rejected",
 			topic:             "clickstream/v2/c/x/1",
 			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
-			expectCollectCall: true,
-			expectedGroup:     "c",
+			expectCollectCall: true, // Collects with empty group
+			expectedGroup:     "",
 		},
 		{
 			name:              "v2 topic - second mapped source app uses configured connGroup",

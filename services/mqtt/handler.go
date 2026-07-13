@@ -127,7 +127,7 @@ func (h *Handler) extractConnGroup(message *courier.Message) (string, error) {
 		if connGroup, ok := config.ServerMQTT.ConsumerConfig.V2AppConnGroupMapping[sourceApp]; ok {
 			return connGroup, nil
 		}
-		return sourceApp, nil
+		return "", fmt.Errorf("unexpected app name in v2 topic: %s", message.Topic)
 	default:
 		return "", fmt.Errorf("invalid topic format: %s", message.Topic)
 	}
