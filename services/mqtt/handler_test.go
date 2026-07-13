@@ -20,6 +20,7 @@ import (
 )
 
 func TestHandler_MQTTHandler(t *testing.T) {
+	config.ServerMQTT.ConsumerConfig.EnableV2Topic = true
 	config.ServerMQTT.ConsumerConfig.V2AppConnGroupMapping = map[string]string{
 		"a": "x",
 		"b": "y",
@@ -134,6 +135,44 @@ func TestHandler_MQTTHandler(t *testing.T) {
 			mockCollector.AssertExpectations(t)
 		})
 	}
+}
+
+func TestHandler_MQTTHandler_V2TopicDisabled(t *testing.T) {
+	config.ServerMQTT.ConsumerConfig.EnableV2Topic = false
+	config.ServerMQTT.ConsumerConfig.V2AppConnGroupMapping = map[string]string{"a": "x"}
+	t.Cleanup(func() {
+		config.ServerMQTT.ConsumerConfig.EnableV2Topic = true
+	})
+
+	req := pb.SendEventRequest{
+		ReqGuid: "test-1",
+		Events:  []*pb.Event{makeEvent("click", "data123")},
+	}
+	reqContent, _ := serialization.SerializeProto(&req)
+
+	mockCollector := new(collection.MockCollector)
+	mockCollector.
+		On("Collect", mock.Anything, mock.MatchedBy(func(r *collection.CollectRequest) bool {
+			if r == nil {
+				return false
+			}
+			return r.ConnectionIdentifier.Group == ""
+		})).
+		Return(nil).
+		Once()
+
+	svc, _ := ingestionrule.NewService(context.Background(), nil)
+	h := &Handler{
+		Collector: mockCollector,
+		policy:    svc,
+	}
+
+	msg := courier.NewMessageWithDecoder(protoDecoder(context.Background(), bytes.NewReader(reqContent)))
+	msg.Topic = "clickstream/v2/a/whatever/1"
+
+	h.MQTTHandler(context.Background(), nil, msg)
+
+	mockCollector.AssertExpectations(t)
 }
 
 func TestHandler_RecordMetrics(t *testing.T) {

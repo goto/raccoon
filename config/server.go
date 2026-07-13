@@ -72,6 +72,10 @@ type consumer struct {
 	TopicFormatV2      string        // Format or pattern for subscribing to the v2 MQTT topics
 	KeepAlive          time.Duration // Amount of time that the client should wait before sending a PING request to the broker
 
+	// EnableV2Topic controls whether the v2 topic format is subscribed to and
+	// whether connGroup extraction accepts v2-shaped topics.
+	EnableV2Topic bool
+
 	// V2AppConnGroupMapping maps a v2 topic source app to its connGroup override.
 	// Source apps not present in this map use their own name as the connGroup.
 	V2AppConnGroupMapping map[string]string
@@ -141,6 +145,7 @@ func serverMQTTConfigLoader() {
 	viper.SetDefault("SERVER_MQTT_CONSUMER_POOL_SIZE", 1)
 	viper.SetDefault("SERVER_MQTT_CONSUMER_TOPIC_FORMAT", "default-topic")
 	viper.SetDefault("SERVER_MQTT_CONSUMER_TOPIC_FORMAT_V2", "default-topic-v2")
+	viper.SetDefault("SERVER_MQTT_CONSUMER_ENABLE_V2_TOPIC", false)
 	viper.SetDefault("SERVER_MQTT_CONSUMER_APP_CONN_GROUP_MAPPING", `{"a":"x","b":"y"}`)
 	viper.SetDefault("SERVER_MQTT_CONNECTION_GROUP", "default")
 
@@ -168,6 +173,7 @@ func serverMQTTConfigLoader() {
 			TopicFormat:           util.MustGetString("SERVER_MQTT_CONSUMER_TOPIC_FORMAT"),
 			TopicFormatV2:         util.MustGetString("SERVER_MQTT_CONSUMER_TOPIC_FORMAT_V2"),
 			KeepAlive:             util.MustGetDuration("SERVER_MQTT_CONSUMER_KEEP_ALIVE_IN_SEC", time.Second),
+			EnableV2Topic:         util.MustGetBool("SERVER_MQTT_CONSUMER_ENABLE_V2_TOPIC"),
 			V2AppConnGroupMapping: appConnGroupMapping,
 		},
 	}

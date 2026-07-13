@@ -95,7 +95,7 @@ func NewMqttPubSubClient(ctx context.Context, handler courier.MessageHandler, cl
 func registerHandler(ctx context.Context, handler courier.MessageHandler) func(courier.PubSub) {
 	return func(ps courier.PubSub) {
 		topics := []string{config.ServerMQTT.ConsumerConfig.TopicFormat}
-		if config.ServerMQTT.ConsumerConfig.TopicFormatV2 != "" {
+		if config.ServerMQTT.ConsumerConfig.EnableV2Topic {
 			topics = append(topics, config.ServerMQTT.ConsumerConfig.TopicFormatV2)
 		}
 		for _, topic := range topics {

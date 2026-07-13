@@ -122,7 +122,7 @@ func (h *Handler) extractConnGroup(message *courier.Message) (string, error) {
 	switch {
 	case len(topicParts) == 4 && topicParts[1] == "v1":
 		return topicParts[2], nil
-	case len(topicParts) == 5 && topicParts[1] == "v2":
+	case config.ServerMQTT.ConsumerConfig.EnableV2Topic && len(topicParts) == 5 && topicParts[1] == "v2":
 		sourceApp := topicParts[2]
 		if connGroup, ok := config.ServerMQTT.ConsumerConfig.V2AppConnGroupMapping[sourceApp]; ok {
 			return connGroup, nil
