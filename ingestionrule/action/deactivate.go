@@ -70,15 +70,15 @@ func (d *Deactivate) Apply(ctx context.Context, events []*model.EventWithMetadat
 			status, ok := d.eventChecker.GetEvents(eventKey)
 			if !ok {
 				fallbackKey := d.eventChecker.BuildCacheKey("", meta.Product, meta.EventName)
-				_, ok = d.eventChecker.GetEvents(fallbackKey)
-				if ok {
-					filtered = append(filtered, meta)
+				status, ok = d.eventChecker.GetEvents(fallbackKey)
+				if !ok {
+					logger.Debugf("[deactivate.Apply] deactivating event: publisher=%s, event_type=%s, product=%s, event_name=%s, app_version=%s, platform=%s",
+						meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.AppVersion, meta.Platform)
+					metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_REGISTRY_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, connGroup, meta.Type))
+
+					filtered = append(filtered, meta) // TODO: Remove this line, once the new mode has been implemented in MSL
 					continue
 				}
-
-				logger.Debugf("[deactivate.Apply] deactivating event: publisher=%s, event_type=%s, product=%s, event_name=%s, app_version=%s, platform=%s",
-					meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.AppVersion, meta.Platform)
-				metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_REGISTRY_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, connGroup, meta.Type))
 
 				filtered = append(filtered, meta)
 				continue
@@ -88,6 +88,7 @@ func (d *Deactivate) Apply(ctx context.Context, events []*model.EventWithMetadat
 				logger.Debugf("[deactivate.Apply] deactivating event: publisher=%s, event_type=%s, product=%s, event_name=%s, app_version=%s, platform=%s",
 					meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.AppVersion, meta.Platform)
 				metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_REGISTRY_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, connGroup, meta.Type))
+				// TODO: Add continue, once the new mode has been implemented in MSL
 			}
 		}
 
