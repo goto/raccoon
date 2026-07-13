@@ -86,3 +86,29 @@ func TestDrop_FiltersMixedBatch(t *testing.T) {
 	assert.Len(t, result, 1)
 	assert.Equal(t, "scroll", result[0].EventName)
 }
+
+func buildGlobalDropCache(past time.Duration) *cache.Cache {
+	return cache.NewCache([]config.PolicyRule{
+		{
+			Resource: config.PolicyResourceGlobal,
+			Details:  config.PolicyDetails{},
+			Action: config.PolicyActionConfig{
+				Type:                    config.PolicyActionDrop,
+				ConditionType:           config.PolicyConditionTimestampThreshold,
+				EventTimestampThreshold: config.PolicyTimestampThreshold{Past: config.PolicyDuration{Duration: past}},
+			},
+		},
+	})
+}
+
+func TestDrop_DropsBreachedEventsGlobal(t *testing.T) {
+	c := buildGlobalDropCache(time.Hour)
+	events := []*model.EventWithMetadata{{
+		EventName:      "click",
+		Product:        "app",
+		Publisher:      "pub-a",
+		EventTimestamp: time.Now().Add(-2 * time.Hour),
+	}}
+	assert.Empty(t, newDrop(c).Apply(context.Background(), events, "pub-a"))
+}
+

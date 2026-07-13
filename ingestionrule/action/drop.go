@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/action/eval/cache"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
@@ -32,9 +33,14 @@ func (d *Drop) Apply(_ context.Context, events []*model.EventWithMetadata, connG
 	filtered := make([]*model.EventWithMetadata, 0, len(events))
 
 	for _, meta := range events {
-		if d.evalChain.Run(*meta, d.cache) {
+		if ok, resource := d.evalChain.Run(*meta, d.cache); ok {
 			logger.Debugf("[drop.Apply] dropping event: event_name=%s, product=%s, publisher=%s, topic=%s, event_timestamp=%s, event_timestamp_diff=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp, time.Since(meta.EventTimestamp))
-			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DROP_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, connGroup, meta.Type))
+			reason := "DROP_POLICY"
+			if resource == config.PolicyResourceGlobal {
+				reason = "GLOBAL_DROP_POLICY"
+			}
+			
+			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s,event_type=%s", reason, meta.EventName, meta.Product, connGroup, meta.Type))
 			continue
 		}
 

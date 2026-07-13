@@ -53,7 +53,7 @@ func (d *Deactivate) Apply(ctx context.Context, events []*model.EventWithMetadat
 	filtered := make([]*model.EventWithMetadata, 0, len(events))
 
 	for _, meta := range events {
-		if d.evalChain.Run(*meta, d.cache) {
+		if ok, _ := d.evalChain.Run(*meta, d.cache); ok {
 			logger.Debugf("[deactivate.Apply] deactivating event: publisher=%s, event_type=%s, product=%s, event_name=%s, app_version=%s, platform=%s",
 				meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.AppVersion, meta.Platform)
 			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_POLICY,conn_group=%s,event_type=%s,product=%s,event_name=%s", connGroup, meta.Type, meta.Product, meta.EventName))
