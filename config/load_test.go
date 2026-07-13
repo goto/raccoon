@@ -65,7 +65,7 @@ func TestServerMQTTConfig(t *testing.T) {
 	os.Setenv("SERVER_MQTT_CONSUMER_POOL_SIZE", "1")
 	os.Setenv("SERVER_MQTT_CONSUMER_TOPIC_FORMAT", "default-topic")
 	os.Setenv("SERVER_MQTT_CONSUMER_TOPIC_FORMAT_V2", "default-topic-v2")
-	os.Setenv("SERVER_MQTT_CONSUMER_V1_APP_NAMES", "a,b")
+	os.Setenv("SERVER_MQTT_CONSUMER_APP_CONN_GROUP_MAPPING", `{"a":"x","b":"y"}`)
 	os.Setenv("SERVER_MQTT_CONNECTION_GROUP", "consumer")
 	serverMQTTConfigLoader()
 	assert.Equal(t, "consul:8081", ServerMQTT.ConsulConfig.Address)
@@ -80,7 +80,7 @@ func TestServerMQTTConfig(t *testing.T) {
 	assert.Equal(t, 1, ServerMQTT.ConsumerConfig.PoolSize)
 	assert.Equal(t, "default-topic", ServerMQTT.ConsumerConfig.TopicFormat)
 	assert.Equal(t, "default-topic-v2", ServerMQTT.ConsumerConfig.TopicFormatV2)
-	assert.Equal(t, map[string]struct{}{"a": {}, "b": {}}, ServerMQTT.ConsumerConfig.V1AppNames)
+	assert.Equal(t, map[string]string{"a": "x", "b": "y"}, ServerMQTT.ConsumerConfig.V2AppConnGroupMapping)
 
 }
 

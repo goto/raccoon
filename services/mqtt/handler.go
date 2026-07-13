@@ -123,9 +123,9 @@ func (h *Handler) extractConnGroup(message *courier.Message) (string, error) {
 	case len(topicParts) == 4 && topicParts[1] == "v1":
 		return topicParts[2], nil
 	case len(topicParts) == 5 && topicParts[1] == "v2":
-		sourceApp, persona := topicParts[2], topicParts[3]
-		if _, ok := config.ServerMQTT.ConsumerConfig.V1AppNames[sourceApp]; ok {
-			return persona, nil
+		sourceApp := topicParts[2]
+		if connGroup, ok := config.ServerMQTT.ConsumerConfig.V2AppConnGroupMapping[sourceApp]; ok {
+			return connGroup, nil
 		}
 		return sourceApp, nil
 	default:

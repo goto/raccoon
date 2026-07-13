@@ -1,7 +1,7 @@
 package config
 
 import (
-	"strings"
+	"encoding/json"
 	"time"
 
 	"github.com/goto/raccoon/config/util"
@@ -72,9 +72,9 @@ type consumer struct {
 	TopicFormatV2      string        // Format or pattern for subscribing to the v2 MQTT topics
 	KeepAlive          time.Duration // Amount of time that the client should wait before sending a PING request to the broker
 
-	// V1AppNames is the set of source apps whose v2 topic includes a persona
-	// segment; connGroup is derived from the persona for these apps.
-	V1AppNames map[string]struct{}
+	// V2AppConnGroupMapping maps a v2 topic source app to its connGroup override.
+	// Source apps not present in this map use their own name as the connGroup.
+	V2AppConnGroupMapping map[string]string
 }
 
 func serverConfigLoader() {
@@ -141,16 +141,12 @@ func serverMQTTConfigLoader() {
 	viper.SetDefault("SERVER_MQTT_CONSUMER_POOL_SIZE", 1)
 	viper.SetDefault("SERVER_MQTT_CONSUMER_TOPIC_FORMAT", "default-topic")
 	viper.SetDefault("SERVER_MQTT_CONSUMER_TOPIC_FORMAT_V2", "default-topic-v2")
-	viper.SetDefault("SERVER_MQTT_CONSUMER_V1_APP_NAMES", "a,b")
+	viper.SetDefault("SERVER_MQTT_CONSUMER_APP_CONN_GROUP_MAPPING", `{"a":"x","b":"y"}`)
 	viper.SetDefault("SERVER_MQTT_CONNECTION_GROUP", "default")
 
-	rawv1AppNames := util.MustGetString("SERVER_MQTT_CONSUMER_V1_APP_NAMES")
-	v1AppNames := make(map[string]struct{})
-	for _, sourceApp := range strings.Split(rawv1AppNames, ",") {
-		if sourceApp = strings.TrimSpace(sourceApp); sourceApp != "" {
-			v1AppNames[sourceApp] = struct{}{}
-		}
-	}
+	appConnGroupMapping := make(map[string]string)
+	rawAppConnGroupMapping := util.MustGetString("SERVER_MQTT_CONSUMER_APP_CONN_GROUP_MAPPING")
+	_ = json.Unmarshal([]byte(rawAppConnGroupMapping), &appConnGroupMapping)
 
 	ServerMQTT = serverMQTT{
 		Enable: util.MustGetBool("SERVER_MQTT_ENABLED"),
@@ -165,14 +161,14 @@ func serverMQTTConfigLoader() {
 			Password: util.MustGetString("SERVER_MQTT_AUTH_PASSWORD"),
 		},
 		ConsumerConfig: consumer{
-			RetryIntervalInSec: util.MustGetDuration("SERVER_MQTT_CONSUMER_RETRY_INTERVAL_IN_SEC", time.Second),
-			LogLevel:           util.MustGetString("SERVER_MQTT_CONSUMER_LOG_LEVEL"),
-			WriteTimeoutInSec:  util.MustGetDuration("SERVER_MQTT_CONSUMER_WRITE_TIMEOUT_IN_SEC", time.Second),
-			PoolSize:           util.MustGetInt("SERVER_MQTT_CONSUMER_POOL_SIZE"),
-			TopicFormat:        util.MustGetString("SERVER_MQTT_CONSUMER_TOPIC_FORMAT"),
-			TopicFormatV2:      util.MustGetString("SERVER_MQTT_CONSUMER_TOPIC_FORMAT_V2"),
-			KeepAlive:          util.MustGetDuration("SERVER_MQTT_CONSUMER_KEEP_ALIVE_IN_SEC", time.Second),
-			V1AppNames:         v1AppNames,
+			RetryIntervalInSec:    util.MustGetDuration("SERVER_MQTT_CONSUMER_RETRY_INTERVAL_IN_SEC", time.Second),
+			LogLevel:              util.MustGetString("SERVER_MQTT_CONSUMER_LOG_LEVEL"),
+			WriteTimeoutInSec:     util.MustGetDuration("SERVER_MQTT_CONSUMER_WRITE_TIMEOUT_IN_SEC", time.Second),
+			PoolSize:              util.MustGetInt("SERVER_MQTT_CONSUMER_POOL_SIZE"),
+			TopicFormat:           util.MustGetString("SERVER_MQTT_CONSUMER_TOPIC_FORMAT"),
+			TopicFormatV2:         util.MustGetString("SERVER_MQTT_CONSUMER_TOPIC_FORMAT_V2"),
+			KeepAlive:             util.MustGetDuration("SERVER_MQTT_CONSUMER_KEEP_ALIVE_IN_SEC", time.Second),
+			V2AppConnGroupMapping: appConnGroupMapping,
 		},
 	}
 }

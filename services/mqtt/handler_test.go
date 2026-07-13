@@ -20,9 +20,10 @@ import (
 )
 
 func TestHandler_MQTTHandler(t *testing.T) {
-	config.ServerMQTT.ConsumerConfig.V1AppNames = map[string]struct{}{
-		"a": {},
-		"b": {},
+	config.ServerMQTT.ConsumerConfig.V2AppConnGroupMapping = map[string]string{
+		"a": "x",
+		"b": "y",
+		"e": "p-q",
 	}
 
 	req := pb.SendEventRequest{
@@ -60,28 +61,28 @@ func TestHandler_MQTTHandler(t *testing.T) {
 			expectedGroup:     "",
 		},
 		{
-			name:              "v2 topic - whitelisted source app maps to persona",
-			topic:             "clickstream/v2/a/x/1",
+			name:              "v2 topic - mapped source app uses configured connGroup, ignoring persona",
+			topic:             "clickstream/v2/a/whatever/1",
 			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
 			expectCollectCall: true,
 			expectedGroup:     "x",
 		},
 		{
-			name:              "v2 topic - non-whitelisted source app used as-is",
+			name:              "v2 topic - mapped connGroup can differ from both source app and persona",
+			topic:             "clickstream/v2/e/q/1",
+			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
+			expectCollectCall: true,
+			expectedGroup:     "p-q",
+		},
+		{
+			name:              "v2 topic - unmapped source app used as-is",
 			topic:             "clickstream/v2/c/x/1",
 			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
 			expectCollectCall: true,
 			expectedGroup:     "c",
 		},
 		{
-			name:              "v2 topic - another non-whitelisted source app used as-is",
-			topic:             "clickstream/v2/d/x/1",
-			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
-			expectCollectCall: true,
-			expectedGroup:     "d",
-		},
-		{
-			name:              "v2 topic - second whitelisted source app maps to persona",
+			name:              "v2 topic - second mapped source app uses configured connGroup",
 			topic:             "clickstream/v2/b/y/2",
 			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
 			expectCollectCall: true,
