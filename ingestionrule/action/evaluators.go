@@ -20,26 +20,27 @@ type Evaluator interface {
 }
 
 // Chain is an ordered list of evaluators. Run stops at the first evaluator that
-// finds a matching rule key (found=true) and returns its condition result.
-// If no evaluator finds a rule for the event, returns false.
+// finds a matching rule key (found=true) and returns its condition result and resource type.
+// If no evaluator finds a rule for the event, returns false and empty string.
 type Chain []Evaluator
 
 // Run fetches the rules for each evaluator's resource type from the cache,
 // then evaluates in order. Stops as soon as an evaluator finds a matching rule
-// key (found=true) and returns the condition result. If an event-level rule is
-// found but the condition is not breached, the chain stops and returns false —
-// topic-level rules are never consulted.
-func (c Chain) Run(meta model.EventWithMetadata, ruleCache *cache.Cache) bool {
+// key (found=true) and returns the condition result and the evaluator's resource type.
+// If an event-level rule is found but the condition is not breached, the chain stops
+// and returns false along with the matched resource type — topic-level rules are never consulted.
+func (c Chain) Run(meta model.EventWithMetadata, ruleCache *cache.Cache) (bool, config.PolicyResourceType) {
 	for _, ev := range c {
 		rules := ruleCache.Get(ev.Resource())
 		result, found := ev.Evaluate(meta, rules)
 		if found {
 			logger.Debugf("[chain.Run] rule matched: resource=%s, result=%v, event_name=%s, product=%s, publisher=%s, topic=%s", ev.Resource(), result, meta.EventName, meta.Product, meta.Publisher, meta.TopicName)
-			return result
+			return result, ev.Resource()
 		}
 	}
-	return false
+	return false, ""
 }
+
 
 // DefaultChain returns the standard evaluation chain: EventEvaluator → TopicEvaluator → GlobalEvaluator.
 func DefaultChain() Chain {

@@ -44,7 +44,7 @@ func (o *OverrideTimestamp) Apply(_ context.Context, events []*model.EventWithMe
 	start := time.Now()
 
 	for _, meta := range events {
-		if o.evalChain.Run(*meta, o.cache) {
+		if ok, _ := o.evalChain.Run(*meta, o.cache); ok {
 			parsedMsg := meta.ProtoMsg
 			if parsedMsg == nil {
 				continue
