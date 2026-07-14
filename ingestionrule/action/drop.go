@@ -38,7 +38,7 @@ func (d *Drop) Apply(_ context.Context, events []*model.EventWithMetadata, connG
 			reason := "DROP_POLICY"
 			if resource == config.PolicyResourceGlobal {
 				reason = "GLOBAL_DROP_POLICY"
-				logger.Infof("[globaldrop.Apply] dropping event: event_name=%s, product=%s, publisher=%s, topic=%s, event_timestamp=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp)
+				logger.Infof("[globaldrop.Apply] dropping event: event_name=%s, product=%s, publisher=%s, topic=%s, event_timestamp=%s, event_timestamp_diff=%s", meta.EventName, meta.Product, meta.Publisher, meta.TopicName, meta.EventTimestamp, time.Since(meta.EventTimestamp))
 			}
 
 			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s,event_type=%s", reason, meta.EventName, meta.Product, connGroup, meta.Type))
