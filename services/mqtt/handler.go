@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/goto/raccoon/collection"
+	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/identification"
 	policypkg "github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/logger"
@@ -117,13 +118,17 @@ func (h *Handler) recordEventMetrics(tags string, data any) {
 
 func (h *Handler) extractConnGroup(message *courier.Message) (string, error) {
 	topicParts := strings.Split(message.Topic, "/")
-	if len(topicParts) != 4 {
+
+	switch {
+	case len(topicParts) == 4 && topicParts[1] == "v1":
+		return topicParts[2], nil
+	case config.ServerMQTT.ConsumerConfig.EnableV2Topic && len(topicParts) == 5 && topicParts[1] == "v2":
+		sourceApp := topicParts[2]
+		if connGroup, ok := config.ServerMQTT.ConsumerConfig.V2AppConnGroupMapping[sourceApp]; ok {
+			return connGroup, nil
+		}
+		return "", fmt.Errorf("unexpected app name in v2 topic: %s", message.Topic)
+	default:
 		return "", fmt.Errorf("invalid topic format: %s", message.Topic)
 	}
-
-	if topicParts[1] != "v1" {
-		return "", fmt.Errorf("unexpected topic version: %s", message.Topic)
-	}
-
-	return topicParts[2], nil
 }

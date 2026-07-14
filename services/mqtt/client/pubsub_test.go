@@ -93,6 +93,84 @@ func TestMqttPubSubClient_IsConnected(t *testing.T) {
 	})
 }
 
+func TestRegisterHandler(t *testing.T) {
+	handler := func(ctx context.Context, ps courier.PubSub, msg *courier.Message) {}
+
+	t.Run("subscribes to both v1 and v2 topics when v2 is enabled and configured", func(t *testing.T) {
+		config.ServerMQTT.ConsumerConfig.TopicFormat = "ex/v1/+/+"
+		config.ServerMQTT.ConsumerConfig.TopicFormatV2 = "ex/v2/+/+/+"
+		config.ServerMQTT.ConsumerConfig.EnableV2Topic = true
+		t.Cleanup(func() {
+			config.ServerMQTT.ConsumerConfig.TopicFormat = ""
+			config.ServerMQTT.ConsumerConfig.TopicFormatV2 = ""
+			config.ServerMQTT.ConsumerConfig.EnableV2Topic = false
+		})
+
+		ps := new(subscribeRecorder)
+		ps.On("Subscribe", "ex/v1/+/+").Return(nil).Once()
+		ps.On("Subscribe", "ex/v2/+/+/+").Return(nil).Once()
+
+		registerHandler(context.Background(), handler)(ps)
+
+		ps.AssertExpectations(t)
+	})
+
+	t.Run("does not subscribe to v2 topic when EnableV2Topic is false, even if configured", func(t *testing.T) {
+		config.ServerMQTT.ConsumerConfig.TopicFormat = "ex/v1/+/+"
+		config.ServerMQTT.ConsumerConfig.TopicFormatV2 = "ex/v2/+/+/+"
+		config.ServerMQTT.ConsumerConfig.EnableV2Topic = false
+		t.Cleanup(func() {
+			config.ServerMQTT.ConsumerConfig.TopicFormat = ""
+			config.ServerMQTT.ConsumerConfig.TopicFormatV2 = ""
+		})
+
+		ps := new(subscribeRecorder)
+		ps.On("Subscribe", "ex/v1/+/+").Return(nil).Once()
+
+		registerHandler(context.Background(), handler)(ps)
+
+		ps.AssertExpectations(t)
+		ps.AssertNotCalled(t, "Subscribe", "ex/v2/+/+/+")
+	})
+
+	t.Run("attempts to subscribe to v2 topic as configured, even if empty, when EnableV2Topic is true", func(t *testing.T) {
+		config.ServerMQTT.ConsumerConfig.TopicFormat = "ex/v1/+/+"
+		config.ServerMQTT.ConsumerConfig.TopicFormatV2 = ""
+		config.ServerMQTT.ConsumerConfig.EnableV2Topic = true
+		t.Cleanup(func() {
+			config.ServerMQTT.ConsumerConfig.TopicFormat = ""
+			config.ServerMQTT.ConsumerConfig.EnableV2Topic = false
+		})
+
+		ps := new(subscribeRecorder)
+		ps.On("Subscribe", "ex/v1/+/+").Return(nil).Once()
+		ps.On("Subscribe", "").Return(errors.New("invalid topic")).Once()
+
+		registerHandler(context.Background(), handler)(ps)
+
+		ps.AssertExpectations(t)
+	})
+
+	t.Run("subscribes to v2 topic literally, without stripping stray quote characters", func(t *testing.T) {
+		config.ServerMQTT.ConsumerConfig.TopicFormat = "ex/v1/+/+"
+		config.ServerMQTT.ConsumerConfig.TopicFormatV2 = `""`
+		config.ServerMQTT.ConsumerConfig.EnableV2Topic = true
+		t.Cleanup(func() {
+			config.ServerMQTT.ConsumerConfig.TopicFormat = ""
+			config.ServerMQTT.ConsumerConfig.TopicFormatV2 = ""
+			config.ServerMQTT.ConsumerConfig.EnableV2Topic = false
+		})
+
+		ps := new(subscribeRecorder)
+		ps.On("Subscribe", "ex/v1/+/+").Return(nil).Once()
+		ps.On("Subscribe", `""`).Return(errors.New("invalid topic")).Once()
+
+		registerHandler(context.Background(), handler)(ps)
+
+		ps.AssertExpectations(t)
+	})
+}
+
 func TestNewMqttPubSubClient(t *testing.T) {
 
 	t.Run("new pubsub client should be created", func(t *testing.T) {
@@ -146,4 +224,31 @@ type MockPubSub struct {
 func (m *MockPubSub) Subscribe(ctx context.Context, c courier.PubSub, message *courier.Message) {
 	m.Called(ctx, c, message)
 	return
+}
+
+// subscribeRecorder implements courier.PubSub so registerHandler's Subscribe
+// calls can be asserted against directly.
+type subscribeRecorder struct {
+	mock.Mock
+}
+
+func (m *subscribeRecorder) Publish(ctx context.Context, topic string, message interface{}, opts ...courier.Option) error {
+	return nil
+}
+
+func (m *subscribeRecorder) Subscribe(ctx context.Context, topic string, callback courier.MessageHandler, opts ...courier.Option) error {
+	args := m.Called(topic)
+	return args.Error(0)
+}
+
+func (m *subscribeRecorder) SubscribeMultiple(ctx context.Context, topicsWithQos map[string]courier.QOSLevel, callback courier.MessageHandler) error {
+	return nil
+}
+
+func (m *subscribeRecorder) Unsubscribe(ctx context.Context, topics ...string) error {
+	return nil
+}
+
+func (m *subscribeRecorder) IsConnected() bool {
+	return true
 }
