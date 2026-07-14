@@ -96,7 +96,7 @@ func (d *Deserializer) Deserialize(
 			} else {
 				var missingFieldErr *protoutil.ErrMandatoryFieldMissing
 				if errors.As(err, &missingFieldErr) {
-					reason = fmt.Sprintf("MANDATORY_FIELD_%s_NOT_FOUND", strings.ReplaceAll(missingFieldErr.FieldName, ".", "_"))
+					reason = fmt.Sprintf("MANDATORY_FIELD_%s_NOT_FOUND", strings.ReplaceAll(strings.ToUpper(missingFieldErr.FieldName), ".", "_"))
 				}
 			}
 			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=%s,conn_group=%s,product=%s,event_name=%s,event_type=%s", reason, connGroup, meta.Product, meta.EventName, meta.Type))
