@@ -345,7 +345,7 @@ func TestService_CompassHealthCheck(t *testing.T) {
 
 func setupMockMSLServer(t *testing.T, responseJSON string) *httptest.Server {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v1/events", r.URL.Path)
+		assert.Equal(t, "/v1/events/simplified", r.URL.Path)
 		assert.Equal(t, "grp", r.URL.Query().Get("publisher"))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -395,16 +395,14 @@ func TestService_WithRegistrationStore(t *testing.T) {
 	// Key format: publisher:topic:product:eventName
 	responseJSON := `{
 		"success": true,
-		"data": {
-			"event1": {
-				"publisher": "grp",
-				"product": "app",
+		"data": [
+			{
 				"name": "click",
-				"source": {
-					"table": "clickstream_click_log"
-				}
+				"product": "app",
+				"table": "clickstream_click_log",
+				"status": "ACTIVE"
 			}
-		}
+		]
 	}`
 
 	mockServer := setupMockMSLServer(t, responseJSON)
@@ -456,16 +454,14 @@ func TestService_WithRegistrationStore_ActionOrder(t *testing.T) {
 	// Mock server returns event other than "click"
 	responseJSON := `{
 		"success": true,
-		"data": {
-			"event1": {
-				"publisher": "grp",
-				"product": "app",
+		"data": [
+			{
 				"name": "other",
-				"source": {
-					"table": "clickstream_other_log"
-				}
+				"product": "app",
+				"table": "clickstream_other_log",
+				"status": "ACTIVE"
 			}
-		}
+		]
 	}`
 
 	mockServer := setupMockMSLServer(t, responseJSON)

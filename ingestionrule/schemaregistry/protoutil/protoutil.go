@@ -8,6 +8,19 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+type ErrMandatoryFieldMissing struct {
+	FieldName string
+	Err       error
+}
+
+func (e *ErrMandatoryFieldMissing) Error() string {
+	return fmt.Sprintf("mandatory field %q is missing or invalid: %v", e.FieldName, e.Err)
+}
+
+func (e *ErrMandatoryFieldMissing) Unwrap() error {
+	return e.Err
+}
+
 // GetFieldValue retrieves the value of a field from a protobuf message by its path.
 // It returns the field value and an error if any occurs during traversal.
 // If isMandatory is set to true, it returns an error if the final leaf field value is empty.
@@ -25,7 +38,7 @@ func GetFieldValue(msg protoreflect.Message, path []string, isMandatory bool) (a
 				return nil, nil
 			}
 
-			return nil, fmt.Errorf("field %q not found in path", fieldName)
+			return nil, &ErrMandatoryFieldMissing{FieldName: fieldName, Err: fmt.Errorf("field %q not found in path", fieldName)}
 		}
 
 		val := currentMsg.Get(fieldDesc)
@@ -36,7 +49,7 @@ func GetFieldValue(msg protoreflect.Message, path []string, isMandatory bool) (a
 			}
 
 			if isMandatory && isEmptyValue(val, fieldDesc) {
-				return nil, fmt.Errorf("mandatory field %q is empty", fieldName)
+				return nil, &ErrMandatoryFieldMissing{FieldName: fieldName, Err: fmt.Errorf("mandatory field %q is empty", fieldName)}
 			}
 
 			return val.Interface(), nil
@@ -60,7 +73,7 @@ func GetFieldValue(msg protoreflect.Message, path []string, isMandatory bool) (a
 func GetEnumStringValue(msg protoreflect.Message, fieldName string) (string, error) {
 	fieldDesc := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
 	if fieldDesc == nil {
-		return "", fmt.Errorf("field %q does not exist", fieldName)
+		return "", &ErrMandatoryFieldMissing{FieldName: fieldName, Err: fmt.Errorf("field %q does not exist", fieldName)}
 	}
 
 	if fieldDesc.Kind() != protoreflect.EnumKind {
@@ -82,7 +95,7 @@ func GetEnumStringValue(msg protoreflect.Message, fieldName string) (string, err
 func GetTimestampFieldValue(msg protoreflect.Message, fieldName string) (time.Time, error) {
 	fieldDesc := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
 	if fieldDesc == nil {
-		return time.Time{}, fmt.Errorf("field %q not found", fieldName)
+		return time.Time{}, &ErrMandatoryFieldMissing{FieldName: fieldName, Err: fmt.Errorf("field %q not found", fieldName)}
 	}
 
 	val := msg.Get(fieldDesc)

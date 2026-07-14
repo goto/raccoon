@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	endpointPathEvents = "/v1/events"
+	endpointPathEvents = "/v1/events/simplified"
 	endpointPathPing   = "/ping"
 )
 
@@ -134,16 +134,18 @@ func (e *EventCache) HealthCheck() error {
 // The generated string is always a contiguous 16-character lowercase hexadecimal string
 // representing the complete 64-bit signature ($8 \text{ bytes} \times 2 \text{ hex characters/byte}$)
 // padded with leading zeros if necessary
-func (e *EventCache) BuildCacheKey(publisher, topic, product, eventName string) string {
+func (e *EventCache) BuildCacheKey(topic, product, eventName string) string {
 	d := xxhash.New()
 
 	const keySeparator = ":"
 
-	// key: <publisher>:<topic>:<product>:<event_name>
-	_, _ = io.WriteString(d, publisher)
-	_, _ = io.WriteString(d, keySeparator)
-	_, _ = io.WriteString(d, topic)
-	_, _ = io.WriteString(d, keySeparator)
+	// key for linked events: <topic>:<product>:<event_name>
+	// key for unlinked events: <product>:<event_name>
+	if topic != "" {
+		_, _ = io.WriteString(d, topic)
+		_, _ = io.WriteString(d, keySeparator)
+	}
+
 	_, _ = io.WriteString(d, product)
 	_, _ = io.WriteString(d, keySeparator)
 	_, _ = io.WriteString(d, eventName)
@@ -161,7 +163,7 @@ func (e *EventCache) loadEventMap(ctx context.Context) (map[string]EventStatus, 
 
 	type result struct {
 		publisher string
-		events    []Event
+		events    []event
 		err       error
 	}
 
@@ -191,7 +193,12 @@ func (e *EventCache) loadEventMap(ctx context.Context) (map[string]EventStatus, 
 		metrics.Increment(e.metricName, "status=success,type=fetch_msl_events")
 
 		for _, evt := range res.events {
-			key := e.BuildCacheKey(evt.Publisher, strings.ReplaceAll(evt.TableName, "_", "-"), evt.Product, evt.EventName)
+			var topic string
+			if evt.Table != "" {
+				topic = strings.ReplaceAll(evt.Table, "_", "-")
+			}
+
+			key := e.BuildCacheKey(topic, evt.Product, evt.Name)
 			newEvents[key] = evt.Status
 		}
 	}
@@ -206,7 +213,7 @@ func (e *EventCache) loadEventMap(ctx context.Context) (map[string]EventStatus, 
 }
 
 // fetchEvents retrieves a list of events for a specific publisher from the MSL API.
-func (e *EventCache) fetchEvents(ctx context.Context, publisher string) ([]Event, error) {
+func (e *EventCache) fetchEvents(ctx context.Context, publisher string) ([]event, error) {
 	if e.httpHost == "" {
 		return nil, errors.New("MSL HTTP host is empty")
 	}
@@ -232,14 +239,13 @@ func (e *EventCache) fetchEvents(ctx context.Context, publisher string) ([]Event
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	events := make([]Event, 0, len(resp.Data))
+	events := make([]event, 0, len(resp.Data))
 	for _, e := range resp.Data {
-		events = append(events, Event{
-			Publisher: e.Publisher,
-			TableName: e.Source.Table,
-			Product:   e.Product,
-			EventName: e.Name,
-			Status:    EventStatus(e.Status),
+		events = append(events, event{
+			Name:    e.Name,
+			Table:   e.Table,
+			Product: e.Product,
+			Status:  EventStatus(e.Status),
 		})
 	}
 

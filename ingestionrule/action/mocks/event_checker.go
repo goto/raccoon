@@ -37,16 +37,16 @@ func (_m *EventChecker) EXPECT() *EventChecker_Expecter {
 }
 
 // BuildCacheKey provides a mock function for the type EventChecker
-func (_mock *EventChecker) BuildCacheKey(publisher string, topic string, product string, eventName string) string {
-	ret := _mock.Called(publisher, topic, product, eventName)
+func (_mock *EventChecker) BuildCacheKey(topic string, product string, eventName string) string {
+	ret := _mock.Called(topic, product, eventName)
 
 	if len(ret) == 0 {
 		panic("no return value specified for BuildCacheKey")
 	}
 
 	var r0 string
-	if returnFunc, ok := ret.Get(0).(func(string, string, string, string) string); ok {
-		r0 = returnFunc(publisher, topic, product, eventName)
+	if returnFunc, ok := ret.Get(0).(func(string, string, string) string); ok {
+		r0 = returnFunc(topic, product, eventName)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
@@ -59,15 +59,14 @@ type EventChecker_BuildCacheKey_Call struct {
 }
 
 // BuildCacheKey is a helper method to define mock.On call
-//   - publisher string
 //   - topic string
 //   - product string
 //   - eventName string
-func (_e *EventChecker_Expecter) BuildCacheKey(publisher interface{}, topic interface{}, product interface{}, eventName interface{}) *EventChecker_BuildCacheKey_Call {
-	return &EventChecker_BuildCacheKey_Call{Call: _e.mock.On("BuildCacheKey", publisher, topic, product, eventName)}
+func (_e *EventChecker_Expecter) BuildCacheKey(topic interface{}, product interface{}, eventName interface{}) *EventChecker_BuildCacheKey_Call {
+	return &EventChecker_BuildCacheKey_Call{Call: _e.mock.On("BuildCacheKey", topic, product, eventName)}
 }
 
-func (_c *EventChecker_BuildCacheKey_Call) Run(run func(publisher string, topic string, product string, eventName string)) *EventChecker_BuildCacheKey_Call {
+func (_c *EventChecker_BuildCacheKey_Call) Run(run func(topic string, product string, eventName string)) *EventChecker_BuildCacheKey_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
@@ -81,15 +80,10 @@ func (_c *EventChecker_BuildCacheKey_Call) Run(run func(publisher string, topic 
 		if args[2] != nil {
 			arg2 = args[2].(string)
 		}
-		var arg3 string
-		if args[3] != nil {
-			arg3 = args[3].(string)
-		}
 		run(
 			arg0,
 			arg1,
 			arg2,
-			arg3,
 		)
 	})
 	return _c
@@ -100,7 +94,7 @@ func (_c *EventChecker_BuildCacheKey_Call) Return(s string) *EventChecker_BuildC
 	return _c
 }
 
-func (_c *EventChecker_BuildCacheKey_Call) RunAndReturn(run func(publisher string, topic string, product string, eventName string) string) *EventChecker_BuildCacheKey_Call {
+func (_c *EventChecker_BuildCacheKey_Call) RunAndReturn(run func(topic string, product string, eventName string) string) *EventChecker_BuildCacheKey_Call {
 	_c.Call.Return(run)
 	return _c
 }

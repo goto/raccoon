@@ -26,7 +26,7 @@ type EventChecker interface {
 	// HasSynced returns true if the cache has successfully synced at least once.
 	HasSynced() bool
 	// BuildCacheKey builds the cache key for the given event.
-	BuildCacheKey(publisher, topic, product, eventName string) string
+	BuildCacheKey(topic, product, eventName string) string
 }
 
 // Deactivate is a policy action that unconditionally drops events matching the
@@ -66,12 +66,30 @@ func (d *Deactivate) Apply(ctx context.Context, events []*model.EventWithMetadat
 				continue
 			}
 
-			eventKey := d.eventChecker.BuildCacheKey(meta.Publisher, meta.TopicName, meta.Product, meta.EventName)
+			eventKey := d.eventChecker.BuildCacheKey(meta.TopicName, meta.Product, meta.EventName)
 			status, ok := d.eventChecker.GetEvents(eventKey)
-			if !ok || status == eventregistry.EventStatusInactive || status == eventregistry.EventStatusDeprecated {
+			if !ok {
+				fallbackKey := d.eventChecker.BuildCacheKey("", meta.Product, meta.EventName)
+				status, ok = d.eventChecker.GetEvents(fallbackKey)
+				if !ok {
+					logger.Debugf("[deactivate.Apply] deactivating event: publisher=%s, event_type=%s, product=%s, event_name=%s, app_version=%s, platform=%s",
+						meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.AppVersion, meta.Platform)
+					metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_UNREGISTERED_EVENT,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, connGroup, meta.Type))
+
+					filtered = append(filtered, meta) // TODO: Remove this line, once the new mode has been implemented in MSL
+					continue
+				}
+
+				filtered = append(filtered, meta)
+				continue
+			}
+
+			if status == eventregistry.EventStatusInactive || status == eventregistry.EventStatusDeprecated {
 				logger.Debugf("[deactivate.Apply] deactivating event: publisher=%s, event_type=%s, product=%s, event_name=%s, app_version=%s, platform=%s",
 					meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.AppVersion, meta.Platform)
-				metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_REGISTRY_POLICY,event_name=%s,product=%s,conn_group=%s,event_type=%s", meta.EventName, meta.Product, connGroup, meta.Type))
+				metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=DEACTIVATE_%s_EVENT,event_name=%s,product=%s,conn_group=%s,event_type=%s",
+					status, meta.EventName, meta.Product, connGroup, meta.Type))
+				// TODO: Add continue, once the new mode has been implemented in MSL
 			}
 		}
 

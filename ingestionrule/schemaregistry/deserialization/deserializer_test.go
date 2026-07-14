@@ -14,6 +14,7 @@ import (
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/ingestionrule/schemaregistry"
 	"github.com/goto/raccoon/ingestionrule/schemaregistry/deserialization/mocks"
+	"github.com/goto/raccoon/ingestionrule/schemaregistry/protoutil"
 	testpb "github.com/goto/raccoon/ingestionrule/schemaregistry/protoutil/testpb"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/model"
@@ -30,10 +31,12 @@ func (m *mockStencilClient) Parse(className string, data []byte) (protoreflect.P
 	return nil, errors.New("parse not implemented")
 }
 
-func (m *mockStencilClient) Serialize(string, interface{}) ([]byte, error)             { return nil, nil }
-func (m *mockStencilClient) GetDescriptor(string) (protoreflect.MessageDescriptor, error) { return nil, nil }
-func (m *mockStencilClient) Close()                                                      {}
-func (m *mockStencilClient) Refresh()                                                    {}
+func (m *mockStencilClient) Serialize(string, interface{}) ([]byte, error) { return nil, nil }
+func (m *mockStencilClient) GetDescriptor(string) (protoreflect.MessageDescriptor, error) {
+	return nil, nil
+}
+func (m *mockStencilClient) Close()   {}
+func (m *mockStencilClient) Refresh() {}
 
 func TestDeserializeEvents(t *testing.T) {
 	metrics.SetVoid()
@@ -714,8 +717,8 @@ func TestDeserializer_EnrichEventMetadata_ErrorsJoin(t *testing.T) {
 	require.Error(t, err)
 
 	errStr := err.Error()
-	assert.Contains(t, errStr, `failed to extract "event_name" value: field "event_name" not found in path`)
-	assert.Contains(t, errStr, `failed to extract "product" value: field "product" does not exist`)
+	assert.Contains(t, errStr, `field "event_name" not found in path`)
+	assert.Contains(t, errStr, `field "product" does not exist`)
 	assert.Contains(t, errStr, `field "event_timestamp" not found`)
 
 	type unpacker interface {
@@ -725,8 +728,18 @@ func TestDeserializer_EnrichEventMetadata_ErrorsJoin(t *testing.T) {
 	require.True(t, ok, "expected err to implement Unwrap() []error")
 	errs := unwrapped.Unwrap()
 	require.Len(t, errs, 3)
-	assert.Contains(t, errs[0].Error(), `failed to extract "event_name" value: field "event_name" not found in path`)
-	assert.Contains(t, errs[1].Error(), `failed to extract "product" value: field "product" does not exist`)
+
+	var missingFieldErr *protoutil.ErrMandatoryFieldMissing
+
+	require.ErrorAs(t, errs[0], &missingFieldErr)
+	assert.Equal(t, "event_name", missingFieldErr.FieldName)
+	assert.Contains(t, errs[0].Error(), `field "event_name" not found in path`)
+
+	require.ErrorAs(t, errs[1], &missingFieldErr)
+	assert.Equal(t, "product", missingFieldErr.FieldName)
+	assert.Contains(t, errs[1].Error(), `field "product" does not exist`)
+
+	require.ErrorAs(t, errs[2], &missingFieldErr)
+	assert.Equal(t, "event_timestamp", missingFieldErr.FieldName)
 	assert.Contains(t, errs[2].Error(), `field "event_timestamp" not found`)
 }
-
