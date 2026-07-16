@@ -87,7 +87,6 @@ func (h *Handler) HandlerWSEvents(w http.ResponseWriter, r *http.Request) {
 				websocket.CloseNormalClosure,
 				websocket.CloseNoStatusReceived,
 				websocket.CloseAbnormalClosure) {
-				logger.Error(fmt.Sprintf("[websocket.Handler] %s closed abruptly: %v", conn.Identifier, err))
 				metrics.Increment("batches_read_total", fmt.Sprintf("status=failed,reason=closeerror,conn_group=%s", conn.Identifier.Group))
 				break
 			}
@@ -101,7 +100,6 @@ func (h *Handler) HandlerWSEvents(w http.ResponseWriter, r *http.Request) {
 		serde := h.serdeMap[messageType]
 		d, s := serde.deserializer, serde.serializer
 		if err := d(message, payload); err != nil {
-			logger.Error(fmt.Sprintf("[websocket.Handler] reading message failed for %s: %v", conn.Identifier, err))
 			metrics.Increment("batches_read_total", fmt.Sprintf("status=failed,reason=serde,conn_group=%s", conn.Identifier.Group))
 			writeBadRequestResponse(conn, s, messageType, payload.ReqGuid, err)
 			continue
