@@ -158,8 +158,7 @@ func TestDeserializeEvents(t *testing.T) {
 			topicFormat:  "topic-%s",
 			parseFunc:    nil,
 			verify: func(t *testing.T, results []*model.EventWithMetadata) {
-				require.Len(t, results, 1)
-				assert.Equal(t, "unknown_event", results[0].Type)
+				require.Empty(t, results)
 			},
 		},
 		{
@@ -553,7 +552,7 @@ func TestDeserializer_FallbackOrder(t *testing.T) {
 
 		d := NewDeserializer(schemaregistry.StencilClient{Client: &mockStencilClient{}}, mockCache)
 		results := d.Deserialize([]*pb.Event{event}, "group-1", map[string]string{}, "topic-%s")
-		require.Len(t, results, 1)
+		require.Empty(t, results)
 	})
 }
 
