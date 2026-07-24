@@ -143,3 +143,49 @@ func TestSchemaCache_HealthCheck_Error(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "compass health check returned status code: 500")
 }
+
+func TestSchemaCache_Start_Success(t *testing.T) {
+	metrics.SetVoid()
+	mockClient := mocks.NewHTTPClient(t)
+
+	jsonResponse := `{"data": [{"name": "topic-a", "data": {"attributes": {"schemas": [{"name": "proto.ClassA"}]}}}]}`
+	mockClient.On("DoRequest", mock.Anything, mock.Anything).Return(json.RawMessage(jsonResponse), nil)
+
+	config.CompassCfg.HTTPHost = "http://compass.io"
+	config.CompassCfg.AuthEmail = "auth-email"
+	config.CompassCfg.SyncInterval = time.Minute
+	config.CompassCfg.HTTPRequestTimeout = time.Second
+	config.CompassCfg.HTTPMaxRetry = 1
+
+	ctx := context.Background()
+	cache := NewSchemaCache(ctx, "test-metric")
+	cache.httpClient = mockClient
+
+	err := cache.Start()
+	assert.NoError(t, err)
+
+	val, ok := cache.Get("topic-a")
+	assert.True(t, ok)
+	assert.Equal(t, "proto.ClassA", val)
+}
+
+func TestSchemaCache_Start_Failure(t *testing.T) {
+	metrics.SetVoid()
+	mockClient := mocks.NewHTTPClient(t)
+
+	mockClient.On("DoRequest", mock.Anything, mock.Anything).Return(nil, fmt.Errorf("connection refused"))
+
+	config.CompassCfg.HTTPHost = "http://compass.io"
+	config.CompassCfg.AuthEmail = "auth-email"
+	config.CompassCfg.SyncInterval = time.Minute
+	config.CompassCfg.HTTPRequestTimeout = time.Second
+	config.CompassCfg.HTTPMaxRetry = 1
+
+	ctx := context.Background()
+	cache := NewSchemaCache(ctx, "test-metric")
+	cache.httpClient = mockClient
+
+	err := cache.Start()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "connection refused")
+}

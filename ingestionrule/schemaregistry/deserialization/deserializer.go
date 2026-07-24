@@ -53,7 +53,7 @@ type SchemaRegistryCache interface {
 	// HealthCheck checks the health of the schema registry
 	HealthCheck() error
 	// Start starts the schema cache
-	Start()
+	Start() error
 }
 
 type Deserializer struct {

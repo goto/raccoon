@@ -65,12 +65,12 @@ func NewSchemaCache(ctx context.Context, metricName string) *SchemaCache {
 }
 
 // Start performs the initial sync synchronously with exponential backoff retries.
-func (c *SchemaCache) Start() {
+func (c *SchemaCache) Start() error {
 	if c == nil {
-		return
+		return nil
 	}
 
-	c.cache.Start()
+	return c.cache.Start()
 }
 
 // Close cancels the schema cache's background worker and frees resources.

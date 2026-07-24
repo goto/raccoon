@@ -55,7 +55,9 @@ func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error
 
 		if config.DeserializationCfg.Enabled {
 			schemaCache = deserialization.NewSchemaCache(ctx, metricExternalHttpCount)
-			schemaCache.Start()
+			if err := schemaCache.Start(); err != nil {
+				return nil, fmt.Errorf("failed to start schema cache: %w", err)
+			}
 		}
 
 		deserializer = deserialization.NewDeserializer(stencil, schemaCache)
@@ -68,7 +70,9 @@ func NewService(ctx context.Context, rules []config.PolicyRule) (*Service, error
 	if config.PolicyCfg.Enabled {
 		if config.PolicyCfg.EventVerificationEnabled {
 			eventChecker = eventregistry.NewEventCache(ctx, metricExternalHttpCount)
-			eventChecker.Start()
+			if err := eventChecker.Start(); err != nil {
+				logger.Errorf("failed to start event cache: %v", err)
+			}
 		}
 
 		dropCache := evalcache.NewCache(rulesForAction(rules, config.PolicyActionDrop))

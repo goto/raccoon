@@ -65,12 +65,12 @@ func NewEventCache(ctx context.Context, metricName string) *EventCache {
 	return ec
 }
 
-func (e *EventCache) Start() {
+func (e *EventCache) Start() error {
 	if e == nil || e.cache == nil {
-		return
+		return nil
 	}
 
-	e.cache.Start()
+	return e.cache.Start()
 }
 
 func (e *EventCache) Close() {
