@@ -87,18 +87,21 @@ func (d *Deserializer) Deserialize(
 		metrics.Timing(metricNameEventDeserializationLatency, time.Since(startDeserialize).Milliseconds(), fmt.Sprintf("conn_group=%s", connGroup))
 
 		if err != nil {
+			if errors.Is(err, errProtoClassNotFound) {
+				metadataBatch = append(metadataBatch, &meta)
+				continue
+			}
+
 			logger.Errorf("deserialization error for publisher=%s,event_type=%s,product=%s,event_name=%s,platform=%s,app_version=%s: %v",
 				meta.Publisher, meta.Type, meta.Product, meta.EventName, meta.Platform, meta.AppVersion, err)
 
 			reason := errDeserializationInvalidContent
-			if errors.Is(err, errProtoClassNotFound) {
-				reason = errProtoNotFound
-			} else {
-				var missingFieldErr *protoutil.ErrMandatoryFieldMissing
-				if errors.As(err, &missingFieldErr) {
-					reason = fmt.Sprintf("MANDATORY_FIELD_%s_NOT_FOUND", strings.ReplaceAll(strings.ToUpper(missingFieldErr.FieldName), ".", "_"))
-				}
+			
+			var missingFieldErr *protoutil.ErrMandatoryFieldMissing
+			if errors.As(err, &missingFieldErr) {
+				reason = fmt.Sprintf("MANDATORY_FIELD_%s_NOT_FOUND", strings.ReplaceAll(strings.ToUpper(missingFieldErr.FieldName), ".", "_"))
 			}
+
 			metrics.Increment(MetricEventLossCount, fmt.Sprintf("reason=%s,conn_group=%s,product=%s,event_name=%s,event_type=%s", reason, connGroup, meta.Product, meta.EventName, meta.Type))
 
 			continue

@@ -135,11 +135,6 @@ func reportProcMetrics() {
 func registerHealthCheck(svcs services.Services, kafka *publisher.Kafka, ingestionRuleSvc *ingestionrule.Service) {
 	health.Register("kafka-broker", kafka.HealthCheck)
 
-	if ingestionRuleSvc != nil && config.DeserializationCfg.Enabled {
-		health.Register("compass", ingestionRuleSvc.CompassHealthCheck)
-
-	}
-
 	for _, svc := range svcs.B {
 		if svc.Name() == "MQTT" {
 			health.Register("mqtt-broker", svc.HealthCheck)
