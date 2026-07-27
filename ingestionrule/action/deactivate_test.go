@@ -125,7 +125,7 @@ func (m *mockEventChecker) GetEvents(key string) (eventregistry.EventStatus, boo
 }
 
 func (m *mockEventChecker) Close()             {}
-func (m *mockEventChecker) Start()             {}
+func (m *mockEventChecker) Start() error       { return nil }
 func (m *mockEventChecker) HealthCheck() error { return nil }
 func (m *mockEventChecker) HasSynced() bool    { return m.hasSynced }
 func (m *mockEventChecker) BuildCacheKey(topic, product, eventName string) string {

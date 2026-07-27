@@ -281,9 +281,21 @@ func (_c *EventChecker_HealthCheck_Call) RunAndReturn(run func() error) *EventCh
 }
 
 // Start provides a mock function for the type EventChecker
-func (_mock *EventChecker) Start() {
-	_mock.Called()
-	return
+func (_mock *EventChecker) Start() error {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for Start")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func() error); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // EventChecker_Start_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Start'
@@ -303,12 +315,12 @@ func (_c *EventChecker_Start_Call) Run(run func()) *EventChecker_Start_Call {
 	return _c
 }
 
-func (_c *EventChecker_Start_Call) Return() *EventChecker_Start_Call {
-	_c.Call.Return()
+func (_c *EventChecker_Start_Call) Return(_a0 error) *EventChecker_Start_Call {
+	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *EventChecker_Start_Call) RunAndReturn(run func()) *EventChecker_Start_Call {
-	_c.Run(run)
+func (_c *EventChecker_Start_Call) RunAndReturn(run func() error) *EventChecker_Start_Call {
+	_c.Call.Return(run)
 	return _c
 }

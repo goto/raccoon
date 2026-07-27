@@ -22,7 +22,7 @@ type EventChecker interface {
 	// Close closes the event checker.
 	Close()
 	// Start starts the event checker
-	Start()
+	Start() error
 	// HasSynced returns true if the cache has successfully synced at least once.
 	HasSynced() bool
 	// BuildCacheKey builds the cache key for the given event.

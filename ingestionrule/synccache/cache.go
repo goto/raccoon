@@ -71,9 +71,9 @@ func (c *Cache[T]) HasSynced() bool {
 // If asyncStart is true, it will spawn a new goroutine to sync the cache.
 // If asyncStart is false, it will sync the cache synchronously and return only after sync is completed.
 // If syncInterval is greater than 0, it will periodically sync the cache.
-func (c *Cache[T]) Start() {
+func (c *Cache[T]) Start() error {
 	if c == nil {
-		return
+		return nil
 	}
 
 	if c.asyncStart {
@@ -88,23 +88,19 @@ func (c *Cache[T]) Start() {
 			}
 		}()
 
-		return
+		return nil
 	}
 
 	err := c.Sync()
-	if err == nil {
-		if c.syncInterval > 0 {
-			go c.worker()
-		}
-
-		return
+	if err != nil {
+		return err
 	}
-
-	logger.Errorf("failed to fetch %s: %v. Cache will be empty initially.", c.name, err)
 
 	if c.syncInterval > 0 {
 		go c.worker()
 	}
+
+	return nil
 }
 
 // Close stops the cache's sync worker and frees resources.
