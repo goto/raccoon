@@ -11,7 +11,6 @@ func main() {
 	config.Load()
 	metrics.Setup()
 	logger.SetLevel(config.Log.Level)
-	config.LogConfig()
 	err := app.Run()
 	metrics.Close()
 	if err != nil {

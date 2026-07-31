@@ -8,12 +8,10 @@ import (
 	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/deserialization"
 	"github.com/goto/raccoon/identification"
-	"github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/serialization"
@@ -29,12 +27,11 @@ type serDe struct {
 	deserializer deserialization.DeserializeFunc
 }
 type Handler struct {
-	serDeMap      map[string]*serDe
-	collector     collection.Collector
-	ingestionRule *ingestionrule.Service
+	serDeMap  map[string]*serDe
+	collector collection.Collector
 }
 
-func NewHandler(collector collection.Collector, ingestionRule *ingestionrule.Service) *Handler {
+func NewHandler(collector collection.Collector) *Handler {
 	serDeMap := make(map[string]*serDe)
 	serDeMap[ContentJSON] = &serDe{
 		serializer:   serialization.SerializeJSON,
@@ -46,9 +43,8 @@ func NewHandler(collector collection.Collector, ingestionRule *ingestionrule.Ser
 		deserializer: deserialization.DeserializeProto,
 	}
 	return &Handler{
-		serDeMap:      serDeMap,
-		collector:     collector,
-		ingestionRule: ingestionRule,
+		serDeMap:  serDeMap,
+		collector: collector,
 	}
 }
 
@@ -131,18 +127,11 @@ func (h *Handler) RESTAPIHandler(rw http.ResponseWriter, r *http.Request) {
 	metrics.Increment("batches_read_total", fmt.Sprintf("status=success,conn_group=%s", identifier.Group))
 	h.sendEventCounters(req.Events, identifier.Group)
 
-	for _, e := range req.Events {
-		logger.Debugf("[rest.RESTAPIHandler] event: event_name=%s, product=%s, type=%s, event_timestamp=%s, req_guid=%s, conn_group=%s", e.EventName, e.Product, e.Type, e.GetEventTimestamp().AsTime(), req.ReqGuid, identifier.Group)
-	}
-
-	eventsWithMetadata := h.ingestionRule.Apply(r.Context(), req.Events, identifier.Group)
-
 	resChannel := make(chan struct{}, 1)
 	h.collector.Collect(r.Context(), &collection.CollectRequest{
 		ConnectionIdentifier: identifier,
 		TimeConsumed:         timeConsumed,
-		SentTime:             req.SentTime,
-		Events:               eventsWithMetadata,
+		SendEventRequest:     req,
 		AckFunc:              h.Ack(rw, resChannel, s, req.ReqGuid, identifier.Group),
 	})
 	<-resChannel
@@ -199,8 +188,6 @@ func (h *Handler) Ack(rw http.ResponseWriter, resChannel chan struct{}, s serial
 func (h *Handler) sendEventCounters(events []*pb.Event, group string) {
 	for _, e := range events {
 		metrics.Count("events_rx_bytes_total", len(e.EventBytes), fmt.Sprintf("conn_group=%s,event_type=%s", group, e.Type))
-
-		tags := fmt.Sprintf("conn_group=%s,event_type=%s,app_version=%s,platform=%s,protocol_type=rest", group, e.Type, e.AppVersion, e.Platform)
-		metrics.Increment("events_rx_total", tags)
+		metrics.Increment("events_rx_total", fmt.Sprintf("conn_group=%s,event_type=%s,protocol_type=rest", group, e.Type))
 	}
 }

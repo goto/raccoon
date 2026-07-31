@@ -7,12 +7,10 @@ import (
 	"time"
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+	"github.com/goto/raccoon/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
-
-	"github.com/goto/raccoon/logger"
-	"github.com/goto/raccoon/model"
 )
 
 const (
@@ -40,22 +38,6 @@ func TestProducer_Close(suite *testing.T) {
 	})
 }
 
-func toEventsWithMetadata(events []*pb.Event) []*model.EventWithMetadata {
-	res := make([]*model.EventWithMetadata, len(events))
-	for i, e := range events {
-		res[i] = &model.EventWithMetadata{
-			EventName:   e.EventName,
-			Product:     e.Product,
-			Type:        e.Type,
-			Platform:    e.Platform.String(),
-			AppVersion:  e.AppVersion,
-			IsExclusive: e.IsExclusive,
-			EventBytes:  e.EventBytes,
-		}
-	}
-	return res
-}
-
 func TestKafka_ProduceBulk(suite *testing.T) {
 	suite.Parallel()
 	topic := "test_topic"
@@ -81,8 +63,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 			})
 			kp := NewKafkaFromClient(client, 10, testFormat)
 
-			events := []*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}
-			err := kp.ProduceBulk(toEventsWithMetadata(events), group1, make(chan kafka.Event, 2), now, now, now)
+			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, group1, make(chan kafka.Event, 2), now, now, now)
 			assert.NoError(t, err)
 		})
 	})
@@ -107,8 +88,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf("buffer full")).Once()
 			kp := NewKafkaFromClient(client, 10, testFormat)
 
-			events := []*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}
-			err := kp.ProduceBulk(toEventsWithMetadata(events), group1, make(chan kafka.Event, 2), now, now, now)
+			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, group1, make(chan kafka.Event, 2), now, now, now)
 			assert.Len(t, err.(BulkError).Errors, 3)
 			assert.Error(t, err.(BulkError).Errors[0])
 			assert.Empty(t, err.(BulkError).Errors[1])
@@ -120,8 +100,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errUnknownTopic)).Once()
 			kp := NewKafkaFromClient(client, 10, testFormat)
 
-			events := []*pb.Event{{EventBytes: []byte{}, Type: topic}}
-			err := kp.ProduceBulk(toEventsWithMetadata(events), "group1", make(chan kafka.Event, 2), now, now, now)
+			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2), now, now, now)
 			assert.EqualError(t, err.(BulkError).Errors[0], errUnknownTopic+" "+topic)
 		})
 
@@ -130,8 +109,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 			client.On("Produce", mock.Anything, mock.Anything).Return(fmt.Errorf(errLargeMessageSize)).Once()
 			kp := NewKafkaFromClient(client, 10, testFormat)
 
-			events := []*pb.Event{{EventBytes: []byte{}, Type: topic}}
-			err := kp.ProduceBulk(toEventsWithMetadata(events), "group1", make(chan kafka.Event, 2), now, now, now)
+			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2), now, now, now)
 			assert.EqualError(t, err.(BulkError).Errors[0], errLargeMessageSize+" "+topic)
 		})
 	})
@@ -155,8 +133,7 @@ func TestKafka_ProduceBulk(suite *testing.T) {
 			}).Once()
 			kp := NewKafkaFromClient(client, 10, testFormat)
 
-			events := []*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}
-			err := kp.ProduceBulk(toEventsWithMetadata(events), "group1", make(chan kafka.Event, 2), now, now, now)
+			err := kp.ProduceBulk([]*pb.Event{{EventBytes: []byte{}, Type: topic}, {EventBytes: []byte{}, Type: topic}}, "group1", make(chan kafka.Event, 2), now, now, now)
 			assert.NotEmpty(t, err)
 			assert.Len(t, err.(BulkError).Errors, 2)
 			assert.Equal(t, "buffer full", err.(BulkError).Errors[0].Error())

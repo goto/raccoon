@@ -94,20 +94,15 @@ func NewMqttPubSubClient(ctx context.Context, handler courier.MessageHandler, cl
 // registerHandler registers the subscription handler when the client connects.
 func registerHandler(ctx context.Context, handler courier.MessageHandler) func(courier.PubSub) {
 	return func(ps courier.PubSub) {
-		topics := []string{config.ServerMQTT.ConsumerConfig.TopicFormat}
-		if config.ServerMQTT.ConsumerConfig.EnableV2Topic {
-			topics = append(topics, config.ServerMQTT.ConsumerConfig.TopicFormatV2)
-		}
-		for _, topic := range topics {
-			if err := ps.Subscribe(ctx, topic, handler, courier.QOSOne); err != nil {
-				metrics.Increment(
-					"mqtt_error",
-					fmt.Sprintf("reason=subscribe_failed"),
-				)
-				logger.Errorf("failed to register MQTT handler for topic %q: %v", topic, err)
-			} else {
-				logger.Infof("successfully registered MQTT handler for topic %q", topic)
-			}
+		topic := config.ServerMQTT.ConsumerConfig.TopicFormat
+		if err := ps.Subscribe(ctx, topic, handler, courier.QOSOne); err != nil {
+			metrics.Increment(
+				"mqtt_error",
+				fmt.Sprintf("reason=subscribe_failed"),
+			)
+			logger.Errorf("failed to register MQTT handler for topic %q: %v", topic, err)
+		} else {
+			logger.Infof("successfully registered MQTT handler for topic %q", topic)
 		}
 	}
 }

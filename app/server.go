@@ -3,16 +3,16 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/goto/raccoon/health"
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
-	"github.com/goto/raccoon/health"
-	"github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/publisher"
@@ -23,14 +23,7 @@ import (
 // StartServer starts the server
 func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan bool) {
 	bufferChannel := make(chan collection.CollectRequest, config.Worker.ChannelSize)
-
-	ingestionRuleSvc, err := ingestionrule.NewService(ctx, config.PolicyCfg.Rules)
-	if err != nil {
-		panic("error creating ingestion rule service: " + err.Error())
-	}
-
-	httpServices := services.Create(ctx, bufferChannel, ingestionRuleSvc)
-
+	httpServices := services.Create(bufferChannel, ctx)
 	logger.Info("Start Server -->")
 	httpServices.Start(ctx, cancel)
 	logger.Info("Start publisher -->")
@@ -40,9 +33,7 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 		logger.Info("Exiting server")
 		os.Exit(0)
 	}
-
-	registerHealthCheck(httpServices, kPublisher, ingestionRuleSvc)
-
+	registerHealthCheck(httpServices, kPublisher)
 	logger.Info("Start worker -->")
 	workerPool := worker.CreateWorkerPool(config.Worker.WorkersPoolSize, bufferChannel, config.Worker.DeliveryChannelSize, kPublisher)
 	workerPool.StartWorkers()
@@ -52,10 +43,10 @@ func StartServer(ctx context.Context, cancel context.CancelFunc, shutdown chan b
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	go shutDownServer(ctx, cancel, httpServices, ingestionRuleSvc, bufferChannel, workerPool, kPublisher, shutdown, signalChan)
+	go shutDownServer(ctx, cancel, httpServices, bufferChannel, workerPool, kPublisher, shutdown, signalChan)
 }
 
-func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices services.Services, ingestionRuleSvc *ingestionrule.Service, bufferChannel chan collection.CollectRequest,
+func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices services.Services, bufferChannel chan collection.CollectRequest,
 	workerPool *worker.Pool, kp *publisher.Kafka, shutdown chan bool, signalChan chan os.Signal) {
 	for {
 		sig := <-signalChan
@@ -82,24 +73,16 @@ func shutDownServer(ctx context.Context, cancel context.CancelFunc, httpServices
 			eventsInProducer := kp.Close()
 			eventCountInChannel := 0
 
-			if ingestionRuleSvc != nil {
-				ingestionRuleSvc.Close()
-			}
-
 			for req := range bufferChannel {
 				for _, event := range req.Events {
 					eventCountInChannel++
 
-					tags := fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s,app_version=%s,platform=%s",
-						"INTERNAL_SERVER_ERROR",
+					metrics.Increment("clickstream_data_loss", fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s",
+						"buffer_channel_closed",
 						event.EventName,
-						event.Product,
+						strings.ReplaceAll(strings.ToLower(event.Product), "_", ""),
 						req.ConnectionIdentifier,
-						event.AppVersion,
-						event.Platform,
-					)
-
-					metrics.Increment("clickstream_data_loss", tags)
+					))
 				}
 			}
 
@@ -132,9 +115,8 @@ func reportProcMetrics() {
 	}
 }
 
-func registerHealthCheck(svcs services.Services, kafka *publisher.Kafka, ingestionRuleSvc *ingestionrule.Service) {
+func registerHealthCheck(svcs services.Services, kafka *publisher.Kafka) {
 	health.Register("kafka-broker", kafka.HealthCheck)
-
 	for _, svc := range svcs.B {
 		if svc.Name() == "MQTT" {
 			health.Register("mqtt-broker", svc.HealthCheck)

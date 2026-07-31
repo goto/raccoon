@@ -64,9 +64,6 @@ func TestServerMQTTConfig(t *testing.T) {
 	os.Setenv("SERVER_MQTT_CONSUMER_LOG_LEVEL", "warn")
 	os.Setenv("SERVER_MQTT_CONSUMER_POOL_SIZE", "1")
 	os.Setenv("SERVER_MQTT_CONSUMER_TOPIC_FORMAT", "default-topic")
-	os.Setenv("SERVER_MQTT_CONSUMER_TOPIC_FORMAT_V2", "default-topic-v2")
-	os.Setenv("SERVER_MQTT_CONSUMER_ENABLE_V2_TOPIC", "true")
-	os.Setenv("SERVER_MQTT_CONSUMER_APP_CONN_GROUP_MAPPING", `{"a":"x","b":"y"}`)
 	os.Setenv("SERVER_MQTT_CONNECTION_GROUP", "consumer")
 	serverMQTTConfigLoader()
 	assert.Equal(t, "consul:8081", ServerMQTT.ConsulConfig.Address)
@@ -80,9 +77,6 @@ func TestServerMQTTConfig(t *testing.T) {
 	assert.Equal(t, "warn", ServerMQTT.ConsumerConfig.LogLevel)
 	assert.Equal(t, 1, ServerMQTT.ConsumerConfig.PoolSize)
 	assert.Equal(t, "default-topic", ServerMQTT.ConsumerConfig.TopicFormat)
-	assert.Equal(t, "default-topic-v2", ServerMQTT.ConsumerConfig.TopicFormatV2)
-	assert.Equal(t, true, ServerMQTT.ConsumerConfig.EnableV2Topic)
-	assert.Equal(t, map[string]string{"a": "x", "b": "y"}, ServerMQTT.ConsumerConfig.V2AppConnGroupMapping)
 
 }
 
@@ -116,22 +110,6 @@ func TestKafkaConfig_ToKafkaConfigMap(t *testing.T) {
 	assert.Equal(t, 5000, PublisherKafka.HealthCheckConfig.TimeOut)
 }
 
-func TestPublisherKafkaConfig_EventTypePrefixMapping(t *testing.T) {
-	os.Setenv("PUBLISHER_KAFKA_EVENT_TYPE_PREFIX_MAPPING", `{"CS_APP_PREFIX":"gobiz"}`)
-	defer os.Unsetenv("PUBLISHER_KAFKA_EVENT_TYPE_PREFIX_MAPPING")
-
-	publisherKafkaConfigLoader()
-
-	assert.Equal(t, map[string]string{"CS_APP_PREFIX": "gobiz"}, PublisherKafka.EventTypePrefixMapping)
-}
-
-func TestPublisherKafkaConfig_InvalidEventTypePrefixMappingPanics(t *testing.T) {
-	os.Setenv("PUBLISHER_KAFKA_EVENT_TYPE_PREFIX_MAPPING", `not-valid-json`)
-	defer os.Unsetenv("PUBLISHER_KAFKA_EVENT_TYPE_PREFIX_MAPPING")
-
-	assert.Panics(t, publisherKafkaConfigLoader)
-}
-
 func TestWorkerConfig(t *testing.T) {
 	os.Setenv("WORKER_POOL_SIZE", "2")
 	os.Setenv("WORKER_BUFFER_CHANNEL_SIZE", "5")
@@ -142,173 +120,4 @@ func TestWorkerConfig(t *testing.T) {
 	assert.Equal(t, 10, Worker.DeliveryChannelSize)
 	assert.Equal(t, 5, Worker.ChannelSize)
 	assert.Equal(t, 2, Worker.WorkersPoolSize)
-}
-
-func TestPolicyConfig_Defaults(t *testing.T) {
-	viper.Reset()
-	viper.AutomaticEnv()
-	policyConfigLoader()
-	assert.False(t, PolicyCfg.Enabled)
-	assert.Empty(t, PolicyCfg.Rules)
-	assert.Empty(t, PolicyCfg.PublisherMapping)
-}
-
-func TestPolicyConfig_Enabled(t *testing.T) {
-	os.Setenv("POLICY_ENABLED", "true")
-	policyConfigLoader()
-	assert.True(t, PolicyCfg.Enabled)
-	os.Unsetenv("POLICY_ENABLED")
-}
-
-func TestPolicyConfig_Rules(t *testing.T) {
-	os.Setenv("POLICY_CONFIG", `[{"resource":"event","details":{"name":"click","product":"app","publisher":"gojek"},"action":{"type":"DROP","condition_type":"timestamp_threshold","event_timestamp_threshold":{"past":"24h","future":"1h"}}}]`)
-	policyConfigLoader()
-	assert.Len(t, PolicyCfg.Rules, 1)
-	r := PolicyCfg.Rules[0]
-	assert.Equal(t, PolicyResourceEvent, r.Resource)
-	assert.Equal(t, "click", r.Details.Name)
-	assert.Equal(t, "app", r.Details.Product)
-	assert.Equal(t, "gojek", r.Details.Publisher)
-	assert.Equal(t, PolicyActionDrop, r.Action.Type)
-	assert.Equal(t, PolicyConditionTimestampThreshold, r.Action.ConditionType)
-	assert.Equal(t, 24*time.Hour, r.Action.EventTimestampThreshold.Past.Duration)
-	assert.Equal(t, 1*time.Hour, r.Action.EventTimestampThreshold.Future.Duration)
-	os.Unsetenv("POLICY_CONFIG")
-}
-
-func TestPolicyConfig_DeactivateRule(t *testing.T) {
-	os.Setenv("POLICY_CONFIG", `[{"resource":"event","details":{"name":"click","product":"app","publisher":"gojek"},"action":{"type":"DEACTIVE"}}]`)
-	policyConfigLoader()
-	assert.Len(t, PolicyCfg.Rules, 1)
-	r := PolicyCfg.Rules[0]
-	assert.Equal(t, PolicyResourceEvent, r.Resource)
-	assert.Equal(t, "click", r.Details.Name)
-	assert.Equal(t, PolicyActionDeactivate, r.Action.Type)
-	assert.Empty(t, r.Action.ConditionType)
-	os.Unsetenv("POLICY_CONFIG")
-}
-
-func TestPolicyConfig_DeactivateTopicRule(t *testing.T) {
-	os.Setenv("POLICY_CONFIG", `[{"resource":"topic","details":{"name":"clickstream-page-log"},"action":{"type":"DEACTIVE"}}]`)
-	policyConfigLoader()
-	assert.Len(t, PolicyCfg.Rules, 1)
-	r := PolicyCfg.Rules[0]
-	assert.Equal(t, PolicyResourceTopic, r.Resource)
-	assert.Equal(t, "clickstream-page-log", r.Details.Name)
-	assert.Equal(t, PolicyActionDeactivate, r.Action.Type)
-	assert.Empty(t, r.Action.ConditionType)
-	os.Unsetenv("POLICY_CONFIG")
-}
-
-func TestPolicyConfig_PublisherMapping(t *testing.T) {
-	os.Setenv("POLICY_PUBLISHER_MAPPING", `{"customer":"gojek","driver":"gopartner"}`)
-	policyConfigLoader()
-	assert.Equal(t, map[string]string{"customer": "gojek", "driver": "gopartner"}, PolicyCfg.PublisherMapping)
-	os.Unsetenv("POLICY_PUBLISHER_MAPPING")
-}
-
-func TestPolicyConfig_InvalidRulesPanics(t *testing.T) {
-	os.Setenv("POLICY_CONFIG", `not-valid-json`)
-	assert.Panics(t, policyConfigLoader)
-	os.Unsetenv("POLICY_CONFIG")
-}
-
-func TestPolicyConfig_InvalidRuleFieldsPanics(t *testing.T) {
-	// event rule missing publisher → validation should panic
-	os.Setenv("POLICY_CONFIG", `[{"resource":"event","details":{"name":"click","product":"app"},"action":{"type":"DROP","condition_type":"timestamp_threshold"}}]`)
-	assert.Panics(t, policyConfigLoader)
-	os.Unsetenv("POLICY_CONFIG")
-}
-
-func TestPolicyConfig_InvalidPublisherMappingPanics(t *testing.T) {
-	os.Setenv("POLICY_PUBLISHER_MAPPING", `not-valid-json`)
-	assert.Panics(t, policyConfigLoader)
-	os.Unsetenv("POLICY_PUBLISHER_MAPPING")
-}
-
-func TestPolicyDuration_UnmarshalJSON(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected time.Duration
-		wantErr  bool
-	}{
-		{name: "valid duration", input: `"2h"`, expected: 2 * time.Hour},
-		{name: "empty string", input: `""`, expected: 0},
-		{name: "invalid duration", input: `"notaduration"`, wantErr: true},
-		{name: "not a string", input: `123`, wantErr: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var d PolicyDuration
-			err := d.UnmarshalJSON([]byte(tt.input))
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.expected, d.Duration)
-			}
-		})
-	}
-}
-
-func TestPolicyDuration_MarshalJSON(t *testing.T) {
-	d := PolicyDuration{Duration: 30 * time.Minute}
-	b, err := d.MarshalJSON()
-	assert.NoError(t, err)
-	assert.Equal(t, `"30m0s"`, string(b))
-}
-
-func TestValidatePolicyRules(t *testing.T) {
-	valid := func(resource, name, product, publisher string) PolicyRule {
-		return PolicyRule{Resource: resource, Details: PolicyDetails{Name: name, Product: product, Publisher: publisher}}
-	}
-	tests := []struct {
-		name    string
-		rules   []PolicyRule
-		wantErr bool
-	}{
-		{"valid event rule", []PolicyRule{valid(PolicyResourceEvent, "click", "app", "pub-a")}, false},
-		{"valid topic rule", []PolicyRule{valid(PolicyResourceTopic, "topic-a", "", "")}, false},
-		{"event missing name", []PolicyRule{valid(PolicyResourceEvent, "", "app", "pub-a")}, true},
-		{"event missing product", []PolicyRule{valid(PolicyResourceEvent, "click", "", "pub-a")}, true},
-		{"event missing publisher", []PolicyRule{valid(PolicyResourceEvent, "click", "app", "")}, true},
-		{"topic missing name", []PolicyRule{valid(PolicyResourceTopic, "", "", "")}, true},
-		{"unknown resource", []PolicyRule{valid("unknown", "click", "app", "pub-a")}, true},
-		{"valid global rule", []PolicyRule{valid(PolicyResourceGlobal, "", "", "")}, false},
-		{"global rule followed by invalid rule", []PolicyRule{
-			valid(PolicyResourceGlobal, "", "", ""),
-			valid("unknown", "click", "app", "pub-a"),
-		}, true},
-		{"empty rules", []PolicyRule{}, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := ValidatePolicyRules(tt.rules)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestDeserializationConfig(t *testing.T) {
-	os.Setenv("DESERIALIZATION_ENABLED", "true")
-	os.Setenv("DESERIALIZATION_APP_VERSION_PUBLISHER_WHITELIST", `["pub1", "pub2"]`)
-	os.Setenv("DESERIALIZATION_PLATFORM_PUBLISHER_WHITELIST", `["pub3"]`)
-	os.Setenv("DESERIALIZATION_EXCLUDE_EVENT_TYPE_LIST", `["excluded-type-1", "excluded-type-2"]`)
-
-	defer func() {
-		os.Unsetenv("DESERIALIZATION_APP_VERSION_PUBLISHER_WHITELIST")
-		os.Unsetenv("DESERIALIZATION_PLATFORM_PUBLISHER_WHITELIST")
-		os.Unsetenv("DESERIALIZATION_EXCLUDE_EVENT_TYPE_LIST")
-	}()
-
-	deserializationConfigLoader()
-
-	assert.Equal(t, []string{"pub1", "pub2"}, DeserializationCfg.AppVersionPublisherWhitelist)
-	assert.Equal(t, []string{"pub3"}, DeserializationCfg.PlatformPublisherWhitelist)
-	assert.Equal(t, []string{"excluded-type-1", "excluded-type-2"}, DeserializationCfg.ExcludeEventTypeList)
 }

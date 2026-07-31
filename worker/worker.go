@@ -5,12 +5,11 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
-
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/publisher"
+	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
 // Pool spawn goroutine as much as Size that will listen to EventsChannel. On Close, wait for all data in EventsChannel to be processed.
@@ -48,8 +47,8 @@ func (w *Pool) StartWorkers() {
 
 				//@TODO - Should add integration tests to prove that the worker receives the same message that it produced, on the delivery channel it created
 				err := w.kafkaProducer.ProduceBulk(
-					request.Events, request.ConnectionIdentifier.Group, deliveryChan,
-					request.SentTime.AsTime(), request.TimeConsumed, startTimeWorker,
+					request.GetEvents(), request.ConnectionIdentifier.Group, deliveryChan,
+					request.GetSentTime().AsTime(), request.TimeConsumed, startTimeWorker,
 				)
 
 				if request.AckFunc != nil {
@@ -65,7 +64,7 @@ func (w *Pool) StartWorkers() {
 						}
 					}
 				}
-				lenBatch := int64(len(request.Events))
+				lenBatch := int64(len(request.GetEvents()))
 				logger.Debug(fmt.Sprintf("Success sending messages, %v", lenBatch-int64(totalErr)))
 			}
 			w.wg.Done()
