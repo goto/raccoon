@@ -9,9 +9,9 @@ import (
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 
 	"github.com/gojek/courier-go"
-	"github.com/goto/raccoon/clients/go/log"
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/identification"
+	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/serialization"
 	"google.golang.org/protobuf/proto"
@@ -29,26 +29,26 @@ func (h *Handler) MQTTHandler(ctx context.Context, c courier.PubSub, message *co
 	connGroup, err := h.extractConnGroup(message)
 	if err != nil {
 		h.recordMetrics("request", fmt.Sprintf("status=failed,conn_group=unknown,reason=%v", err), nil)
-		log.Errorf("mqtt message topic format is invalid: %s", message.Topic)
+		logger.Errorf("mqtt message topic format is invalid: %s", message.Topic)
 	}
 
 	var req pb.SendEventRequest
 	if err := message.DecodePayload(&req); err != nil {
 		h.recordMetrics("request", fmt.Sprintf("status=failed,conn_group=%s,reason=serde", connGroup), nil)
-		log.Errorf("mqtt message decoding failed: %v", err)
+		logger.Errorf("mqtt message decoding failed: %v", err)
 		return
 	}
 
 	if proto.Equal(&req, &pb.SendEventRequest{}) {
 		h.recordMetrics("request", fmt.Sprintf("status=failed,conn_group=%s,reason=empty", connGroup), nil)
-		log.Errorf("mqtt request message according proto format is empty")
+		logger.Errorf("mqtt request message according proto format is empty")
 		return
 	}
 
 	// Serialize to compute request size
 	reqBytes, err := serialization.SerializeProto(&req)
 	if err != nil {
-		log.Errorf("mqtt message serialization failed: %v", err)
+		logger.Errorf("mqtt message serialization failed: %v", err)
 	}
 
 	// Record all metrics via generic function
@@ -75,7 +75,7 @@ func (h *Handler) recordMetrics(metricName string, tags string, data any) {
 	case "event":
 		h.recordEventMetrics(tags, data)
 	default:
-		log.Errorf("unknown metricName=%s ignored", metricName)
+		logger.Errorf("unknown metricName=%s ignored", metricName)
 	}
 }
 
