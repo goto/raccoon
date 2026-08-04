@@ -8,7 +8,6 @@ import (
 	"github.com/goto/raccoon/services/mqtt"
 
 	"github.com/goto/raccoon/collection"
-	"github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/services/grpc"
 	"github.com/goto/raccoon/services/pprof"
@@ -48,17 +47,17 @@ func (s *Services) Shutdown(ctx context.Context) {
 	}
 }
 
-func Create(ctx context.Context, b chan collection.CollectRequest, ingestionrule *ingestionrule.Service) Services {
+func Create(b chan collection.CollectRequest, ctx context.Context) Services {
 	c := collection.NewChannelCollector(b)
 	services := []bootstrapper{
-		grpc.NewGRPCService(c, ingestionrule),
+		grpc.NewGRPCService(c),
 		pprof.NewPprofService(),
-		rest.NewRestService(ctx, c, ingestionrule),
+		rest.NewRestService(c, ctx),
 	}
 
 	if config.ServerMQTT.Enable {
 		logger.Info("MQTT Service is enabled via config, initializing...")
-		services = append(services, mqtt.NewMQTTService(ctx, c, ingestionrule))
+		services = append(services, mqtt.NewMQTTService(c, ctx))
 	} else {
 		logger.Info("MQTT Service is disabled via config")
 	}

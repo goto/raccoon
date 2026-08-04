@@ -8,19 +8,16 @@ import (
 
 	pbgrpc "buf.build/gen/go/gotocompany/proton/grpc/go/gotocompany/raccoon/v1beta1/raccoonv1beta1grpc"
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-	"google.golang.org/grpc/metadata"
-
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/identification"
-	"github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
+	"google.golang.org/grpc/metadata"
 )
 
 type Handler struct {
-	C             collection.Collector
-	ingestionrule *ingestionrule.Service
+	C collection.Collector
 	pbgrpc.UnimplementedEventServiceServer
 }
 
@@ -58,18 +55,12 @@ func (h *Handler) SendEvent(ctx context.Context, req *pb.SendEventRequest) (*pb.
 
 	metrics.Increment("batches_read_total", fmt.Sprintf("status=success,conn_group=%s", identifier.Group))
 	h.sendEventCounters(req.Events, identifier.Group)
-	for _, e := range req.Events {
-		logger.Debugf("[grpc.SendEvent] event: event_name=%s, product=%s, type=%s, event_timestamp=%s, req_guid=%s, conn_group=%s", e.EventName, e.Product, e.Type, e.GetEventTimestamp().AsTime(), req.ReqGuid, identifier.Group)
-	}
-
-	eventsWithMetadata := h.ingestionrule.Apply(ctx, req.Events, identifier.Group)
 
 	responseChannel := make(chan *pb.SendEventResponse, 1)
 	h.C.Collect(ctx, &collection.CollectRequest{
 		ConnectionIdentifier: identifier,
 		TimeConsumed:         timeConsumed,
-		SentTime:             req.SentTime,
-		Events:               eventsWithMetadata,
+		SendEventRequest:     req,
 		AckFunc:              h.Ack(responseChannel, req.ReqGuid, identifier.Group),
 	})
 	return <-responseChannel, nil
@@ -127,8 +118,6 @@ func (h *Handler) Ack(responseChannel chan *pb.SendEventResponse, reqGuid, connG
 func (h *Handler) sendEventCounters(events []*pb.Event, group string) {
 	for _, e := range events {
 		metrics.Count("events_rx_bytes_total", len(e.EventBytes), fmt.Sprintf("conn_group=%s,event_type=%s", group, e.Type))
-
-		tags := fmt.Sprintf("conn_group=%s,event_type=%s,app_version=%s,platform=%s,protocol_type=grpc", group, e.Type, e.AppVersion, e.Platform)
-		metrics.Increment("events_rx_total", tags)
+		metrics.Increment("events_rx_total", fmt.Sprintf("conn_group=%s,event_type=%s,protocol_type=grpc", group, e.Type))
 	}
 }

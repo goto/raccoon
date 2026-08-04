@@ -7,11 +7,9 @@ import (
 
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/gorilla/websocket"
-
 	"github.com/goto/raccoon/collection"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/deserialization"
-	"github.com/goto/raccoon/ingestionrule"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
 	"github.com/goto/raccoon/serialization"
@@ -23,11 +21,10 @@ type serDe struct {
 	deserializer deserialization.DeserializeFunc
 }
 type Handler struct {
-	upgrader      *connection.Upgrader
-	serdeMap      map[int]*serDe
-	PingChannel   chan connection.Conn
-	collector     collection.Collector
-	ingestionrule *ingestionrule.Service
+	upgrader    *connection.Upgrader
+	serdeMap    map[int]*serDe
+	collector   collection.Collector
+	PingChannel chan connection.Conn
 }
 
 func getSerDeMap() map[int]*serDe {
@@ -44,7 +41,7 @@ func getSerDeMap() map[int]*serDe {
 	return serDeMap
 }
 
-func NewHandler(pingC chan connection.Conn, collector collection.Collector, ingestionrule *ingestionrule.Service) *Handler {
+func NewHandler(pingC chan connection.Conn, collector collection.Collector) *Handler {
 	ugConfig := connection.UpgraderConfig{
 		ReadBufferSize:    config.ServerWs.ReadBufferSize,
 		WriteBufferSize:   config.ServerWs.WriteBufferSize,
@@ -59,11 +56,10 @@ func NewHandler(pingC chan connection.Conn, collector collection.Collector, inge
 
 	upgrader := connection.NewUpgrader(ugConfig)
 	return &Handler{
-		upgrader:      upgrader,
-		serdeMap:      getSerDeMap(),
-		PingChannel:   pingC,
-		collector:     collector,
-		ingestionrule: ingestionrule,
+		upgrader:    upgrader,
+		serdeMap:    getSerDeMap(),
+		PingChannel: pingC,
+		collector:   collector,
 	}
 }
 
@@ -87,6 +83,7 @@ func (h *Handler) HandlerWSEvents(w http.ResponseWriter, r *http.Request) {
 				websocket.CloseNormalClosure,
 				websocket.CloseNoStatusReceived,
 				websocket.CloseAbnormalClosure) {
+				logger.Error(fmt.Sprintf("[websocket.Handler] %s closed abruptly: %v", conn.Identifier, err))
 				metrics.Increment("batches_read_total", fmt.Sprintf("status=failed,reason=closeerror,conn_group=%s", conn.Identifier.Group))
 				break
 			}
@@ -100,6 +97,7 @@ func (h *Handler) HandlerWSEvents(w http.ResponseWriter, r *http.Request) {
 		serde := h.serdeMap[messageType]
 		d, s := serde.deserializer, serde.serializer
 		if err := d(message, payload); err != nil {
+			logger.Error(fmt.Sprintf("[websocket.Handler] reading message failed for %s: %v", conn.Identifier, err))
 			metrics.Increment("batches_read_total", fmt.Sprintf("status=failed,reason=serde,conn_group=%s", conn.Identifier.Group))
 			writeBadRequestResponse(conn, s, messageType, payload.ReqGuid, err)
 			continue
@@ -120,17 +118,10 @@ func (h *Handler) HandlerWSEvents(w http.ResponseWriter, r *http.Request) {
 		metrics.Increment("batches_read_total", fmt.Sprintf("status=success,conn_group=%s", conn.Identifier.Group))
 		h.sendEventCounters(payload.Events, conn.Identifier.Group)
 
-		for _, e := range payload.Events {
-			logger.Debugf("[websocket.Handler] event: event_name=%s, product=%s, type=%s, event_timestamp=%s, req_guid=%s, conn_group=%s", e.EventName, e.Product, e.Type, e.GetEventTimestamp().AsTime(), payload.ReqGuid, conn.Identifier.Group)
-		}
-
-		eventsWithMetadata := h.ingestionrule.Apply(r.Context(), payload.Events, conn.Identifier.Group)
-
 		h.collector.Collect(r.Context(), &collection.CollectRequest{
 			ConnectionIdentifier: conn.Identifier,
 			TimeConsumed:         timeConsumed,
-			SentTime:             payload.SentTime,
-			Events:               eventsWithMetadata,
+			SendEventRequest:     payload,
 			AckFunc:              h.Ack(conn, AckChan, s, messageType, payload.ReqGuid, timeConsumed),
 		})
 	}
@@ -167,9 +158,7 @@ func (h *Handler) Ack(conn connection.Conn, resChannel chan AckInfo, s serializa
 func (h *Handler) sendEventCounters(events []*pb.Event, group string) {
 	for _, e := range events {
 		metrics.Count("events_rx_bytes_total", len(e.EventBytes), fmt.Sprintf("conn_group=%s,event_type=%s", group, e.Type))
-
-		tags := fmt.Sprintf("conn_group=%s,event_type=%s,app_version=%s,platform=%s,protocol_type=websocket", group, e.Type, e.AppVersion, e.Platform)
-		metrics.Increment("events_rx_total", tags)
+		metrics.Increment("events_rx_total", fmt.Sprintf("conn_group=%s,event_type=%s,protocol_type=websocket", group, e.Type))
 	}
 }
 

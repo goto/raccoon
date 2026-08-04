@@ -10,10 +10,10 @@ import (
 	// Importing librd to make it work on vendor mode
 	_ "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka/librdkafka"
 
+	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
 	"github.com/goto/raccoon/config"
 	"github.com/goto/raccoon/logger"
 	"github.com/goto/raccoon/metrics"
-	"github.com/goto/raccoon/model"
 )
 
 const (
@@ -25,7 +25,7 @@ const (
 type KafkaProducer interface {
 	// ProduceBulk message to kafka. Block until all messages are sent. Return array of error. Order is not guaranteed.
 	ProduceBulk(
-		events []*model.EventWithMetadata, connGroup string, deliveryChannel chan kafka.Event,
+		events []*pb.Event, connGroup string, deliveryChannel chan kafka.Event,
 		startTimeClient, startTimeServer, startTimeWorker time.Time,
 	) error
 
@@ -77,16 +77,15 @@ type Kafka struct {
 // startTimeServer: represents the time when the event is received by raccoon server
 // startTimeWorker: represents the time when the event is picked up by worker to be sent to kafka
 func (pr *Kafka) ProduceBulk(
-	events []*model.EventWithMetadata, connGroup string, deliveryChannel chan kafka.Event,
+	events []*pb.Event, connGroup string, deliveryChannel chan kafka.Event,
 	startTimeClient, startTimeServer, startTimeWorker time.Time,
 ) error {
 	startTimeEvents := make([]time.Time, len(events))
-	maxDeliveryChannelDepth := len(deliveryChannel)
 
 	errors := make([]error, len(events))
 	totalProcessed := 0
 	for order, event := range events {
-		topic := fmt.Sprintf(pr.topicFormat[event.IsExclusive], event.Type)
+		topic := fmt.Sprintf(pr.topicFormat[event.GetIsExclusive()], event.Type)
 		message := &kafka.Message{
 			Value:          event.EventBytes,
 			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
@@ -94,36 +93,38 @@ func (pr *Kafka) ProduceBulk(
 		}
 
 		logger.Debugf("Clickstream-event-monitoring: event_name=%s, product=%s, type=%s, conn_group=%s, event_timestamp=%s, is_exclusive=%s",
-			event.EventName,
-			event.Product,
-			event.Type,
+			event.GetEventName(),
+			event.GetProduct(),
+			event.GetType(),
 			connGroup,
-			event.EventTimestamp.String(),
-			fmt.Sprintf("%t", event.IsExclusive),
+			event.GetEventTimestamp().AsTime().String(),
+			fmt.Sprintf("%t", event.GetIsExclusive()),
 		)
 
-		tags := fmt.Sprintf(
-			"conn_group=%s,event_type=%s,topic=%s,is_exclusive=%t,app_version=%s,platform=%s",
-			connGroup, event.Type, topic, event.IsExclusive, event.AppVersion, event.Platform,
+		metrics.Increment(
+			"clickstream_event_routed_total",
+			fmt.Sprintf(
+				"conn_group=%s,event_type=%s,topic=%s,is_exclusive=%t",
+				connGroup,
+				event.Type,
+				topic,
+				event.GetIsExclusive(),
+			),
 		)
-		metrics.Increment("clickstream_event_routed_total", tags)
 
 		startTimeEvents[order] = time.Now()
 
 		err := pr.kp.Produce(message, deliveryChannel)
-		if currentDepth := len(deliveryChannel); currentDepth > maxDeliveryChannelDepth {
-			maxDeliveryChannelDepth = currentDepth
-		}
 		if err != nil {
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, event.Type))
 			var errorTag string
 			switch err.Error() {
 			case errUnknownTopic:
 				errors[order] = fmt.Errorf("%v %s", err, topic)
-				errorTag = "TOPIC_NOT_FOUND"
+				errorTag = "unknown_topic"
 			case errLargeMessageSize:
 				errors[order] = fmt.Errorf("%v %s", err, topic)
-				errorTag = "MESSAGE_TOO_LARGE"
+				errorTag = "message_too_large"
 			default:
 				errors[order] = err
 				logger.Errorf("produce to kafka failed due to: %v on topic : %s", err, topic)
@@ -133,22 +134,16 @@ func (pr *Kafka) ProduceBulk(
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s",
 				errorTag, event.Type, connGroup))
 
-			if errorTag == "unknown" {
-				errorTag = "KAFKA_ERROR"
-			}
+			metrics.Increment("clickstream_data_loss", fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s",
+				errorTag, event.EventName, strings.ReplaceAll(strings.ToLower(event.Product), "_", ""), connGroup,
+			))
 
-			tags := fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s,app_version=%s,platform=%s",
-				errorTag, event.EventName, event.Product, connGroup, event.AppVersion, event.Platform,
-			)
-
-			metrics.Increment("clickstream_data_loss", tags)
 			continue
 		}
 
 		metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, event.Type))
 		totalProcessed++
 	}
-	metrics.Gauge("kafka_delivery_report_channel_depth", maxDeliveryChannelDepth, fmt.Sprintf("conn_group=%s", connGroup))
 
 	// Wait for deliveryChannel as many as processed
 	for i := 0; i < totalProcessed; i++ {
@@ -163,15 +158,14 @@ func (pr *Kafka) ProduceBulk(
 
 		event := events[order]
 		if m.TopicPartition.Error != nil {
-			eventType := events[order].Type
+			eventType := events[i].Type
 			metrics.Decrement("kafka_messages_delivered_total", fmt.Sprintf("success=true,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_messages_delivered_total", fmt.Sprintf("success=false,conn_group=%s,event_type=%s", connGroup, eventType))
 			metrics.Increment("kafka_error", fmt.Sprintf("type=%s,event_type=%s,conn_group=%s", "delivery_failed", eventType, connGroup))
-
-			tags := fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s,app_version=%s,platform=%s",
-				"KAFKA_ERROR", event.EventName, event.Product, connGroup, event.AppVersion, event.Platform,
-			)
-			metrics.Increment("clickstream_data_loss", tags)
+			metrics.Increment("clickstream_data_loss", fmt.Sprintf("reason=%s,event_name=%s,product=%s,conn_group=%s",
+				"delivery_failed", event.EventName, strings.ReplaceAll(strings.ToLower(event.Product), "_", ""), connGroup,
+			))
+			order := m.Opaque.(int)
 			errors[order] = m.TopicPartition.Error
 		} else {
 			startTimeEvent := startTimeEvents[order]
@@ -202,9 +196,6 @@ func (pr *Kafka) ReportStats() {
 				continue
 			}
 			pr.reportBatchMetrics(stats)
-			metrics.Gauge("kafka_local_queue_messages", stats["msg_cnt"], "")
-			metrics.Gauge("kafka_local_queue_bytes", stats["msg_size"], "")
-			metrics.Gauge("kafka_replyq", stats["replyq"], "")
 			brokersRawJson, ok := stats["brokers"]
 			if !ok || brokersRawJson == nil {
 				logger.Errorf("kafka broker stats missing or null brokers field")
@@ -220,8 +211,6 @@ func (pr *Kafka) ReportStats() {
 
 				metrics.Gauge("kafka_brokers_tx_total", brokerStats["tx"], fmt.Sprintf("broker=%s", nodeName))
 				metrics.Gauge("kafka_brokers_tx_bytes_total", brokerStats["txbytes"], fmt.Sprintf("broker=%s", nodeName))
-				metrics.Gauge("kafka_brokers_outbuf_messages", brokerStats["outbuf_msg_cnt"], fmt.Sprintf("broker=%s", nodeName))
-				metrics.Gauge("kafka_brokers_waitresp_messages", brokerStats["waitresp_msg_cnt"], fmt.Sprintf("broker=%s", nodeName))
 				metrics.Gauge("kafka_brokers_rtt_average_milliseconds", rttValue["avg"], fmt.Sprintf("broker=%s", nodeName))
 			}
 

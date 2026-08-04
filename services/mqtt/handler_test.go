@@ -7,26 +7,17 @@ import (
 	"io"
 	"testing"
 
-	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
-	"github.com/gojek/courier-go"
 	"github.com/gojekfarm/xtools/xproto"
+	"github.com/goto/raccoon/serialization"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+	"github.com/gojek/courier-go"
 	"github.com/goto/raccoon/collection"
-	"github.com/goto/raccoon/config"
-	"github.com/goto/raccoon/ingestionrule"
-	"github.com/goto/raccoon/serialization"
 )
 
 func TestHandler_MQTTHandler(t *testing.T) {
-	config.ServerMQTT.ConsumerConfig.EnableV2Topic = true
-	config.ServerMQTT.ConsumerConfig.V2AppConnGroupMapping = map[string]string{
-		"a": "x",
-		"b": "y",
-		"e": "p-q",
-	}
-
 	req := pb.SendEventRequest{
 		ReqGuid: "test-1",
 		Events:  []*pb.Event{makeEvent("click", "data123")},
@@ -62,41 +53,6 @@ func TestHandler_MQTTHandler(t *testing.T) {
 			expectedGroup:     "",
 		},
 		{
-			name:              "v2 topic - mapped source app uses configured connGroup, ignoring persona",
-			topic:             "clickstream/v2/a/whatever/1",
-			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
-			expectCollectCall: true,
-			expectedGroup:     "x",
-		},
-		{
-			name:              "v2 topic - mapped connGroup can differ from both source app and persona",
-			topic:             "clickstream/v2/e/q/1",
-			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
-			expectCollectCall: true,
-			expectedGroup:     "p-q",
-		},
-		{
-			name:              "v2 topic - unmapped source app is rejected",
-			topic:             "clickstream/v2/c/x/1",
-			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
-			expectCollectCall: true, // Collects with empty group
-			expectedGroup:     "",
-		},
-		{
-			name:              "v2 topic - second mapped source app uses configured connGroup",
-			topic:             "clickstream/v2/b/y/2",
-			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
-			expectCollectCall: true,
-			expectedGroup:     "y",
-		},
-		{
-			name:              "invalid v2 topic - insufficient length",
-			topic:             "clickstream/v2/a/x",
-			decoder:           protoDecoder(context.Background(), bytes.NewReader(reqContent)),
-			expectCollectCall: true, // Collects with empty group
-			expectedGroup:     "",
-		},
-		{
 			name:              "decode fails - should not call collector",
 			topic:             "clickstream/v1/mobile/123",
 			decoder:           mockInvalidDecoder{},
@@ -109,16 +65,14 @@ func TestHandler_MQTTHandler(t *testing.T) {
 			mockCollector := new(collection.MockCollector)
 			ctx := context.Background()
 
-			svc, _ := ingestionrule.NewService(context.Background(), nil)
 			h := &Handler{
 				Collector: mockCollector,
-				policy:    svc,
 			}
 
 			if tt.expectCollectCall {
 				mockCollector.
 					On("Collect", mock.Anything, mock.MatchedBy(func(r *collection.CollectRequest) bool {
-						if r == nil {
+						if r == nil || r.SendEventRequest == nil {
 							return false
 						}
 						return r.ConnectionIdentifier.Group == tt.expectedGroup
@@ -135,44 +89,6 @@ func TestHandler_MQTTHandler(t *testing.T) {
 			mockCollector.AssertExpectations(t)
 		})
 	}
-}
-
-func TestHandler_MQTTHandler_V2TopicDisabled(t *testing.T) {
-	config.ServerMQTT.ConsumerConfig.EnableV2Topic = false
-	config.ServerMQTT.ConsumerConfig.V2AppConnGroupMapping = map[string]string{"a": "x"}
-	t.Cleanup(func() {
-		config.ServerMQTT.ConsumerConfig.EnableV2Topic = true
-	})
-
-	req := pb.SendEventRequest{
-		ReqGuid: "test-1",
-		Events:  []*pb.Event{makeEvent("click", "data123")},
-	}
-	reqContent, _ := serialization.SerializeProto(&req)
-
-	mockCollector := new(collection.MockCollector)
-	mockCollector.
-		On("Collect", mock.Anything, mock.MatchedBy(func(r *collection.CollectRequest) bool {
-			if r == nil {
-				return false
-			}
-			return r.ConnectionIdentifier.Group == ""
-		})).
-		Return(nil).
-		Once()
-
-	svc, _ := ingestionrule.NewService(context.Background(), nil)
-	h := &Handler{
-		Collector: mockCollector,
-		policy:    svc,
-	}
-
-	msg := courier.NewMessageWithDecoder(protoDecoder(context.Background(), bytes.NewReader(reqContent)))
-	msg.Topic = "clickstream/v2/a/whatever/1"
-
-	h.MQTTHandler(context.Background(), nil, msg)
-
-	mockCollector.AssertExpectations(t)
 }
 
 func TestHandler_RecordMetrics(t *testing.T) {

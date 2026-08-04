@@ -2,7 +2,6 @@ package config
 
 import (
 	"bytes"
-	"encoding/json"
 	"os"
 	"strings"
 
@@ -17,9 +16,8 @@ var dynamicKafkaClientConfigPrefix = "PUBLISHER_KAFKA_CLIENT_"
 // publisherKafka defines configuration parameters for a Kafka-based publisher.
 // It includes flushing behavior and health check settings.
 type publisherKafka struct {
-	FlushInterval          int               // Interval (in seconds) to flush the events during shutdown
-	HealthCheckConfig      healthcheck       // Configuration for Kafka broker health check
-	EventTypePrefixMapping map[string]string // Mapping of incoming event type prefixes to replacement prefixes
+	FlushInterval     int         // Interval (in seconds) to flush the events during shutdown
+	HealthCheckConfig healthcheck // Configuration for Kafka broker health check
 }
 
 // healthcheck holds settings used to monitor the health of Kafka broker
@@ -56,14 +54,7 @@ func publisherKafkaConfigLoader() {
 	viper.SetDefault("PUBLISHER_KAFKA_FLUSH_INTERVAL_MS", "1000")
 	viper.SetDefault("PUBLISHER_KAFKA_HEALTHCHECK_TOPIC_NAME", "clickstream-test-log")
 	viper.SetDefault("PUBLISHER_KAFKA_HEALTHCHECK_TIMEOUT_MS", "5000")
-	viper.SetDefault("PUBLISHER_KAFKA_EVENT_TYPE_PREFIX_MAPPING", "{}")
 	viper.MergeConfig(bytes.NewBuffer(dynamicKafkaClientConfigLoad()))
-
-	eventTypePrefixMapping := make(map[string]string)
-	rawEventTypePrefixMapping := util.MustGetString("PUBLISHER_KAFKA_EVENT_TYPE_PREFIX_MAPPING")
-	if err := json.Unmarshal([]byte(rawEventTypePrefixMapping), &eventTypePrefixMapping); err != nil {
-		panic("publisher kafka: invalid PUBLISHER_KAFKA_EVENT_TYPE_PREFIX_MAPPING: " + err.Error())
-	}
 
 	PublisherKafka = publisherKafka{
 		FlushInterval: util.MustGetInt("PUBLISHER_KAFKA_FLUSH_INTERVAL_MS"),
@@ -71,6 +62,5 @@ func publisherKafkaConfigLoader() {
 			TopicName: util.MustGetString("PUBLISHER_KAFKA_HEALTHCHECK_TOPIC_NAME"),
 			TimeOut:   util.MustGetInt("PUBLISHER_KAFKA_HEALTHCHECK_TIMEOUT_MS"),
 		},
-		EventTypePrefixMapping: eventTypePrefixMapping,
 	}
 }

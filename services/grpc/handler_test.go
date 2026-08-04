@@ -7,15 +7,13 @@ import (
 
 	pbgrpc "buf.build/gen/go/gotocompany/proton/grpc/go/gotocompany/raccoon/v1beta1/raccoonv1beta1grpc"
 	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+	"github.com/goto/raccoon/collection"
+	"github.com/goto/raccoon/config"
+	"github.com/goto/raccoon/logger"
+	"github.com/goto/raccoon/metrics"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"github.com/goto/raccoon/collection"
-	"github.com/goto/raccoon/config"
-	"github.com/goto/raccoon/ingestionrule"
-	"github.com/goto/raccoon/logger"
-	"github.com/goto/raccoon/metrics"
 )
 
 type void struct{}
@@ -101,10 +99,8 @@ func TestHandler_SendEvent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc, _ := ingestionrule.NewService(context.Background(), nil)
 			h := &Handler{
-				C:             tt.fields.C,
-				ingestionrule: svc,
+				C: tt.fields.C,
 			}
 			got, err := h.SendEvent(tt.args.ctx, tt.args.req)
 			if (err != nil) != tt.wantErr {

@@ -5,13 +5,12 @@ import (
 	"testing"
 	"time"
 
+	pb "buf.build/gen/go/gotocompany/proton/protocolbuffers/go/gotocompany/raccoon/v1beta1"
+	"github.com/goto/raccoon/collection"
+	"github.com/goto/raccoon/identification"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"github.com/goto/raccoon/collection"
-	"github.com/goto/raccoon/identification"
-	"github.com/goto/raccoon/model"
 )
 
 func TestWorker(t *testing.T) {
@@ -20,8 +19,9 @@ func TestWorker(t *testing.T) {
 			ID:    "12345",
 			Group: "viewer",
 		},
-		SentTime: &timestamppb.Timestamp{},
-		Events:   []*model.EventWithMetadata{},
+		SendEventRequest: &pb.SendEventRequest{
+			SentTime: &timestamppb.Timestamp{},
+		},
 	}
 
 	t.Run("StartWorkers", func(t *testing.T) {
